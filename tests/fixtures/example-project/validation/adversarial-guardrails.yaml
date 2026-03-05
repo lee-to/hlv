@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../../schema/adversarial-guardrails-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-ADV
+description: Mandatory guardrails for using an Adversarial LLM in validation.
+
+requirements:
+  - id: ADV-001
+    must: true
+    rule: "Input artifacts must pass secrets and PII redaction before model access."
+  - id: ADV-002
+    must: true
+    rule: "Adversarial model execution must run in read-only mode and must not access production secrets."
+  - id: ADV-003
+    must: true
+    rule: "Every finding must include provenance: model, prompt_hash, artifact_hash."
+  - id: ADV-004
+    must: true
+    rule: "No finding is accepted without a reproducible test or enforceable policy rule."

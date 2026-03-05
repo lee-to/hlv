@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-traceability-policy-schema",
+  "title": "HLV traceability policy",
+  "description": "Traceability policy — validation/traceability-policy.yaml. Machine-verifiable rules for requirement-to-gate traceability.",
+  "type": "object",
+  "required": ["version", "policy_id"],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "id_formats": {
+      "$ref": "#/$defs/IdFormats"
+    },
+    "graph_requirements": {
+      "$ref": "#/$defs/GraphRequirements"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "IdFormats": {
+      "type": "object",
+      "description": "Regex patterns for ID validation",
+      "properties": {
+        "requirement": { "type": "string", "description": "Regex for REQ-* IDs" },
+        "contract": { "type": "string", "description": "Regex for CTR-* IDs" },
+        "test": { "type": "string", "description": "Regex for TST-* IDs" },
+        "gate": { "type": "string", "description": "Regex for GATE-* IDs" }
+      },
+      "additionalProperties": false
+    },
+    "GraphRequirements": {
+      "type": "object",
+      "properties": {
+        "required_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required edges in the traceability graph",
+          "default": []
+        },
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TraceCheck" },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "TraceCheck": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Check ID (e.g. TRACE-001)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Check name (e.g. no_dangling_references)"
+        },
+        "must": {
+          "type": "boolean",
+          "default": false
+        },
+        "rule": {
+          "type": "string",
+          "description": "Human-readable rule description"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

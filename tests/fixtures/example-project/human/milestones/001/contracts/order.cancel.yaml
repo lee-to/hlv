@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../../../schema/contract-schema.json
+id: order.cancel
+version: 1.0.0
+owner: commerce
+intent: "Cancel an existing order if it is still cancellable."
+
+inputs_schema:
+  type: object
+  required: [order_id, requested_by]
+  properties:
+    order_id:
+      $ref: "glossary.yaml#/types/OrderId"
+    requested_by:
+      $ref: "glossary.yaml#/types/UserId"
+    reason:
+      type: string
+      minLength: 3
+      maxLength: 200
+
+outputs_schema:
+  type: object
+  required: [order]
+  properties:
+    order:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          $ref: "glossary.yaml#/types/OrderId"
+        status:
+          type: string
+          enum: [cancelled]
+
+errors:
+  - code: ORDER_NOT_FOUND
+    when: "not exists(order_id)"
+    http_status: 404
+  - code: ORDER_NOT_CANCELLABLE
+    when: "order.status in ['paid', 'failed']"
+    http_status: 409
+  - code: FORBIDDEN
+    when: "requested_by cannot_cancel(order_id)"
+    http_status: 403
+
+invariants:
+  - id: terminal_state_respected
+    expr: "terminal(order.status_before) -> output.error == ORDER_NOT_CANCELLABLE"
+  - id: status_transition_valid
+    expr: "allowed_transition(order.status_before, output.order.status)"
+
+nfr:
+  latency_p99_ms: 150
+  availability_slo: 99.9
+  throughput_rps_min: 200
+
+security:
+  - rule: authn_required
+  - rule: authz_order_scope_check
+  - rule: no_secrets_in_logs
+
+compatibility:
+  api_semver: minor
+  backward_compatible: true
+  data_migration_required: false
+
+depends_on_constraints:
+  - ../constraints/security.yaml
+  - ../constraints/performance.yaml

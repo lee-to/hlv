@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-traceability-schema",
+  "title": "HLV traceability map",
+  "description": "Traceability map — human/traceability.yaml. Full chain: Requirement -> Contract -> Test -> Gate.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "owner": {
+      "type": "string"
+    },
+    "intent": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Requirement" },
+      "default": []
+    },
+    "mappings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TraceMapping" },
+      "default": []
+    },
+    "coverage_policy": {
+      "$ref": "#/$defs/CoveragePolicy"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Requirement": {
+      "type": "object",
+      "required": ["id", "statement"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Requirement ID (format: REQ-*)"
+        },
+        "statement": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TraceMapping": {
+      "type": "object",
+      "required": ["requirement"],
+      "properties": {
+        "requirement": {
+          "type": "string",
+          "description": "Reference to a requirement ID"
+        },
+        "contracts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "scenarios": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "tests": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "runtime_gates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "CoveragePolicy": {
+      "type": "object",
+      "properties": {
+        "require_full_traceability": {
+          "type": "boolean",
+          "default": true
+        },
+        "allow_unmapped_requirements": {
+          "type": "boolean",
+          "default": false
+        },
+        "minimum_mandatory_gate_coverage_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

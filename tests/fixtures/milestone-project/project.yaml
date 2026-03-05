@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../../schema/project-schema.json
+schema_version: 1
+project: commerce-checkout
+status: draft
+spec: schema/project-schema.json
+
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+
+glossary_types:
+  - UserId
+  - OrderId
+
+constraints:
+  - id: security.global
+    path: human/constraints/security.yaml
+    applies_to: all
+  - id: performance.global
+    path: human/constraints/performance.yaml
+    applies_to: all
+
+git:
+  branch_per_milestone: false
+  commit_convention: conventional
+  commit_scopes:
+    - feat
+    - fix
+  merge_strategy: manual

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../../../../schema/performance-constraints-schema.json
+id: constraints.performance.global
+version: 1.0.0
+owner: platform-runtime
+intent: "Performance budgets."
+
+defaults:
+  latency_p95_ms: 120
+  latency_p99_ms: 250
+
+overrides: []
+
+validation:
+  warmup_seconds: 30
+  fail_on_budget_exceed: true

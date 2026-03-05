@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../../../schema/equivalence-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-EQUIV
+description: "Equivalence policy."
+
+requirements:
+  - id: EQUIV-001
+    rule: fixed_test_ir
+    must: true

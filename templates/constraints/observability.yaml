@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../../../schema/security-constraints-schema.json
+id: constraints.observability.global
+version: 1.0.0
+owner: platform-engineering
+intent: "Maximum observability — every operation is logged, every state change is traceable."
+
+rules:
+  - id: structured_logging_only
+    severity: critical
+    statement: "All log output must be structured (JSON / tracing spans). No println, dbg!, console.log without structure."
+    enforcement: [lint, code_review]
+  - id: log_entry_exit
+    severity: must
+    statement: "Every public endpoint / handler logs entry (parameters, request_id) and exit (result status, duration)."
+    enforcement: [code_review, contract_test]
+  - id: log_all_errors
+    severity: critical
+    statement: "Every error path logs the error with full context: request_id, entity_id, input summary, error details."
+    enforcement: [code_review, contract_test]
+  - id: log_state_changes
+    severity: must
+    statement: "Every state mutation (DB write, status transition, cache invalidation) emits a log event with entity_id, old_state, new_state."
+    enforcement: [code_review, contract_test]
+  - id: log_external_calls
+    severity: must
+    statement: "Every outgoing call (HTTP, gRPC, DB query, queue publish) logs target, duration, and outcome."
+    enforcement: [code_review, integration_test]
+  - id: request_correlation
+    severity: critical
+    statement: "All log events within a request carry a correlation ID (request_id / trace_id) propagated through the entire call chain."
+    enforcement: [integration_test, runtime_scan]
+  - id: no_sensitive_in_logs
+    severity: critical
+    statement: "PII, secrets, tokens, and passwords must be masked or excluded from all log output."
+    enforcement: [lint, log_policy_check, runtime_scan]
+  - id: log_levels_correct
+    severity: high
+    statement: "Log levels used correctly: error for failures, warn for degraded, info for business events, debug for diagnostics. No info-level spam."
+    enforcement: [code_review]
+
+exceptions:
+  process: "Any exception requires team lead approval with justification and expiry date."
+  max_exception_days: 14

@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../../../../schema/traceability-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-TRACE
+description: Machine-verifiable traceability policy for HLV release gates.
+
+id_formats:
+  requirement: "^REQ-[a-z0-9-]+-[0-9]{4}$"
+  contract: "^CTR-[a-z0-9.-]+-[0-9]+\\.[0-9]+\\.[0-9]+$"
+  test: "^TST-[a-z0-9-]+-[0-9]{4}$"
+  gate: "^GATE-[A-Z0-9-]+-[0-9]{3}$"
+
+graph_requirements:
+  required_paths:
+    - "requirement -> contract"
+    - "contract -> test"
+    - "test -> gate"
+  checks:
+    - id: TRACE-001
+      name: no_dangling_references
+      must: true
+    - id: TRACE-002
+      name: requirement_reachability
+      must: true
+      rule: "each requirement must reach at least one contract and one test"
+    - id: TRACE-003
+      name: test_gate_mapping
+      must: true
+      rule: "each test must map to at least one runtime or ci gate"

@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../../schema/ir-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-IR
+description: Compatibility and reproducibility policy for Contract IR and Test IR.
+
+compatibility_rules:
+  - id: IR-001
+    must: true
+    rule: "Every Contract IR and Test IR document must include ir_schema_version."
+  - id: IR-002
+    must: true
+    rule: "Major ir_schema_version changes are breaking and require validator/compiler migration."
+  - id: IR-003
+    may: true
+    rule: "Minor changes may add backward-compatible fields only."
+  - id: IR-004
+    must: true
+    rule: "Patch changes must not alter field semantics."
+  - id: IR-005
+    must: true
+    rule: "Contract IR and Test IR must include source_hash of normalized Human artifacts."
+
+required_fields:
+  contract_ir:
+    - ir_schema_version
+    - compiler_version
+    - source_hash
+    - contract_id
+    - version
+  test_ir:
+    - ir_schema_version
+    - source_hash
+    - contract_id
+    - contract_version
+    - test_cases
+    - gate_mappings

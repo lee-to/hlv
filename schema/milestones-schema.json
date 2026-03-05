@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-milestones-schema",
+  "title": "HLV milestones.yaml",
+  "description": "Schema for HLV milestone tracking. Tracks current milestone, stages, and history of completed milestones.",
+  "type": "object",
+  "required": ["project"],
+  "properties": {
+    "project": {
+      "type": "string",
+      "description": "Project name (must match project.yaml)"
+    },
+    "current": {
+      "$ref": "#/$defs/MilestoneCurrent"
+    },
+    "history": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/HistoryEntry" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "MilestoneCurrent": {
+      "type": "object",
+      "required": ["id", "number"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Milestone slug (e.g. 001-order-create)"
+        },
+        "number": {
+          "type": "integer",
+          "description": "Auto-incremented milestone number"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Git branch for this milestone"
+        },
+        "stage": {
+          "type": "integer",
+          "description": "Current active stage number"
+        },
+        "stages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StageEntry" },
+          "default": []
+        },
+        "gate_results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GateResult" },
+          "default": []
+        },
+        "git": {
+          "$ref": "#/$defs/MilestoneGitConfig"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Arbitrary labels for clients (Kanban, dashboards)"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "Arbitrary key-value metadata for clients"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MilestoneGitConfig": {
+      "type": "object",
+      "properties": {
+        "branch_per_milestone": { "type": "boolean" },
+        "squash_on_merge": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "StageEntry": {
+      "type": "object",
+      "required": ["id", "scope", "status"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Stage number (1-based)"
+        },
+        "scope": {
+          "type": "string",
+          "description": "Brief description of what this stage covers"
+        },
+        "status": {
+          "$ref": "#/$defs/StageStatus"
+        },
+        "commit": {
+          "type": "string",
+          "description": "Git commit hash when stage was completed"
+        },
+        "tasks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TaskTracker" },
+          "default": [],
+          "description": "Task-level status tracking"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Arbitrary labels for clients"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "Arbitrary key-value metadata for clients"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaskTracker": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Task ID (e.g. TASK-001, FIX-001)"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus"
+        },
+        "started_at": {
+          "type": "string",
+          "description": "RFC3339 timestamp when task was started"
+        },
+        "completed_at": {
+          "type": "string",
+          "description": "RFC3339 timestamp when task was completed"
+        },
+        "block_reason": {
+          "type": "string",
+          "description": "Reason for manual block"
+        },
+        "_pre_block_status": {
+          "type": "string",
+          "description": "Internal: status before block (for unblock restore)"
+        },
+        "labels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Arbitrary labels for clients"
+        },
+        "meta": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {},
+          "description": "Arbitrary key-value metadata for clients"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TaskStatus": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "done", "blocked"],
+      "description": "Task lifecycle: pending -> in_progress -> done, or blocked (manual)"
+    },
+    "StageStatus": {
+      "type": "string",
+      "enum": ["pending", "verified", "implementing", "implemented", "validating", "validated"],
+      "description": "Stage lifecycle: pending -> verified -> implementing -> implemented -> validating -> validated"
+    },
+    "HistoryEntry": {
+      "type": "object",
+      "required": ["id", "number", "status"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/MilestoneStatus"
+        },
+        "contracts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContractChange" },
+          "default": []
+        },
+        "branch": {
+          "type": "string"
+        },
+        "merged_at": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MilestoneStatus": {
+      "type": "string",
+      "enum": ["merged", "aborted"]
+    },
+    "GateResult": {
+      "type": "object",
+      "required": ["id", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Gate ID (e.g. GATE-CONTRACT-001)"
+        },
+        "status": {
+          "$ref": "#/$defs/GateRunStatus"
+        },
+        "run_at": {
+          "type": "string",
+          "description": "RFC3339 timestamp when gate was executed"
+        }
+      },
+      "additionalProperties": false
+    },
+    "GateRunStatus": {
+      "type": "string",
+      "enum": ["passed", "failed", "skipped"]
+    },
+    "ContractChange": {
+      "type": "object",
+      "required": ["name", "action"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Contract name (e.g. order.create)"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["created", "modified"],
+          "description": "Whether this milestone created or modified the contract"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

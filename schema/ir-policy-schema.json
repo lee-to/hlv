@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-ir-policy-schema",
+  "title": "HLV IR policy",
+  "description": "IR versioning policy — validation/ir-policy.yaml. Compatibility and reproducibility rules for Contract IR and Test IR.",
+  "type": "object",
+  "required": ["version", "policy_id"],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "compatibility_rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/IrRule" },
+      "default": []
+    },
+    "required_fields": {
+      "$ref": "#/$defs/IrRequiredFields"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "IrRule": {
+      "type": "object",
+      "required": ["id", "rule"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Rule ID (e.g. IR-001)"
+        },
+        "must": {
+          "type": "boolean",
+          "description": "Mandatory rule"
+        },
+        "may": {
+          "type": "boolean",
+          "description": "Optional rule"
+        },
+        "rule": {
+          "type": "string",
+          "description": "Human-readable rule"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IrRequiredFields": {
+      "type": "object",
+      "properties": {
+        "contract_ir": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fields required in every Contract IR document",
+          "default": []
+        },
+        "test_ir": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fields required in every Test IR document",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../../../../../schema/performance-constraints-schema.json
+id: constraints.performance.global
+version: 1.0.0
+owner: platform-runtime
+intent: "Global performance envelopes and runtime budgets."
+
+defaults:
+  latency_p95_ms: 120
+  latency_p99_ms: 250
+  error_rate_max_percent: 0.5
+  availability_slo: 99.9
+  cpu_max_percent: 75
+  memory_max_mb: 512
+
+overrides:
+  - contract_id: order.create
+    latency_p99_ms: 200
+    throughput_rps_min: 300
+  - contract_id: order.cancel
+    latency_p99_ms: 150
+    throughput_rps_min: 200
+
+validation:
+  warmup_seconds: 30
+  test_window_seconds: 300
+  percentile_method: hdr_histogram
+  fail_on_budget_exceed: true

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../../schema/milestones-schema.json
+project: commerce-checkout
+
+current:
+  id: "001-checkout"
+  number: 1
+  branch: feature/checkout
+  stage: 1
+  stages:
+    - id: 1
+      scope: "Domain types + order.create + order.cancel"
+      status: implementing
+    - id: 2
+      scope: "Integration tests + observability"
+      status: pending

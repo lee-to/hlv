@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=../../../../schema/llm-map-schema.json
+# LLM Project Map — authoritative index of all project paths.
+# hlv check validates every entry exists on disk.
+# LLM agents MUST update this file when creating new files or directories.
+schema_version: 1
+
+entries:
+  # --- Root ---
+  - path: project.yaml
+    kind: file
+    layer: root
+    description: "Project map — entry point for LLM agents"
+
+  # --- Human Layer: Global Artifacts ---
+  - path: human/artifacts/
+    kind: dir
+    layer: human
+    description: "Global project context (domain, stack, arch decisions)"
+
+  # --- Human Layer: Glossary ---
+  - path: human/glossary.yaml
+    kind: file
+    layer: human
+    description: "Domain types glossary — UserId, OrderId, Money, OrderItem, OrderStatus"
+
+  # --- Human Layer: Contracts (per milestone) ---
+  - path: human/milestones/001/contracts/
+    kind: dir
+    layer: human
+    description: "Contracts directory (milestone 001)"
+  - path: human/milestones/001/contracts/order.create.md
+    kind: file
+    layer: human
+    description: "order.create contract (md) — atomic order creation from cart items"
+  - path: human/milestones/001/contracts/order.create.yaml
+    kind: file
+    layer: human
+    description: "order.create contract (yaml) — machine-readable schema, errors, invariants"
+  - path: human/milestones/001/contracts/order.cancel.md
+    kind: file
+    layer: human
+    description: "order.cancel contract (md) — cancel order if in cancellable status"
+  - path: human/milestones/001/contracts/order.cancel.yaml
+    kind: file
+    layer: human
+    description: "order.cancel contract (yaml) — machine-readable schema, errors, invariants"
+
+  # --- Human Layer: Constraints ---
+  - path: human/constraints/
+    kind: dir
+    layer: human
+    description: "Global constraints directory"
+  - path: human/constraints/security.yaml
+    kind: file
+    layer: human
+    description: "Security constraints — prepared statements, auth, PII masking, rate limits"
+  - path: human/constraints/performance.yaml
+    kind: file
+    layer: human
+    description: "Performance constraints — latency budgets, SLOs, error rate limits"
+
+  # --- Human Layer: Traceability ---
+  - path: human/traceability.yaml
+    kind: file
+    layer: human
+    description: "Traceability map — REQ -> Contract -> Test -> Gate mappings"
+
+  # --- Validation Layer ---
+  - path: validation/test-specs/
+    kind: dir
+    layer: validation
+    description: "Test specs directory — per-contract test cases"
+  - path: validation/test-specs/order.create.md
+    kind: file
+    layer: validation
+    description: "order.create test spec — CT, PBT, edge cases, perf, security tests"
+  - path: validation/test-specs/order.cancel.md
+    kind: file
+    layer: validation
+    description: "order.cancel test spec — CT, PBT, edge cases, perf, security tests"
+  - path: validation/scenarios/
+    kind: dir
+    layer: validation
+    description: "Integration scenarios directory"
+  - path: validation/scenarios/checkout.happy-path.md
+    kind: file
+    layer: validation
+    description: "Checkout happy path integration scenario — steps, assertions, AC"
+  - path: validation/scenarios/checkout.partial-failure.md
+    kind: file
+    layer: validation
+    description: "Checkout failure integration scenario — rollback, no partial writes"
+  - path: validation/gates-policy.yaml
+    kind: file
+    layer: validation
+    description: "Gate thresholds — mandatory gates and release criteria"
+  - path: validation/equivalence-policy.yaml
+    kind: file
+    layer: validation
+    description: "Behavioral equivalence rules for controlled code regeneration"
+  - path: validation/traceability-policy.yaml
+    kind: file
+    layer: validation
+    description: "Traceability rules — ID formats, graph checks, reachability"
+  - path: validation/ir-policy.yaml
+    kind: file
+    layer: validation
+    description: "IR versioning — Contract IR and Test IR compatibility rules"
+  - path: validation/adversarial-guardrails.yaml
+    kind: file
+    layer: validation
+    description: "Adversarial LLM guardrails — redaction, read-only, provenance"

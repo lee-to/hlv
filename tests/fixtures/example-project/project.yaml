@@ -1,0 +1,106 @@
+# yaml-language-server: $schema=../../../schema/project-schema.json
+# HLV Project Map
+# Entry point for any LLM agent. Read this file first.
+# Updated automatically after /generate and /verify.
+
+schema_version: 1
+spec: schema/project-schema.json
+project: commerce-checkout
+updated_at: "2026-03-05T12:00:00Z"
+
+# --- Project State ---
+
+status: implementing  # draft | implementing | implemented | validating | validated
+last_skill: /verify
+last_skill_result: passed
+
+# --- Tech Stack ---
+
+stack:
+  components:
+    - id: backend
+      type: service          # service | library | cli | script
+      languages: [rust]
+      dependencies:
+        - name: axum
+          type: framework    # framework | driver | runtime | database | infra | tool | serialization
+        - name: sqlx
+          type: driver
+        - name: tokio
+          type: runtime
+        - name: serde
+          type: serialization
+        - name: postgresql
+          type: database
+          version: "16"
+        - name: docker
+          type: infra
+
+    - id: migrations
+      type: script
+      languages: [sql]
+      dependencies:
+        - name: sqlx-cli
+          type: tool
+
+# --- Paths ---
+
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+    verify_report: validation/verify-report.md
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+
+# --- Glossary: key types ---
+
+glossary_types:
+  - UserId      # string, uuid
+  - OrderId     # string, uuid
+  - Money       # { amount: number, currency: enum }
+  - OrderItem   # { product_id: uuid, quantity: int }
+  - OrderStatus # enum: [created, paid, cancelled, failed]
+
+# --- Constraints ---
+
+constraints:
+  - id: security.global
+    path: human/constraints/security.yaml
+    applies_to: all
+
+  - id: performance.global
+    path: human/constraints/performance.yaml
+    applies_to: all
+
+# --- Git Policy ---
+
+git:
+  branch_per_milestone: false
+  commit_convention: conventional
+  commit_scopes:
+    - feat
+    - fix
+    - refactor
+    - test
+    - docs
+    - chore
+  merge_strategy: manual
+
+# --- Validation State ---
+
+validation:
+  verify_status: passed     # not_run | passed | failed
+  verify_date: "2026-03-05"
+  issues:
+    critical: 0
+    warning: 0
+    info: 0

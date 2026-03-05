@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-gates-policy-schema",
+  "title": "HLV gates policy",
+  "description": "Validation gates policy — validation/gates-policy.yaml. Mandatory gates and release thresholds.",
+  "type": "object",
+  "required": ["version", "policy_id"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Policy semver version"
+    },
+    "policy_id": {
+      "type": "string",
+      "description": "Policy ID (e.g. HLV-VAL-GATES)"
+    },
+    "description": {
+      "type": "string"
+    },
+    "release_policy": {
+      "$ref": "#/$defs/ReleasePolicy"
+    },
+    "gates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Gate" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ReleasePolicy": {
+      "type": "object",
+      "properties": {
+        "require_all_mandatory": {
+          "type": "boolean",
+          "default": true
+        },
+        "interpretation": {
+          "type": "string"
+        },
+        "flaky_policy": {
+          "type": "object",
+          "properties": {
+            "quarantine_required": { "type": "boolean" },
+            "block_release_for_p0": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "Gate": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Gate ID (e.g. GATE-CONTRACT-001)"
+        },
+        "type": {
+          "type": "string",
+          "description": "Gate type (e.g. contract_tests, property_based_tests, performance)"
+        },
+        "mandatory": {
+          "type": "boolean",
+          "default": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "pass_criteria": {
+          "type": "object",
+          "description": "Gate-specific pass criteria (structure varies by gate type)",
+          "additionalProperties": true
+        },
+        "command": {
+          "type": "string",
+          "description": "Shell command to execute this gate"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for command, relative to project root"
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools required for this gate (e.g. sast, dast)"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

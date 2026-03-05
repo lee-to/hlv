@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HLV Landing Page</title>
+    <meta
+      name="description"
+      content="Specs first. Code second. Proof always. A static landing page version of the HLV Pencil frame."
+    />
+    <link rel="stylesheet" href="./styles.css?v=13" />
+    <script defer src="./script.js?v=2"></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="HLV home">
+          <span class="brand__prompt">&gt;</span>
+          <span class="brand__text">hlv</span>
+          <span class="brand__cursor" aria-hidden="true"></span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="site-nav"
+          aria-label="Toggle navigation"
+        >
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav class="site-nav" id="site-nav">
+          <a href="../../README.md">Docs</a>
+          <a href="../ARCH.md">Architecture</a>
+          <a href="#footer" class="is-muted">GitHub</a>
+          <a class="button button--solid button--small" href="#installation">Install</a>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero section">
+          <div class="hero__bg" aria-hidden="true">
+            <span class="hero__glow hero__glow--left"></span>
+            <span class="hero__glow hero__glow--center"></span>
+            <span class="hero__glow hero__glow--right"></span>
+            <div class="hero__grid"></div>
+            <div class="hero__flow hero__flow--one"></div>
+            <div class="hero__flow hero__flow--two"></div>
+            <div class="hero__flow hero__flow--three"></div>
+            <span class="hero__dot hero__dot--d1"></span>
+            <span class="hero__dot hero__dot--d2"></span>
+            <span class="hero__dot hero__dot--d3"></span>
+            <span class="hero__dot hero__dot--d4"></span>
+            <span class="hero__dot hero__dot--d5"></span>
+            <span class="hero__dot hero__dot--d6"></span>
+            <span class="hero__dot hero__dot--d7"></span>
+            <span class="hero__dot hero__dot--d8"></span>
+            <span class="hero__dot hero__dot--d9"></span>
+            <span class="hero__dot hero__dot--d10"></span>
+            <span class="hero__chip hero__chip--contracts">contracts</span>
+            <span class="hero__chip hero__chip--proof">proof</span>
+            <span class="hero__chip hero__chip--trace">traceability</span>
+            <span class="hero__chip hero__chip--validation">validation</span>
+          </div>
+
+          <div class="hero__inner">
+            <div class="hero__headline" data-reveal>
+              <p class="eyebrow hero__eyebrow">The next-gen approach</p>
+              <h1 class="hero__title">to building software with LLMs</h1>
+              <p class="hero__lead">
+                You define the what. LLMs generate the how. hlv validates the proof.
+              </p>
+            </div>
+            <p class="hero__copy" data-reveal>
+              Specs define the rules. LLMs generate the code. A Rust binary called hlv
+              validates every step — because prompts are not guarantees.
+            </p>
+
+            <div class="hero__actions" data-reveal>
+              <a class="button button--solid" href="#installation">Install</a>
+              <a class="button button--ghost" href="#walkthrough">5-minute quickstart</a>
+            </div>
+
+            <div class="hero-layers" data-reveal>
+              <div class="hero-layers__row hero-layers__row--amber">
+                <span class="hero-layers__label">HUMAN</span>
+                <span class="hero-layers__text hero-layers__text--amber">
+                  WHAT — intent, artifacts, constraints
+                </span>
+              </div>
+              <div class="hero-layers__arrow hero-layers__arrow--slate" aria-hidden="true">⌄</div>
+              <div class="hero-layers__row hero-layers__row--slate">
+                <span class="hero-layers__label">LLM</span>
+                <span class="hero-layers__text hero-layers__text--slate">
+                  HOW — generates all code from specs
+                </span>
+              </div>
+              <div class="hero-layers__arrow hero-layers__arrow--slate" aria-hidden="true">⌄</div>
+              <div class="hero-layers__row hero-layers__row--cyan hero-layers__row--gradient hero-layers__row--hlv">
+                <div class="hero-layers__hlv-main">
+                  <span class="hero-layers__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path
+                        d="M12 3l6 2.4v5.2c0 4.2-2.6 8-6 9.4-3.4-1.4-6-5.2-6-9.4V5.4L12 3z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M9.2 12.1l1.9 1.9 3.7-3.9"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span class="hero-layers__label hero-layers__label--dark">hlv</span>
+                  <span class="hero-layers__sep">—</span>
+                  <span class="hero-layers__text hero-layers__text--dark">
+                    validates every step
+                  </span>
+                </div>
+                <div class="hero-layers__hlv-tools">
+                  <span>hlv check</span>
+                  <span class="hero-layers__pipe">|</span>
+                  <span>hlv constraints</span>
+                  <span class="hero-layers__pipe">|</span>
+                  <span>hlv gates</span>
+                </div>
+              </div>
+              <div class="hero-layers__arrow hero-layers__arrow--cyan" aria-hidden="true">⌄</div>
+              <div class="hero-layers__row hero-layers__row--teal">
+                <span class="hero-layers__label">VALIDATION</span>
+                <span class="hero-layers__text hero-layers__text--teal">
+                  PROOF — gates, tests, traceability
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section section--dark" id="layers">
+          <div class="section-heading section-heading--center" data-reveal>
+            <h2>Three layers. Hard boundaries.</h2>
+            <p>
+              HLV separates every project into three layers with strict ownership.
+              Each layer has clear inputs, clear outputs, and one owner.
+            </p>
+          </div>
+
+          <div class="grid grid--3" data-reveal>
+            <article class="card layer-card">
+              <div class="layer-card__head">
+                <span class="card__kicker card__kicker--cyan">WHAT</span>
+                <span class="layer-card__sub">Human Layer</span>
+              </div>
+              <h3>The human writes artifacts, not code.</h3>
+              <p>
+                Artifacts, constraints, milestones — everything the LLM needs,
+                expressed in declarative files that are version-controlled and diffable.
+              </p>
+              <div class="layer-card__tree">
+                <div class="layer-card__tree-title"><code>human/</code></div>
+                <div class="layer-card__tree-item">├── artifacts/</div>
+                <div class="layer-card__tree-item">├── constraints/</div>
+                <div class="layer-card__tree-item">├── milestones/{id}/</div>
+                <div class="layer-card__tree-item">└── glossary.yaml</div>
+              </div>
+            </article>
+
+            <article class="card layer-card">
+              <div class="layer-card__head">
+                <span class="card__kicker card__kicker--cyan">HOW</span>
+                <span class="layer-card__sub">LLM Layer</span>
+              </div>
+              <h3>The LLM owns all code. Every line.</h3>
+              <p>
+                Generated code is disposable. The LLM reads human artifacts, produces
+                implementation, and regenerates on demand. No manual edits, no merge
+                conflicts, no drift.
+              </p>
+              <div class="layer-card__tree">
+                <div class="layer-card__tree-title"><code>llm/</code></div>
+                <div class="layer-card__tree-item">├── src/</div>
+                <div class="layer-card__tree-item">├── handlers/</div>
+                <div class="layer-card__tree-item">├── models/</div>
+                <div class="layer-card__tree-item">└── tests/</div>
+              </div>
+            </article>
+
+            <article class="card layer-card">
+              <div class="layer-card__head">
+                <span class="card__kicker card__kicker--cyan">PROOF</span>
+                <span class="layer-card__sub">Validation Layer</span>
+              </div>
+              <h3>Machine-checkable proof, not opinion.</h3>
+              <p>
+                Automated validators compare LLM output against human specs. Every
+                field, type, constraint, and invariant is verified. Violations surface
+                before code leaves the loop.
+              </p>
+              <div class="layer-card__tree">
+                <div class="layer-card__tree-title"><code>human/milestones/{id}/</code></div>
+                <div class="layer-card__tree-item">├── contracts/</div>
+                <div class="layer-card__tree-item">├── plan.md</div>
+                <div class="layer-card__tree-item">├── stage_1.md .. stage_N.md</div>
+                <div class="layer-card__tree-item">└── gates-policy.yaml</div>
+              </div>
+            </article>
+          </div>
+
+          <p class="section-quote section-quote--center" data-reveal>
+            Code is never the source of truth. Contracts are.
+          </p>
+        </section>
+
+        <section class="section section--panel" id="binary">
+          <div class="section-heading" data-reveal>
+            <h2>hlv: the Rust binary that keeps the LLM in harness</h2>
+            <p>
+              hlv is a compiled Rust binary. It runs locally, validates your entire
+              project structure against a living specification, and enforces the
+              workflow gates that keep LLM-generated code on track.
+            </p>
+            <p>
+              It doesn't call the LLM. It doesn't generate code. It makes sure LLM
+              output matches the spec — checking every file, every milestone, every
+              gate in seconds.
+            </p>
+          </div>
+
+          <div class="terminal terminal--binary" data-reveal>
+            <div class="terminal__bar">
+              <div class="terminal__lights">
+                <span class="terminal__light terminal__light--red"></span>
+                <span class="terminal__light terminal__light--amber"></span>
+                <span class="terminal__light terminal__light--green"></span>
+              </div>
+              <div class="terminal__title">hlv check</div>
+            </div>
+            <pre class="terminal__body"><code><span class="t-cyan">$ hlv check</span>
+
+<span class="t-muted">── Project structure ──</span>
+<span class="t-cyan">  ✓  project.yaml exists and is valid</span>
+<span class="t-cyan">  ✓  map.yaml references all source dirs</span>
+<span class="t-cyan">  ✓  milestones graph is acyclic</span>
+
+<span class="t-muted">── Contracts ──</span>
+<span class="t-cyan">  ✓  14 contracts found in milestones, all valid</span>
+<span class="t-cyan">  ✓  acceptance criteria present on every contract</span>
+<span class="t-red">  ✖ contract/api-auth.md missing dependency link</span>
+
+<span class="t-muted">── Test specs ──</span>
+<span class="t-cyan">  ✓  42 test specs mapped to contracts</span>
+<span class="t-cyan">  ✓  no orphan test files detected</span>
+<span class="t-cyan">  ✓  coverage above threshold (87%)</span>
+
+<span class="t-muted">── Traceability ──</span>
+<span class="t-cyan">  ✓  all code files traced to a contract</span>
+<span class="t-cyan">  ✓  no unlinked deliverables detected</span>
+
+<span class="t-muted">── Status ──</span>
+<span class="t-cyan">  ✓  current phase: implementing (M2)</span>
+<span class="t-cyan">  ✓  no out-of-order deliverables</span>
+
+<span class="t-muted">── Constraints ──</span>
+<span class="t-cyan">  ✓  no duplicate rule IDs in constraints</span>
+<span class="t-cyan">  ✓  severity levels valid across 3 files</span>
+
+<span class="t-muted">── Map ──</span>
+<span class="t-cyan">  ✓  map.yaml forward check passed</span>
+<span class="t-cyan">  ✓  map.yaml reverse check passed (no orphans)</span>
+
+<span class="t-red-bold">Phase: implementing  ·  FAILED  ·  29/30 passed, 1 failure</span></code></pre>
+          </div>
+
+          <div class="grid grid--3 binary-cards" data-reveal>
+            <article class="card card--compact stat-card">
+              <h3>Scaffold</h3>
+              <p class="stat-card__code">hlv init</p>
+              <p>Generate the full HLV directory structure, blueprint template, and initial project map in seconds.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Milestone tracking</h3>
+              <p class="stat-card__code">hlv milestone</p>
+              <p>View progress across milestones. See which deliverables are done, pending, or blocked at a glance.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>30+ validations</h3>
+              <p class="stat-card__code">hlv check</p>
+              <p>Run the full validation suite — specs, gates, dependencies, coverage thresholds, and structural integrity.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Workflow guidance</h3>
+              <p class="stat-card__code">hlv workflow</p>
+              <p>See where you are in the development lifecycle and what the next required step is for your current milestone.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Gate enforcement</h3>
+              <p class="stat-card__code">hlv gates</p>
+              <p>Enforce quality gates before milestone transitions. No milestone advances until every gate condition is met.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Constraint rules</h3>
+              <p class="stat-card__code">hlv constraints</p>
+              <p>Define cross-cutting rules — security, performance, observability — as YAML configs enforced by hlv check.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Interactive dashboard</h3>
+              <p class="stat-card__code">hlv dashboard</p>
+              <p>Full TUI with 5 tabs — Status, Contracts, Plan, Gates, Questions. File watcher with live revalidation.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Traceability explorer</h3>
+              <p class="stat-card__code">hlv trace --visual</p>
+              <p>Visualize the full chain REQ → CTR → TST → GATE. See exactly which test covers which contract.</p>
+            </article>
+            <article class="card card--compact stat-card">
+              <h3>Dependency graph</h3>
+              <p class="stat-card__code">hlv plan --visual</p>
+              <p>ASCII dependency graph of tasks in the current stage. See the critical path and what can run in parallel.</p>
+            </article>
+          </div>
+
+          <p class="section-quote section-quote--center" data-reveal>
+            Specs tell the LLM what to do. hlv catches when it doesn't.
+          </p>
+        </section>
+
+        <section class="section section--dark" id="sdd">
+          <div class="section-heading" data-reveal>
+            <h2>Specs first. Code second. Proof always.</h2>
+            <p>
+              HLV implements Spec-Driven Development for LLM-assisted delivery.
+              Every piece of code traces to a formal spec. Every spec traces to
+              human intent. The chain is unbroken — and <code>hlv</code> proves it.
+            </p>
+          </div>
+
+          <div class="spec-chain" data-reveal>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">01</span>
+              <span class="spec-chain__label">Artifacts</span>
+              <span class="spec-chain__desc">Global context, stack, constraints, decisions</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">02</span>
+              <span class="spec-chain__label">Contracts</span>
+              <span class="spec-chain__desc">Formal requirements per deliverable</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">03</span>
+              <span class="spec-chain__label">Test Specs</span>
+              <span class="spec-chain__desc">Testable pass/fail acceptance criteria</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">04</span>
+              <span class="spec-chain__label">Traceability</span>
+              <span class="spec-chain__desc">Code ↔ contract links in every file</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">05</span>
+              <span class="spec-chain__label">Milestone Plan</span>
+              <span class="spec-chain__desc">Stages with bounded deliverables per milestone</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">06</span>
+              <span class="spec-chain__label">Code</span>
+              <span class="spec-chain__desc">LLM-generated, spec-constrained output</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step spec-chain__step--accent">
+              <span class="spec-chain__num">07</span>
+              <span class="spec-chain__label">Validation Gates</span>
+              <span class="spec-chain__desc">Automated proof that code meets every spec</span>
+            </div>
+          </div>
+
+          <div class="why-matters" data-reveal>
+            <h3 class="why-matters__title">Why this matters</h3>
+            <div class="why-matters__list">
+              <div class="why-matters__item">
+                <span class="why-matters__dot">○</span>
+                <p>Independent verifiability — hlv check validates the entire project structure without running a single line of code. It reads specs, not execution results. Anyone can verify, anytime.</p>
+              </div>
+              <div class="why-matters__item">
+                <span class="why-matters__dot">○</span>
+                <p>Complete traceability — every contract links to code, every code file links back to a contract, and hlv proves the chain is complete. No trust required, only proof.</p>
+              </div>
+              <div class="why-matters__item">
+                <span class="why-matters__dot">○</span>
+                <p>Mechanical enforcement — hlv catches missing markers, orphaned specs, and broken links without understanding your code. The spec is the source of truth, and hlv enforces it mechanically.</p>
+              </div>
+            </div>
+          </div>
+
+          <blockquote class="quote-card" data-reveal>
+            <p>
+              In HLV, you don't review LLM code line by line. You verify that the spec is right, and that the code passes the gates derived from that spec. The proof is independent of the code.
+            </p>
+          </blockquote>
+        </section>
+
+        <section class="section section--panel" id="strict-languages">
+          <div class="section-heading" data-reveal>
+            <h2>Strictly typed languages. On purpose.</h2>
+            <p>
+              HLV is designed for Rust, Go, TypeScript strict, Kotlin, Java —
+              languages where the compiler is another enforcement layer. An LLM
+              generating Python can silently return the wrong type. An LLM
+              generating Rust gets stopped by the compiler before the code ever ships.
+            </p>
+          </div>
+
+          <div class="spec-chain" data-reveal>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">01</span>
+              <span class="spec-chain__label">Contracts</span>
+              <span class="spec-chain__desc">Formal requirements define what the code must do</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">02</span>
+              <span class="spec-chain__label">Type System</span>
+              <span class="spec-chain__desc">Compiler enforces structural correctness at build time</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">03</span>
+              <span class="spec-chain__label">@hlv Markers</span>
+              <span class="spec-chain__desc">Traceability annotations link code to specs</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step">
+              <span class="spec-chain__num">04</span>
+              <span class="spec-chain__label">hlv check</span>
+              <span class="spec-chain__desc">Static analysis verifies spec coverage and traceability</span>
+            </div>
+            <div class="spec-chain__arrow" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="spec-chain__step spec-chain__step--accent">
+              <span class="spec-chain__num">05</span>
+              <span class="spec-chain__label">Validation Gates</span>
+              <span class="spec-chain__desc">Automated proof that every layer held</span>
+            </div>
+          </div>
+
+          <p class="support-copy" data-reveal>
+            Each layer catches a different class of drift. Contracts catch
+            requirement drift. The type system catches structural drift.
+            <code>@hlv</code> markers catch traceability drift. <code>hlv check</code>
+            catches coverage drift. Validation gates catch integration drift.
+          </p>
+
+          <blockquote class="quote-card" data-reveal style="max-width:800px">
+            <p>
+              The compiler doesn't care that the LLM was pretty sure. Neither does hlv.
+            </p>
+          </blockquote>
+        </section>
+
+        <section class="section section--dark" id="patterns">
+          <div class="section-heading" data-reveal>
+            <h2>Your best practices are LLM anti-patterns</h2>
+            <p>
+              Developers build intuitions about clean code — dependency injection,
+              factories, middleware, deep directory trees, convention-over-configuration.
+              For humans, these patterns reduce cognitive load. For LLMs, every single
+              one is a trap. Each pattern hides information the LLM needs to generate
+              correct code.
+            </p>
+          </div>
+
+          <div class="comparison-table comparison-table--three" data-reveal>
+            <div class="comparison-table__row comparison-table__row--head comparison-table__row--three">
+              <div>DEVELOPER PATTERN</div>
+              <div class="comparison-table__red-head">LLM PROBLEM</div>
+              <div class="comparison-table__hlv-head">HLV ALTERNATIVE</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Dependency Injection</div>
+              <div class="comparison-table__red-cell">Magic wiring — LLM can't see what gets injected at runtime</div>
+              <div class="comparison-table__hlv-cell">Direct imports, explicit construction</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Deep directory trees</div>
+              <div class="comparison-table__red-cell">Context burn — LLM wastes tokens navigating nested paths</div>
+              <div class="comparison-table__hlv-cell">Flat structure, everything discoverable</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Convention over config</div>
+              <div class="comparison-table__red-cell">Magic paths — LLM guesses file locations by convention</div>
+              <div class="comparison-table__hlv-cell">Explicit config, no guessing</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Abstract factories</div>
+              <div class="comparison-table__red-cell">Hidden code paths — LLM can't trace which concrete class runs</div>
+              <div class="comparison-table__hlv-cell">Direct construction, visible types</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>ORM magic</div>
+              <div class="comparison-table__red-cell">Hidden SQL — LLM generates ORM calls without seeing actual queries</div>
+              <div class="comparison-table__hlv-cell">Explicit queries, typed results</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Middleware chains</div>
+              <div class="comparison-table__red-cell">Scattered behavior — logic spread across middleware layers</div>
+              <div class="comparison-table__hlv-cell">Inline handlers, co-located logic</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--three">
+              <div>Lots of small files</div>
+              <div class="comparison-table__red-cell">Context hops — LLM jumps between files, losing coherence</div>
+              <div class="comparison-table__hlv-cell">Fewer, larger files with clear boundaries</div>
+            </div>
+          </div>
+
+          <article class="card card--statement" data-reveal>
+            <span class="card__kicker card__kicker--cyan">THE HLV POSITION</span>
+            <h3>The <code>llm/</code> layer is designed for LLM generation</h3>
+            <p>
+              Flat structure. Explicit everything. Direct code. Errors as values.
+              Types as documentation. No magic, no conventions, no hidden paths.
+              Every file is self-contained. Every dependency is visible. Every type
+              tells the LLM exactly what to generate.
+            </p>
+            <div class="principle-pills">
+              <div class="principle-pill">
+                <span class="principle-pill__title">flat/</span>
+                <span class="principle-pill__desc">No nesting</span>
+              </div>
+              <div class="principle-pill">
+                <span class="principle-pill__title">explicit</span>
+                <span class="principle-pill__desc">No magic</span>
+              </div>
+              <div class="principle-pill">
+                <span class="principle-pill__title">direct</span>
+                <span class="principle-pill__desc">No indirection</span>
+              </div>
+              <div class="principle-pill">
+                <span class="principle-pill__title">typed</span>
+                <span class="principle-pill__desc">Self-documenting</span>
+              </div>
+              <div class="principle-pill">
+                <span class="principle-pill__title">errors</span>
+                <span class="principle-pill__desc">As values</span>
+              </div>
+            </div>
+          </article>
+
+          <blockquote class="quote-card" data-reveal>
+            <p>
+              Code in llm/ is optimized for one reader: the next LLM invocation. And for one validator: hlv.
+            </p>
+          </blockquote>
+        </section>
+
+        <section class="section section--panel" id="workflow">
+          <div class="section-heading" data-reveal>
+            <h2>The operational cycle</h2>
+          </div>
+
+          <div class="wf-diagram" data-reveal>
+            <div class="wf-pipeline">
+              <div class="wf-node wf-node--cyan-bg">hlv milestone new</div>
+              <div class="wf-arrow"></div>
+              <div class="wf-node"><span class="wf-node__cmd">/artifacts</span><span class="wf-node__sub">capture intent</span></div>
+              <div class="wf-arrow"></div>
+              <div class="wf-node"><span class="wf-node__cmd">/generate</span><span class="wf-node__sub">contracts · stages · gates</span></div>
+              <div class="wf-arrow"></div>
+              <div class="wf-node"><span class="wf-node__cmd">/questions</span><span class="wf-node__sub">resolve open questions</span></div>
+              <div class="wf-arrow"></div>
+              <div class="wf-node"><span class="wf-node__cmd">/verify</span><span class="wf-node__sub">cross-check contracts</span></div>
+              <div class="wf-arrow"></div>
+              <div class="wf-node"><span class="wf-node__cmd">hlv check</span><span class="wf-node__sub">structural validation</span></div>
+              <div class="wf-arrow"></div>
+              <span class="wf-done-label">all stages validated</span>
+              <div class="wf-node wf-node--cyan-bg wf-node--done">hlv milestone done</div>
+            </div>
+
+            <div class="wf-loops">
+              <div class="wf-loop wf-loop--cyan">
+                <div class="wf-loop__header"><span class="wf-loop__dot wf-loop__dot--cyan"></span><span class="wf-loop__label wf-loop__label--cyan">STAGE LOOP</span></div>
+                <div class="wf-loop__body">
+                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/implement</span><span class="wf-node__sub">one stage at a time</span></div>
+                  <div class="wf-arrow wf-arrow--cyan"></div>
+                  <div class="wf-node wf-node--sm"><span class="wf-node__cmd wf-node__cmd--sm">hlv check</span></div>
+                  <div class="wf-arrow wf-arrow--cyan"></div>
+                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/validate</span><span class="wf-node__sub">evaluate gates</span></div>
+                  <div class="wf-arrow wf-arrow--cyan"></div>
+                  <div class="wf-gate">gates pass?</div>
+                  <div class="wf-gate-branches">
+                    <div class="wf-gate-yes">
+                      <span class="wf-gate-label wf-gate-label--yes">YES</span>
+                      <div class="wf-node wf-node--cyan-bg wf-node--sm">next stage →</div>
+                    </div>
+                    <div class="wf-gate-no">
+                      <span class="wf-gate-label wf-gate-label--no">NO</span>
+                      <span class="wf-gate-arrow-no">→</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="wf-loop wf-loop--red">
+                <div class="wf-loop__header"><span class="wf-loop__dot wf-loop__dot--red"></span><span class="wf-loop__label wf-loop__label--red">REMEDIATION LOOP</span></div>
+                <div class="wf-loop__body">
+                  <div class="wf-node wf-node--border-red"><span class="wf-node__cmd wf-node__cmd--red">FIX tasks</span><span class="wf-node__sub">auto-generated</span></div>
+                  <div class="wf-arrow wf-arrow--red"></div>
+                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/implement</span></div>
+                  <div class="wf-arrow wf-arrow--red"></div>
+                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/validate</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid--3" data-reveal>
+            <article class="wf-card">
+              <div class="wf-card__header"><span class="wf-card__dot wf-card__dot--cyan"></span><span class="wf-card__kicker wf-card__kicker--cyan">STAGE LOOP</span></div>
+              <h3 class="wf-card__title">One stage at a time</h3>
+              <p class="wf-card__desc">The LLM implements one stage at a time (~30K tokens per stage), not the entire milestone. Each stage is a bounded, verifiable unit of work.</p>
+            </article>
+            <article class="wf-card">
+              <div class="wf-card__header"><span class="wf-card__dot wf-card__dot--red"></span><span class="wf-card__kicker wf-card__kicker--red">REMEDIATION LOOP</span></div>
+              <h3 class="wf-card__title">Self-correcting failures</h3>
+              <p class="wf-card__desc">When /validate finds gate failures, FIX tasks are generated automatically. /implement executes the fixes, /validate re-runs — the loop repeats until all gates pass.</p>
+            </article>
+            <article class="wf-card">
+              <div class="wf-card__header"><span class="wf-card__dot wf-card__dot--slate"></span><span class="wf-card__kicker wf-card__kicker--slate">HLV CHECK</span></div>
+              <h3 class="wf-card__title">Continuous validation</h3>
+              <p class="wf-card__desc">hlv check runs at every transition point — structure is validated continuously, ensuring the harness holds throughout the entire operational cycle.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section section--dark" id="walkthrough">
+          <div class="section-heading section-heading--center" data-reveal>
+            <h2>One feature, start to finish</h2>
+            <p>
+              Every step produces concrete, verifiable artifacts. No hand-waving,
+              just commands and results.
+            </p>
+          </div>
+
+          <div class="walkthrough-timeline" data-reveal>
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">1</span>
+                <span class="walk-step__line"></span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Create milestone</h3>
+                <p class="walk-step__desc">
+                  Define a bounded unit of work. One command sets the scope, gates, and traceability requirements.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ hlv milestone new add-payments</code></pre>
+                  <pre class="walk-term__out"><code>✓ Milestone created: add-payments
+  scope: payment-processing integration
+  gates: specs · tests · traceability · validation
+  stages: 4 estimated</code></pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">2</span>
+                <span class="walk-step__line"></span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Capture intent</h3>
+                <p class="walk-step__desc">
+                  An interactive interview captures what you want — first global context (domain, stack, constraints), then milestone-specific features and decisions.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ /artifacts</code></pre>
+                  <pre class="walk-term__out"><code>◐ Interview started for add-payments
+  ── Global artifacts (shared) ──
+  ✓ context.md exists, skipping
+  ✓ stack.md exists, skipping
+  ── Milestone artifacts ──
+  Q: Which payment provider?
+  A: Stripe, with fallback to manual
+  Q: Should failed charges retry?
+  A: Yes, 3 attempts with backoff
+  ✓ Intent captured: 8 decisions recorded</code></pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">3</span>
+                <span class="walk-step__line"></span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Generate specs</h3>
+                <p class="walk-step__desc">
+                  Structured artifacts generated from captured intent — contracts, test specs, and a full implementation file tree.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ /generate</code></pre>
+                  <pre class="walk-term__out"><code>✓ Generated artifacts:
+  ├── contracts/payment-api.contract.yaml
+  ├── contracts/payment-flow.contract.yaml
+  ├── plan.md  (4 stages)
+  ├── stage_1.md .. stage_4.md
+  └── gates-policy.yaml
+
+  6 files · all requirements traced to artifacts</code></pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">4</span>
+                <span class="walk-step__line"></span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Resolve questions, verify and check</h3>
+                <p class="walk-step__desc">
+                  Surface open questions that block progress, then cross-check generated specs for consistency and run structural validation.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ /questions
+$ /verify
+$ hlv check</code></pre>
+                  <pre class="walk-term__out"><code>◐ Open questions for add-payments
+  Q: Max retry delay for failed charges?
+  → Recommended: 30s exponential backoff
+  A: Accepted recommendation
+  ✓ 3/3 questions resolved
+
+✓ Contract consistency    PASSED
+✓ Gates coverage check    PASSED
+✓ No open questions       PASSED
+
+  hlv check .............. PASSED
+  All gates passed — ready to implement</code></pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">5</span>
+                <span class="walk-step__line"></span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Implement stage by stage</h3>
+                <p class="walk-step__desc">
+                  The LLM implements against the spec, one bounded stage at a time. Drift is caught at every boundary.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ /implement
+$ hlv workflow</code></pre>
+                  <pre class="walk-term__out"><code>◐ Milestone: add-payments
+  Phase: implementing
+  stage 1/4  ████████████████████  ✓ validated
+  stage 2/4  ████████████░░░░░░░░  implementing
+  stage 3/4  ○ pending
+  stage 4/4  ○ pending
+
+  Next: finish stage 2, then /validate</code></pre>
+                </div>
+                <p class="walk-step__callout">
+                  The harness holds — every stage validated before the next begins.
+                </p>
+              </div>
+            </article>
+
+            <article class="walk-step">
+              <div class="walk-step__rail">
+                <span class="walk-step__circle">6</span>
+              </div>
+              <div class="walk-step__content">
+                <h3 class="walk-step__title">Validate and ship</h3>
+                <p class="walk-step__desc">
+                  Final validation confirms every requirement is met, every gate passes. Ship with confidence.
+                </p>
+                <div class="walk-term">
+                  <pre class="walk-term__cmd"><code>$ /validate</code></pre>
+                  <pre class="walk-term__out"><code>✓ Contract compliance     PASSED
+✓ Test specs executed      PASSED  (47/47)
+✓ Traceability verified    PASSED
+✓ No regressions          PASSED
+
+  All gates passed across all 4 stages</code></pre>
+                </div>
+                <div class="walk-term walk-term--success">
+                  <pre class="walk-term__cmd"><code>$ hlv milestone done add-payments</code></pre>
+                  <pre class="walk-term__out"><code>✓ Milestone complete: add-payments
+  4 stages · 47 tests · all gates passed
+  Ready to ship.</code></pre>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section section--panel" id="comparison">
+          <div class="section-heading section-heading--center" data-reveal>
+            <h2>How HLV compares</h2>
+            <p>Side-by-side against current approaches to AI-assisted development.</p>
+          </div>
+
+          <div class="comparison-table comparison-table--four" data-reveal>
+            <div class="comparison-table__row comparison-table__row--head comparison-table__row--four">
+              <div>CRITERIA</div>
+              <div>CHAT + COPILOT</div>
+              <div>AUTONOMOUS AGENTS</div>
+              <div class="comparison-table__hlv-head">HLV</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Spec approach</div>
+              <div>Ad-hoc prompts</div>
+              <div>Agent infers</div>
+              <div class="comparison-table__hlv-cell">Formal contracts with invariants</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Who writes code</div>
+              <div>Human+AI mixed</div>
+              <div>Agent alone unsupervised</div>
+              <div class="comparison-table__hlv-cell">LLM writes all — within verified specs and gates</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Verification</div>
+              <div>Manual review</div>
+              <div>Agent self-checks</div>
+              <div class="comparison-table__hlv-cell">Independent Rust binary (hlv)</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Context control</div>
+              <div>Entire codebase</div>
+              <div>Agent picks files</div>
+              <div class="comparison-table__hlv-cell">One stage at a time</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Traceability</div>
+              <div>None</div>
+              <div>None</div>
+              <div class="comparison-table__hlv-cell">Requirement → contract → test → gate → code</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>When LLM drifts</div>
+              <div>Hope you catch it</div>
+              <div>Hope agent catches itself</div>
+              <div class="comparison-table__hlv-cell">hlv check shows what diverged</div>
+            </div>
+            <div class="comparison-table__row comparison-table__row--four">
+              <div>Release criteria</div>
+              <div>"Looks good"</div>
+              <div>"Agent says done"</div>
+              <div class="comparison-table__hlv-cell">All mandatory gates passed</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section section--dark" id="audience">
+          <div class="section-heading section-heading--center" data-reveal>
+            <h2>Built for teams that already use LLMs — and hit the wall</h2>
+          </div>
+
+          <div class="grid grid--2" data-reveal>
+            <article class="card persona-card">
+              <svg class="persona-card__icon" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              <h3>Developer using AI daily</h3>
+              <p>You spend more time fixing drift than writing code. Every AI-generated file needs manual review, and the inconsistencies compound faster than you can catch them.</p>
+            </article>
+            <article class="card persona-card">
+              <svg class="persona-card__icon" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>
+              <h3>Tech lead reviewing AI PRs</h3>
+              <p>You've reverted more agent PRs than you've merged. Without machine-checkable invariants, code review becomes a guessing game about what the LLM actually changed.</p>
+            </article>
+            <article class="card persona-card">
+              <svg class="persona-card__icon" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <h3>Staff / Platform engineer</h3>
+              <p>Every team reinvents the wheel with their own AI workflow. You need a repeatable, auditable process that works across squads — not another hero-developer workaround.</p>
+            </article>
+            <article class="card persona-card">
+              <svg class="persona-card__icon" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <h3>Team building high-stakes systems</h3>
+              <p>Compliance, audit trails, and proof chains aren't optional — they're the product. You need every requirement traceable from intent to deployed code, with machine-verified evidence at every step.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section section--panel" id="shift">
+          <div class="section-heading section-heading--center" data-reveal>
+            <h2>The shift</h2>
+          </div>
+
+          <div class="grid grid--2" data-reveal>
+            <article class="card card--border-top card--border-top-red shift-card">
+              <span class="card__kicker card__kicker--red">BEFORE</span>
+              <h3 class="shift-card__title shift-card__title--before">Before</h3>
+              <p class="shift-card__quote shift-card__quote--before">
+                "We paste context into chat, hope the agent understood everything, then spend days chasing inconsistencies across files we barely reviewed."
+              </p>
+            </article>
+
+            <article class="card card--border-top card--border-top-cyan shift-card">
+              <span class="card__kicker card__kicker--cyan">AFTER</span>
+              <h3 class="shift-card__title shift-card__title--after">After</h3>
+              <p class="shift-card__quote">
+                "We capture intent in artifacts, formalize it in contracts, implement one stage at a time, and get machine-verified proof at every step. When the LLM drifts, hlv check catches it before we do."
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section section--dark" id="mcp">
+          <div class="section-heading" data-reveal>
+            <h2>MCP Integration</h2>
+            <p>
+              HLV includes a built-in MCP server. Claude Code, web dashboards,
+              Kanban boards, and custom tools get full programmatic access to
+              your project data and operations — over stdio or SSE.
+            </p>
+          </div>
+
+          <div class="mcp-architecture" data-reveal>
+            <div class="mcp-clients">
+              <article class="mcp-client">
+                <span class="mcp-client__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <polyline points="4 17 10 11 4 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                    <line x1="12" y1="19" x2="20" y2="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <h3>Claude Code</h3>
+                <p>stdio</p>
+              </article>
+              <article class="mcp-client">
+                <span class="mcp-client__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <rect x="3" y="3" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.7" />
+                    <rect x="14" y="3" width="7" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7" />
+                    <rect x="14" y="12" width="7" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.7" />
+                    <rect x="3" y="16" width="7" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  </svg>
+                </span>
+                <h3>Web Dashboard</h3>
+                <p>SSE / HTTP</p>
+              </article>
+              <article class="mcp-client">
+                <span class="mcp-client__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.1-3.1a6 6 0 0 1-7.6 7.6l-7.1 7.1a2 2 0 1 1-2.8-2.8l7.1-7.1a6 6 0 0 1 7.6-7.6l-3.1 3.1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </span>
+                <h3>Custom Tools</h3>
+                <p>stdio / SSE</p>
+              </article>
+            </div>
+            <div class="mcp-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 5v14M19 12l-7 7-7-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="mcp-box mcp-box--server">
+              <span class="mcp-box__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <rect x="2" y="2" width="20" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <rect x="2" y="14" width="20" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <line x1="6" y1="6" x2="6.01" y2="6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  <line x1="6" y1="18" x2="6.01" y2="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              <strong class="mcp-box__label mcp-box__label--server">hlv mcp</strong>
+              <span class="mcp-box__sep">—</span>
+              <span class="mcp-box__desc">12 resources + 27 tools + notifications</span>
+            </div>
+            <div class="mcp-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 5v14M19 12l-7 7-7-7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="mcp-box mcp-box--core">
+              <span class="mcp-box__icon mcp-box__icon--core" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <ellipse cx="12" cy="5" rx="9" ry="3" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3" fill="none" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </span>
+              <strong class="mcp-box__label">HLV Core</strong>
+              <span class="mcp-box__sep">—</span>
+              <span class="mcp-box__desc mcp-box__desc--core">milestones, tasks, contracts, gates, constraints</span>
+            </div>
+          </div>
+
+          <div class="grid grid--4" data-reveal>
+            <article class="mcp-use-card">
+              <span class="mcp-use-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.7" />
+                  <path d="M8 7v7M12 7v4M16 7v9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              <h3>Kanban Board</h3>
+              <p>Milestones, stages, and tasks rendered as cards with real-time status updates.</p>
+            </article>
+            <article class="mcp-use-card">
+              <span class="mcp-use-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="m12 14 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  <path d="M3.34 19a10 10 0 1 1 17.32 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              <h3>Web Dashboard</h3>
+              <p>Monitor project health, gate results, and progress — live in the browser via SSE.</p>
+            </article>
+            <article class="mcp-use-card">
+              <span class="mcp-use-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M12 18V5M8.2 8.2a2.7 2.7 0 1 1-3.8 3.8M15.8 8.2a2.7 2.7 0 1 0 3.8 3.8M8.5 14.5a3.5 3.5 0 0 0 7 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <h3>AI Assistant</h3>
+              <p>Give Claude full context: contracts, tasks, constraints, workflow phase — all via MCP resources.</p>
+            </article>
+            <article class="mcp-use-card">
+              <span class="mcp-use-card__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <polyline points="16 18 22 12 16 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                  <polyline points="8 6 2 12 8 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <h3>Custom CLI / TUI</h3>
+              <p>Build your own tooling on top of 27 MCP tools and 12 read-only resources.</p>
+            </article>
+          </div>
+
+          <div class="grid grid--2" data-reveal>
+            <article class="terminal terminal--small mcp-snippet">
+              <div class="terminal__bar mcp-snippet__bar">
+                <button
+                  class="mcp-snippet__icon mcp-copy-icon"
+                  type="button"
+                  aria-label="Copy MCP config"
+                  title="Copy MCP config"
+                  data-copy-target="snippet-claude"
+                  data-copy-icon="true"
+                >
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                    <polyline points="14 2 14 8 20 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+                <div class="terminal__title">.mcp.json</div>
+              </div>
+              <pre class="terminal__body" id="snippet-claude"><code>{
+  "mcpServers": {
+    "hlv": {
+      "command": "hlv",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+            </article>
+
+            <article class="terminal terminal--small mcp-snippet">
+              <div class="terminal__bar mcp-snippet__bar">
+                <span class="mcp-snippet__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <polyline points="4 17 10 11 4 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                    <line x1="12" y1="19" x2="20" y2="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                  </svg>
+                </span>
+                <div class="terminal__title">Terminal</div>
+              </div>
+              <pre class="terminal__body" id="snippet-sse"><code># Start SSE server
+$ hlv mcp --transport sse --port 3000
+
+HLV MCP server (SSE) listening
+on http://0.0.0.0:3000/mcp</code></pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section section--panel section--installation" id="installation">
+          <div class="section-heading" data-reveal>
+            <h2>Installation</h2>
+            <p>Install a release binary for your platform, then run <code>hlv check</code>.</p>
+          </div>
+
+          <div class="install-grid" data-reveal>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">macOS (Apple Silicon)</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-macos-arm" aria-label="Copy macOS Apple Silicon install command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-macos-arm"><code>curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-apple-darwin.tar.gz | tar xz -C /usr/local/bin</code></pre>
+              <p class="install-card__run">hlv check</p>
+            </article>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">macOS (Intel)</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-macos-intel" aria-label="Copy macOS Intel install command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-macos-intel"><code>curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin</code></pre>
+              <p class="install-card__run">hlv check</p>
+            </article>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">Linux (x86_64)</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-linux-x64" aria-label="Copy Linux x86_64 install command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-linux-x64"><code>curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /usr/local/bin</code></pre>
+              <p class="install-card__run">hlv check</p>
+            </article>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">Linux (aarch64)</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-linux-arm" aria-label="Copy Linux aarch64 install command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-linux-arm"><code>curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-unknown-linux-gnu.tar.gz | tar xz -C /usr/local/bin</code></pre>
+              <p class="install-card__run">hlv check</p>
+            </article>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">Windows (x86_64, PowerShell)</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-windows" aria-label="Copy Windows install command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-windows"><code>Invoke-WebRequest -Uri "https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-pc-windows-msvc.zip" -OutFile hlv.zip
+Expand-Archive hlv.zip -DestinationPath "$env:USERPROFILE\bin" -Force</code></pre>
+              <p class="install-card__run">Add <code>%USERPROFILE%\bin</code> to <code>PATH</code> if needed.</p>
+            </article>
+            <article class="install-card">
+              <div class="install-card__head">
+                <p class="install-card__os">Build from source</p>
+                <button class="copy-button copy-button--install" type="button" data-copy-target="snippet-install-source" aria-label="Copy build from source command">Copy</button>
+              </div>
+              <pre class="install-card__cmd" id="snippet-install-source"><code>git clone https://github.com/lee-to/hlv.git
+cd hlv
+cargo install --path .</code></pre>
+              <p class="install-card__run">hlv check</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="cta section section--dark" id="cta">
+          <div class="cta__inner" data-reveal>
+            <span class="section-marker"></span>
+            <h2>Stop hoping the LLM got it right.<br />Start proving it.</h2>
+            <p class="cta__lead">
+              The bottleneck isn't generation speed. It's knowing that what was built
+              matches what was intended. hlv closes that gap.
+            </p>
+            <div class="cta__actions">
+              <a class="cta-btn cta-btn--primary" href="#installation">
+                <span class="cta-btn__prompt">$</span>
+                <span>Install</span>
+              </a>
+              <a class="cta-btn cta-btn--ghost" href="#walkthrough">
+                <span>5-minute quickstart</span>
+                <span class="cta-btn__arrow" aria-hidden="true">→</span>
+              </a>
+            </div>
+            <div class="cta__links">
+              <a href="../ARCH.md">Architecture</a>
+              <span>·</span>
+              <a href="../MCP.md">Documentation</a>
+              <span>·</span>
+              <a href="#footer">GitHub</a>
+            </div>
+
+            <div class="cta__deco-lines" aria-hidden="true">
+              <span class="cta__deco-line cta__deco-line--lg"></span>
+              <span class="cta__deco-line cta__deco-line--md"></span>
+              <span class="cta__deco-line cta__deco-line--sm"></span>
+            </div>
+
+            <div class="terminal cta-terminal">
+              <div class="terminal__bar cta-terminal__bar">
+                <div class="terminal__lights">
+                  <span class="terminal__light terminal__light--red"></span>
+                  <span class="terminal__light terminal__light--amber"></span>
+                  <span class="terminal__light terminal__light--green"></span>
+                </div>
+                <div class="terminal__title">hlv — Terminal</div>
+              </div>
+              <div class="cta-terminal__body">
+                <div class="cta-terminal__line">$ hlv check</div>
+                <div class="cta-terminal__line cta-terminal__line--indent cta-terminal__line--cyan">PASSED — 0 errors, 0 warnings, 0 info</div>
+                <div class="cta-terminal__divider"></div>
+                <div class="cta-terminal__line">$ hlv milestone done</div>
+                <div class="cta-terminal__line cta-terminal__line--indent cta-terminal__line--cyan">✓ Milestone 003-add-payments completed</div>
+                <div class="cta-terminal__line cta-terminal__line--indent cta-terminal__line--green">✓ Branch merged into main</div>
+              </div>
+            </div>
+
+            <div class="trust-strip">
+              <span class="trust-chip">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M9 12.5l2 2 4-4m6 1.5a9 9 0 11-18 0 9 9 0 0118 0z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                30+ validations
+              </span>
+              <span class="trust-chip">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                </svg>
+                Compiled Rust binary
+              </span>
+              <span class="trust-chip">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M6 6h6m-6 6h12m-12 6h9M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                MIT License
+              </span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer" id="footer">
+        <div class="site-footer__top">
+          <div class="site-footer__brand">
+            <a class="brand" href="#top" aria-label="HLV home">
+              <span class="brand__prompt">&gt;</span>
+              <span class="brand__text">hlv</span>
+              <span class="brand__cursor" aria-hidden="true"></span>
+            </a>
+            <p>
+              Spec-driven development for LLM-generated code.
+              The human writes the WHAT. The LLM owns the HOW.
+              hlv validates the PROOF.
+            </p>
+          </div>
+
+          <div class="site-footer__links">
+            <div>
+              <h3>Product</h3>
+              <a href="#layers">Layers</a>
+              <a href="#workflow">Workflow</a>
+              <a href="#mcp">MCP</a>
+            </div>
+            <div>
+              <h3>Resources</h3>
+              <a href="../../README.md">Docs</a>
+              <a href="../ARCH.md">Architecture</a>
+              <a href="../MCP.md">MCP guide</a>
+            </div>
+            <div>
+              <h3>Community</h3>
+              <a href="#installation">Install</a>
+              <a href="#walkthrough">Quickstart</a>
+              <a href="#binary">hlv check</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="site-footer__bottom">
+          <p>© 2026 HLV Project · Open source under MIT License</p>
+          <p>Built with <strong>Rust</strong> · v0.1.0</p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>

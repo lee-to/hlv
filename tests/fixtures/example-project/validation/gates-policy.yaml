@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../../schema/gates-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-GATES
+description: Mandatory validation gates and release thresholds for HLV.
+
+release_policy:
+  require_all_mandatory: true
+  interpretation: "Green gates provide sufficient evidence within configured limits, not absolute correctness."
+  flaky_policy:
+    quarantine_required: true
+    block_release_for_p0: true
+
+gates:
+  - id: GATE-CONTRACT-001
+    type: contract_tests
+    mandatory: true
+    pass_criteria:
+      required_scenarios_pass_rate: 1.0
+      source_of_required_scenarios:
+        - human/contracts
+        - human/scenarios
+
+  - id: GATE-PBT-001
+    type: property_based_tests
+    mandatory: true
+    pass_criteria:
+      min_valid_generations_per_invariant: 10000
+      counterexamples_allowed: 0
+
+  - id: GATE-INTEGRATION-001
+    type: integration_tests
+    mandatory: true
+    pass_criteria:
+      p0_pass_rate: 1.0
+      p1_min_pass_rate: 0.95
+
+  - id: GATE-PERF-001
+    type: performance
+    mandatory: true
+    pass_criteria:
+      p99_latency_ms_ref: contract.nfr.latency_p99_ms
+      max_error_rate: 0.001
+      target_load_profile_required: true
+
+  - id: GATE-SECURITY-001
+    type: security
+    mandatory: true
+    tools:
+      - sast
+      - dast
+      - dependency_scan
+      - policy_checks
+    pass_criteria:
+      max_open_critical: 0
+      max_open_high: 0
+      baseline_policy_required: true
+
+  - id: GATE-MUTATION-001
+    type: mutation_testing
+    mandatory: true
+    pass_criteria:
+      min_mutation_score_changed_modules: 0.70
+
+  - id: GATE-OBS-001
+    type: observability
+    mandatory: true
+    pass_criteria:
+      required_for_public_capabilities:
+        - metrics
+        - trace_spans
+        - structured_logs

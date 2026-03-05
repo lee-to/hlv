@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-project-schema",
+  "title": "HLV project.yaml",
+  "description": "Schema for HLV project map. If hlv check reports a parse error, validate your project.yaml against this schema.",
+  "type": "object",
+  "required": ["schema_version", "project", "status", "paths", "git"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "project": {
+      "type": "string",
+      "description": "Project name"
+    },
+    "spec": {
+      "type": "string",
+      "description": "Path to this schema file"
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "Last update date"
+    },
+    "status": {
+      "$ref": "#/$defs/ProjectStatus"
+    },
+    "last_skill": {
+      "type": "string"
+    },
+    "last_skill_result": {
+      "type": "string"
+    },
+    "paths": {
+      "$ref": "#/$defs/Paths"
+    },
+    "glossary_types": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ConstraintEntry" },
+      "default": []
+    },
+    "stack": {
+      "oneOf": [
+        { "type": "array", "items": { "$ref": "#/$defs/StackComponent" } },
+        {
+          "type": "object",
+          "properties": {
+            "components": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/StackComponent" }
+            }
+          }
+        }
+      ]
+    },
+    "validation": {
+      "$ref": "#/$defs/ValidationState"
+    },
+    "git": {
+      "$ref": "#/$defs/GitPolicy"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ProjectStatus": {
+      "type": "string",
+      "enum": ["draft", "implementing", "implemented", "validating", "validated"],
+      "description": "Lifecycle: draft → implementing → implemented → validating → validated"
+    },
+    "Paths": {
+      "type": "object",
+      "required": ["human", "validation", "llm"],
+      "properties": {
+        "human": {
+          "type": "object",
+          "required": ["artifacts", "glossary", "constraints"],
+          "properties": {
+            "artifacts": { "type": "string" },
+            "glossary": { "type": "string" },
+            "constraints": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "validation": {
+          "type": "object",
+          "required": ["test_specs", "scenarios", "traceability", "gates_policy"],
+          "properties": {
+            "test_specs": { "type": "string" },
+            "scenarios": { "type": "string" },
+            "traceability": { "type": "string" },
+            "gates_policy": { "type": "string" },
+            "verify_report": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "llm": {
+          "type": "object",
+          "required": ["src"],
+          "properties": {
+            "src": { "type": "string" },
+            "tests": { "type": "string" },
+            "map": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContractEntry": {
+      "type": "object",
+      "required": ["id", "version", "path", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "version": { "type": "string", "description": "Semver string" },
+        "path": { "type": "string" },
+        "yaml_path": { "type": "string" },
+        "owner": { "type": "string" },
+        "status": { "$ref": "#/$defs/ContractStatus" },
+        "test_spec": { "type": "string" },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "artifacts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Source artifact paths. Alias: source_artifacts"
+        },
+        "source_artifacts": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Alias for artifacts"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContractStatus": {
+      "type": "string",
+      "enum": ["draft", "generated", "verified", "implemented"]
+    },
+    "ConstraintEntry": {
+      "type": "object",
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string" },
+        "applies_to": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "StackComponent": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "$ref": "#/$defs/ComponentType" },
+        "language": {
+          "type": "string",
+          "description": "Single language (converted to list internally)"
+        },
+        "languages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of languages"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/StackDependency" },
+          "default": []
+        }
+      },
+      "additionalProperties": true
+    },
+    "ComponentType": {
+      "type": "string",
+      "enum": ["service", "library", "cli", "script", "application", "datastore", "external_api", "channel", "hosting"],
+      "description": "Unknown values are accepted as 'other' at runtime"
+    },
+    "StackDependency": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "$ref": "#/$defs/DependencyType" },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "DependencyType": {
+      "type": "string",
+      "enum": ["framework", "driver", "runtime", "database", "infra", "tool", "serialization", "sdk"],
+      "description": "Unknown values are accepted as 'other' at runtime"
+    },
+    "ValidationState": {
+      "type": "object",
+      "required": ["verify_status"],
+      "properties": {
+        "verify_status": { "$ref": "#/$defs/VerifyStatus" },
+        "verify_date": { "type": "string" },
+        "issues": {
+          "type": "object",
+          "properties": {
+            "critical": { "type": "integer", "default": 0 },
+            "warning": { "type": "integer", "default": 0 },
+            "info": { "type": "integer", "default": 0 }
+          },
+          "additionalProperties": false
+        },
+        "gates": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/GateStatus" },
+          "default": [],
+          "deprecated": true,
+          "description": "Deprecated: gates are now read from gates-policy.yaml."
+        }
+      },
+      "additionalProperties": false
+    },
+    "GitPolicy": {
+      "type": "object",
+      "required": ["commit_convention", "merge_strategy"],
+      "properties": {
+        "branch_per_milestone": { "type": "boolean", "default": false },
+        "branch_format": { "type": "string" },
+        "commit_convention": {
+          "type": "string",
+          "enum": ["conventional", "simple", "custom"]
+        },
+        "commit_scopes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "commit_template": { "type": "string" },
+        "commit_hints": { "type": "boolean", "default": true },
+        "merge_strategy": {
+          "type": "string",
+          "enum": ["manual", "local_merge", "pr"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "VerifyStatus": {
+      "type": "string",
+      "enum": ["not_run", "passed", "failed"]
+    },
+    "GateStatus": {
+      "type": "object",
+      "deprecated": true,
+      "description": "Deprecated: kept for backwards compatibility.",
+      "required": ["id", "status"],
+      "properties": {
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["not_run", "passed", "failed"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

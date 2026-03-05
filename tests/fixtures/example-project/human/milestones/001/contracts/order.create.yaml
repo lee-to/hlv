@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../../../schema/contract-schema.json
+id: order.create
+version: 1.2.0
+owner: commerce
+intent: "Create an order atomically from user basket items."
+
+inputs_schema:
+  type: object
+  required: [user_id, items]
+  properties:
+    user_id:
+      $ref: "glossary.yaml#/types/UserId"
+    items:
+      type: array
+      minItems: 1
+      items:
+        $ref: "glossary.yaml#/types/OrderItem"
+
+outputs_schema:
+  type: object
+  required: [order]
+  properties:
+    order:
+      type: object
+      required: [id, total, status]
+      properties:
+        id:
+          $ref: "glossary.yaml#/types/OrderId"
+        total:
+          $ref: "glossary.yaml#/types/Money"
+        status:
+          type: string
+          enum: [created]
+
+errors:
+  - code: OUT_OF_STOCK
+    when: "exists(items, i, stock(i.product_id) < i.quantity)"
+    http_status: 409
+  - code: INVALID_QUANTITY
+    when: "exists(items, i, i.quantity <= 0)"
+    http_status: 400
+  - code: USER_NOT_FOUND
+    when: "not exists(user_id)"
+    http_status: 404
+
+invariants:
+  - id: atomicity
+    expr: "all_or_nothing(order_write, inventory_write)"
+  - id: non_negative_total
+    expr: "output.order.total.amount >= 0"
+
+nfr:
+  latency_p99_ms: 200
+  availability_slo: 99.9
+  throughput_rps_min: 300
+
+security:
+  - rule: prepared_statements_only
+  - rule: no_secrets_in_logs
+  - rule: pii_masking_enabled
+  - rule: request_rate_limit_applied
+
+compatibility:
+  api_semver: minor
+  backward_compatible: true
+  data_migration_required: false
+
+depends_on_constraints:
+  - ../constraints/security.yaml
+  - ../constraints/performance.yaml

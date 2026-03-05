@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-equivalence-policy-schema",
+  "title": "HLV equivalence policy",
+  "description": "Behavioral equivalence policy — validation/equivalence-policy.yaml. Rules for verifying unchanged behavior after code regeneration.",
+  "type": "object",
+  "required": ["version", "policy_id"],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/EquivalenceScope"
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EquivalenceRequirement" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "EquivalenceScope": {
+      "type": "object",
+      "properties": {
+        "applies_to": {
+          "type": "string",
+          "description": "What this policy applies to (e.g. unchanged_contracts)"
+        },
+        "required_for_regeneration": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "EquivalenceRequirement": {
+      "type": "object",
+      "required": ["id", "rule"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Requirement ID (e.g. EQUIV-001)"
+        },
+        "rule": {
+          "type": "string",
+          "description": "Rule name (e.g. fixed_test_ir, nondeterminism_normalization)"
+        },
+        "must": {
+          "type": "boolean",
+          "default": false
+        },
+        "details": {
+          "type": "string"
+        },
+        "normalize_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Fields to normalize before comparison"
+        },
+        "allowed_approaches": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dimensions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Comparison dimensions"
+        },
+        "numeric": {
+          "type": "string",
+          "description": "Numeric comparison strategy"
+        },
+        "categorical": {
+          "type": "string",
+          "description": "Categorical comparison strategy"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

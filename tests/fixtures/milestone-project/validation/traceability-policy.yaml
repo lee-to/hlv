@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../../schema/traceability-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-TRACE
+description: "Traceability policy."
+
+id_formats:
+  requirement: "^REQ-"
+  contract: "^CTR-"
+
+graph_requirements:
+  required_paths:
+    - "requirement -> contract"
+  checks:
+    - id: TRACE-001
+      name: no_dangling_references
+      must: true

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-glossary-schema",
+  "title": "HLV glossary.yaml",
+  "description": "Domain glossary — canonical types, enums, terms, and usage rules. All contracts MUST reuse types from this file.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain name (e.g. commerce, logistics)"
+    },
+    "types": {
+      "type": "object",
+      "description": "Canonical domain types. Keys are type names (PascalCase).",
+      "additionalProperties": {
+        "$ref": "#/$defs/GlossaryType"
+      },
+      "default": {}
+    },
+    "enums": {
+      "type": "object",
+      "description": "Enum definitions. Keys are enum names, values are string arrays.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "default": {}
+    },
+    "terms": {
+      "type": "object",
+      "description": "Canonical terms with definitions and forbidden aliases.",
+      "additionalProperties": {
+        "$ref": "#/$defs/GlossaryTerm"
+      },
+      "default": {}
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/GlossaryRule" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "GlossaryType": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["string", "number", "integer", "boolean", "object", "array"],
+          "description": "Base kind of the type"
+        },
+        "format": {
+          "type": "string",
+          "description": "Format hint (e.g. uuid, date-time, email)"
+        },
+        "example": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "object",
+          "description": "For kind=object: field definitions (JSON Schema fragments)",
+          "additionalProperties": true
+        },
+        "enum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed values for string types"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "GlossaryTerm": {
+      "type": "object",
+      "required": ["canonical", "definition"],
+      "properties": {
+        "canonical": {
+          "type": "string",
+          "description": "Canonical name — MUST be used in all contracts"
+        },
+        "definition": {
+          "type": "string"
+        },
+        "aliases_forbidden": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Synonyms that MUST NOT be used",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "GlossaryRule": {
+      "type": "object",
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

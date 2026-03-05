@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-performance-constraints-schema",
+  "title": "HLV performance constraints",
+  "description": "Global performance constraints — human/constraints/performance.yaml. Default budgets and per-contract overrides.",
+  "type": "object",
+  "required": ["id", "version"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Constraint set ID (e.g. constraints.performance.global)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "intent": {
+      "type": "string"
+    },
+    "defaults": {
+      "$ref": "#/$defs/PerfDefaults"
+    },
+    "overrides": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/PerfOverride" },
+      "default": []
+    },
+    "validation": {
+      "$ref": "#/$defs/PerfValidation"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "PerfDefaults": {
+      "type": "object",
+      "properties": {
+        "latency_p95_ms": { "type": "integer" },
+        "latency_p99_ms": { "type": "integer" },
+        "error_rate_max_percent": { "type": "number" },
+        "availability_slo": { "type": "number" },
+        "cpu_max_percent": { "type": "integer" },
+        "memory_max_mb": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "PerfOverride": {
+      "type": "object",
+      "required": ["contract_id"],
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "description": "Contract to override defaults for"
+        },
+        "latency_p99_ms": { "type": "integer" },
+        "throughput_rps_min": { "type": "integer" }
+      },
+      "additionalProperties": true
+    },
+    "PerfValidation": {
+      "type": "object",
+      "properties": {
+        "warmup_seconds": { "type": "integer" },
+        "test_window_seconds": { "type": "integer" },
+        "percentile_method": {
+          "type": "string",
+          "description": "Algorithm for percentile calculation (e.g. hdr_histogram)"
+        },
+        "fail_on_budget_exceed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

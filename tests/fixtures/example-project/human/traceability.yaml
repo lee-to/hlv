@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../../schema/traceability-schema.json
+schema_version: 1
+owner: commerce-architecture
+intent: "Requirement-to-contract-to-test traceability map."
+
+requirements:
+  - id: REQ-ORDER-001
+    statement: "System must create an order atomically."
+  - id: REQ-ORDER-002
+    statement: "Order total must never be negative."
+  - id: REQ-ORDER-003
+    statement: "Checkout must fail safely on out-of-stock items."
+
+mappings:
+  - requirement: REQ-ORDER-001
+    contracts: [order.create]
+    scenarios: [scenario.checkout.happy_path, scenario.checkout.partial_failure]
+    tests: [CT-ORDER-CREATE-001, PBT-ORDER-INV-001, EC-ORDER-001]
+    runtime_gates: [GATE-CONTRACT-001, GATE-PBT-001, GATE-INTEGRATION-001]
+  - requirement: REQ-ORDER-002
+    contracts: [order.create]
+    scenarios: [scenario.checkout.happy_path]
+    tests: [PBT-ORDER-INV-002]
+    runtime_gates: [GATE-PBT-001]
+  - requirement: REQ-ORDER-003
+    contracts: [order.create]
+    scenarios: [scenario.checkout.partial_failure]
+    tests: [CT-ORDER-CREATE-003, EC-ORDER-002]
+    runtime_gates: [GATE-CONTRACT-001, GATE-INTEGRATION-001]
+
+coverage_policy:
+  require_full_traceability: true
+  allow_unmapped_requirements: false
+  minimum_mandatory_gate_coverage_percent: 100

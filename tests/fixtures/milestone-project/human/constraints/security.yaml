@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../../../../schema/security-constraints-schema.json
+id: constraints.security.global
+version: 1.0.0
+owner: platform-security
+intent: "Security constraints for milestone-project."
+
+rules:
+  - id: prepared_statements_only
+    severity: critical
+    statement: "All database access must use parameterized queries."
+    enforcement: [sast]
+
+exceptions:
+  process: "Approval required."
+  max_exception_days: 30

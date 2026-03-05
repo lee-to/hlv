@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-adversarial-guardrails-schema",
+  "title": "HLV adversarial guardrails",
+  "description": "Adversarial guardrails — validation/adversarial-guardrails.yaml. Mandatory safety rules for using an adversarial LLM in validation.",
+  "type": "object",
+  "required": ["version", "policy_id"],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "requirements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AdversarialRequirement" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "AdversarialRequirement": {
+      "type": "object",
+      "required": ["id", "rule"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Requirement ID (e.g. ADV-001)"
+        },
+        "must": {
+          "type": "boolean",
+          "default": false
+        },
+        "rule": {
+          "type": "string",
+          "description": "Human-readable rule"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

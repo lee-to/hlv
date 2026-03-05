@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-security-constraints-schema",
+  "title": "HLV security constraints",
+  "description": "Global security constraints — human/constraints/security.yaml. Reusable rules applied to all contracts via depends_on_constraints.",
+  "type": "object",
+  "required": ["id", "version"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Constraint set ID (e.g. constraints.security.global)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owning team (e.g. platform-security)"
+    },
+    "intent": {
+      "type": "string"
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SecurityConstraintRule" },
+      "default": []
+    },
+    "exceptions": {
+      "$ref": "#/$defs/ExceptionPolicy"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "SecurityConstraintRule": {
+      "type": "object",
+      "required": ["id", "severity", "statement"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Rule ID referenced by contracts (e.g. prepared_statements_only)"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"]
+        },
+        "statement": {
+          "type": "string",
+          "description": "Human-readable rule description"
+        },
+        "enforcement": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["sast", "dast", "integration_test", "contract_test", "log_policy_check", "runtime_scan", "runtime_gate", "dependency_scan"]
+          },
+          "description": "How this rule is verified",
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExceptionPolicy": {
+      "type": "object",
+      "properties": {
+        "process": {
+          "type": "string",
+          "description": "How to request an exception"
+        },
+        "max_exception_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max days an exception can remain active"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

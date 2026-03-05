@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../../schema/gates-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-GATES
+description: "Gates for milestone-project."
+
+release_policy:
+  require_all_mandatory: true
+  flaky_policy:
+    quarantine_required: true
+    block_release_for_p0: true
+
+gates:
+  - id: GATE-CONTRACT-001
+    type: contract_tests
+    mandatory: true
+    pass_criteria:
+      required_scenarios_pass_rate: 1.0
+  - id: GATE-SECURITY-001
+    type: security
+    mandatory: true
+    pass_criteria:
+      max_open_critical: 0

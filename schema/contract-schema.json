@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-contract-schema",
+  "title": "HLV contract YAML",
+  "description": "Machine-readable contract — human/contracts/*.yaml. Structured version of the .md contract for programmatic validation by hlv check.",
+  "type": "object",
+  "required": ["id", "version"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Contract ID (e.g. order.create)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version string"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Team or person responsible"
+    },
+    "intent": {
+      "type": "string",
+      "description": "What this operation does"
+    },
+    "inputs_schema": {
+      "type": "object",
+      "description": "JSON Schema for input payload. May use $ref to glossary.yaml types.",
+      "additionalProperties": true
+    },
+    "outputs_schema": {
+      "type": "object",
+      "description": "JSON Schema for output payload. May use $ref to glossary.yaml types.",
+      "additionalProperties": true
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContractError" },
+      "default": []
+    },
+    "invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContractInvariant" },
+      "default": []
+    },
+    "nfr": {
+      "$ref": "#/$defs/ContractNfr"
+    },
+    "security": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SecurityRule" },
+      "default": []
+    },
+    "compatibility": {
+      "$ref": "#/$defs/Compatibility"
+    },
+    "depends_on_constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Relative paths to constraint files this contract depends on",
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ContractError": {
+      "type": "object",
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Error code (e.g. OUT_OF_STOCK)"
+        },
+        "when": {
+          "type": "string",
+          "description": "Formal condition expression"
+        },
+        "http_status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContractInvariant": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Invariant identifier (e.g. atomicity, non_negative_total)"
+        },
+        "expr": {
+          "type": "string",
+          "description": "Formal expression of the invariant"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ContractNfr": {
+      "type": "object",
+      "properties": {
+        "latency_p99_ms": {
+          "type": "integer",
+          "description": "Max p99 latency in milliseconds"
+        },
+        "availability_slo": {
+          "type": "number",
+          "description": "Availability SLO percentage (e.g. 99.9)"
+        },
+        "throughput_rps_min": {
+          "type": "integer",
+          "description": "Minimum throughput in requests per second"
+        },
+        "max_query_time_ms": {
+          "type": "integer",
+          "description": "Max single query time in milliseconds"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SecurityRule": {
+      "type": "object",
+      "required": ["rule"],
+      "properties": {
+        "rule": {
+          "type": "string",
+          "description": "Reference to a rule ID from constraints/security.yaml"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Compatibility": {
+      "type": "object",
+      "properties": {
+        "api_semver": {
+          "type": "string",
+          "enum": ["major", "minor", "patch"],
+          "description": "Impact level on API semver"
+        },
+        "backward_compatible": {
+          "type": "boolean"
+        },
+        "data_migration_required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

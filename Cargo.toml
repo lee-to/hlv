@@ -1,0 +1,46 @@
+[package]
+name = "hlv"
+version = "0.1.0"
+edition = "2021"
+authors = ["Danil Shutsky <thecutcode@gmail.com>"]
+description = "Contract-driven development CLI"
+license = "MIT"
+repository = "https://github.com/lee-to/hlv"
+homepage = "https://github.com/lee-to/hlv"
+keywords = ["cli", "contracts", "validation", "development"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "hlv"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+pulldown-cmark = "0.12"
+petgraph = "0.6"
+colored = "2"
+anyhow = "1"
+include_dir = "0.7"
+thiserror = "2"
+regex = "1"
+chrono = { version = "0.4", features = ["serde"] }
+ratatui = "0.29"
+crossterm = "0.28"
+notify = { version = "7", features = ["macos_fsevent"] }
+glob = "0.3"
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+rmcp = { version = "1.1", features = ["server", "macros", "transport-io", "transport-streamable-http-server", "tower"] }
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+tokio-util = "0.7"
+schemars = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
+jsonschema = "0.28"
+reqwest = { version = "0.12", features = ["json"] }

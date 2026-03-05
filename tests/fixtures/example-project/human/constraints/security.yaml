@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../../../../schema/security-constraints-schema.json
+id: constraints.security.global
+version: 1.0.0
+owner: platform-security
+intent: "Global security constraints for all commerce contracts."
+
+rules:
+  - id: prepared_statements_only
+    severity: critical
+    statement: "All database access must use parameterized queries."
+    enforcement: [sast, integration_test]
+  - id: no_secrets_in_logs
+    severity: critical
+    statement: "Secrets, credentials, and tokens must never be logged."
+    enforcement: [log_policy_check, runtime_scan]
+  - id: pii_masking_enabled
+    severity: high
+    statement: "PII fields must be masked in logs and traces."
+    enforcement: [log_policy_check, integration_test]
+  - id: authn_required
+    severity: critical
+    statement: "Authenticated identity is required for all state-changing endpoints."
+    enforcement: [contract_test, integration_test]
+  - id: authz_order_scope_check
+    severity: critical
+    statement: "Caller must be authorized for the target order scope."
+    enforcement: [contract_test, integration_test]
+  - id: request_rate_limit_applied
+    severity: high
+    statement: "Rate limits must be applied on all public endpoints."
+    enforcement: [integration_test, runtime_gate]
+
+exceptions:
+  process: "Any exception requires security approval and expiry date."
+  max_exception_days: 30

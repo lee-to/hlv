@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../../schema/glossary-schema.json
+schema_version: 1
+domain: commerce
+
+types:
+  UserId:
+    kind: string
+    format: uuid
+    example: "6f4993d8-7680-4e40-b89f-6f4dcbfd8db8"
+  OrderId:
+    kind: string
+    format: uuid
+    example: "0504fd7f-f532-4a8f-ae7c-b896782025f9"
+  Money:
+    kind: object
+    fields:
+      amount:
+        type: number
+        minimum: 0
+      currency:
+        type: string
+        enum: [USD, EUR, RUB]
+  OrderItem:
+    kind: object
+    fields:
+      product_id:
+        type: string
+        format: uuid
+      quantity:
+        type: integer
+        minimum: 1
+
+enums:
+  OrderStatus: [created, paid, cancelled, failed]
+
+terms:
+  order:
+    canonical: order
+    definition: "Atomic purchase record for one checkout transaction."
+    aliases_forbidden: [purchase, deal]
+  checkout:
+    canonical: checkout
+    definition: "User flow for validating basket and creating an order."
+    aliases_forbidden: [payment_flow]
+
+rules:
+  - id: no_critical_synonyms
+    description: "Critical entities must use canonical names in all contracts."
+  - id: type_reuse_required
+    description: "Contracts must reuse glossary types instead of redefining them."

@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../../schema/glossary-schema.json
+schema_version: 1
+domain: commerce
+
+types:
+  UserId:
+    kind: string
+    format: uuid
+  OrderId:
+    kind: string
+    format: uuid
+
+enums:
+  OrderStatus: [created, paid, cancelled]
+
+terms:
+  order:
+    canonical: order
+    definition: "Atomic purchase record."
+
+rules:
+  - id: type_reuse_required
+    description: "Use glossary types."

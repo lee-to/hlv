@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../../../schema/adversarial-guardrails-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-ADV
+description: "Adversarial guardrails."
+
+requirements:
+  - id: ADV-001
+    must: true
+    rule: "Redact secrets before model access."

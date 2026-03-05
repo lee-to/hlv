@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=../../../../../../schema/contract-schema.json
+id: order.create
+version: 1.0.0
+owner: commerce-team
+intent: "Create an order from cart items."
+
+inputs_schema:
+  type: object
+  properties:
+    user_id:
+      type: string
+      format: uuid
+    items:
+      type: array
+  required: [user_id, items]
+
+outputs_schema:
+  type: object
+  properties:
+    order_id:
+      type: string
+      format: uuid
+    status:
+      type: string
+  required: [order_id, status]
+
+errors:
+  - code: OUT_OF_STOCK
+    http_status: 409
+  - code: INVALID_QUANTITY
+    http_status: 400
+
+invariants:
+  - id: atomicity
+    expr: "order is created atomically"
+
+nfr:
+  latency_p99_ms: 200

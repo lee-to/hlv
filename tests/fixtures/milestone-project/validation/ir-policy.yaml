@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../../schema/ir-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-IR
+description: "IR compatibility policy."
+
+compatibility_rules:
+  - id: IR-001
+    must: true
+    rule: "Must include ir_schema_version."
+
+required_fields:
+  contract_ir: [ir_schema_version, contract_id]
+  test_ir: [ir_schema_version, contract_id]

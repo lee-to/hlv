@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-llm-map-schema",
+  "title": "HLV LLM map",
+  "description": "LLM project map — llm/map.yaml. Authoritative index of all project files and directories. LLM agents find code by descriptions, not file names.",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "ignore": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Glob patterns for files/dirs to exclude from reverse check (MAP-020). Example: __pycache__, *.pyc, node_modules, target/"
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/MapEntry" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "MapEntry": {
+      "type": "object",
+      "required": ["path", "kind", "layer", "description"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Relative path from project root"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["file", "dir"]
+        },
+        "layer": {
+          "type": "string",
+          "enum": ["root", "human", "validation", "llm"],
+          "description": "Project layer this entry belongs to"
+        },
+        "description": {
+          "type": "string",
+          "description": "MUST be sufficient to select the file without reading it"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

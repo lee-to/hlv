@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../../schema/traceability-schema.json
+schema_version: 1
+owner: commerce-team
+intent: "Traceability map for milestone-project."
+
+requirements:
+  - id: REQ-CHECKOUT-001
+    statement: "System must create an order."
+
+mappings:
+  - requirement: REQ-CHECKOUT-001
+    contracts: [order.create]
+    tests: [CT-001]
+    runtime_gates: [GATE-CONTRACT-001]
+
+coverage_policy:
+  require_full_traceability: true
+  allow_unmapped_requirements: false

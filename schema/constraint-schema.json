@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-constraint-schema",
+  "title": "HLV generic rule-based constraint",
+  "description": "Schema for rule-based constraint files (security, observability, compliance, etc.)",
+  "type": "object",
+  "required": ["id", "version", "rules"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Constraint ID (e.g. constraints.security.global)"
+    },
+    "version": {
+      "type": "string",
+      "description": "Semver version"
+    },
+    "owner": {
+      "type": "string",
+      "description": "Owner team"
+    },
+    "intent": {
+      "type": "string",
+      "description": "Purpose description"
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ConstraintRule" }
+    },
+    "exceptions": {
+      "$ref": "#/$defs/ExceptionPolicy"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ConstraintRule": {
+      "type": "object",
+      "required": ["id", "severity", "statement"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Rule ID (unique within constraint)"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"],
+          "description": "Rule severity"
+        },
+        "statement": {
+          "type": "string",
+          "description": "Rule statement"
+        },
+        "enforcement": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Enforcement mechanisms"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExceptionPolicy": {
+      "type": "object",
+      "properties": {
+        "process": {
+          "type": "string",
+          "description": "Exception approval process"
+        },
+        "max_exception_days": {
+          "type": "integer",
+          "description": "Maximum exception duration in days"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../../../../schema/equivalence-policy-schema.json
+version: 1.0.0
+policy_id: HLV-VAL-EQUIV
+description: Behavioral equivalence policy for controlled code regeneration.
+
+scope:
+  applies_to: unchanged_contracts
+  required_for_regeneration: true
+
+requirements:
+  - id: EQUIV-001
+    rule: fixed_test_ir
+    must: true
+    details: "Comparison must use a fixed Test IR version and unchanged seed set."
+
+  - id: EQUIV-002
+    rule: nondeterminism_normalization
+    must: true
+    normalize_fields:
+      - timestamp
+      - uuid
+      - trace_id
+
+  - id: EQUIV-003
+    rule: deterministic_external_io
+    must: true
+    allowed_approaches:
+      - record_replay
+      - deterministic_mocks
+
+  - id: EQUIV-004
+    rule: comparison_dimensions
+    must: true
+    dimensions:
+      - response_codes_and_errors
+      - state_invariants
+      - side_effects_in_canonical_trace
+
+  - id: EQUIV-005
+    rule: explicit_tolerances
+    must: true
+    numeric: "compare with declared tolerance"
+    categorical: "strict equality for string/enum"
