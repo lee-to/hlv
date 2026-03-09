@@ -1,3 +1,5 @@
+![logo](https://github.com/lee-to/hlv/raw/master/docs/assets/promo.png)
+
 # hlv
 
 [![Test](https://github.com/lee-to/hlv/actions/workflows/test.yml/badge.svg)](https://github.com/lee-to/hlv/actions/workflows/test.yml)
