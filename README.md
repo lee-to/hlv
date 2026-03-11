@@ -91,6 +91,7 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 | `hlv task` | Task lifecycle (start/done/block/unblock) |
 | `hlv mcp` | Start MCP server (stdio or HTTP) |
 | `hlv workspace` | Manage MCP workspace (init/add/remove/list) |
+| `hlv update` | Self-update to the latest release from GitHub |
 
 All commands support `--json` for programmatic access.
 
@@ -259,6 +260,13 @@ cd hlv
 cargo install --path .
 ```
 </details>
+
+### Updating
+
+```bash
+hlv update            # download and install the latest release
+hlv update --check    # only check if a new version is available
+```
 
 Then bootstrap a project:
 

@@ -14,5 +14,6 @@ pub mod status;
 pub mod style;
 pub mod task;
 pub mod trace;
+pub mod update;
 pub mod workflow;
 pub mod workspace;

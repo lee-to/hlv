@@ -142,6 +142,12 @@ enum Commands {
         #[command(subcommand)]
         action: StageAction,
     },
+    /// Update hlv to the latest version from GitHub Releases
+    Update {
+        /// Only check for updates, don't install
+        #[arg(long)]
+        check: bool,
+    },
     /// Manage MCP workspace (multi-project config)
     Workspace {
         #[command(subcommand)]
@@ -531,6 +537,11 @@ fn run(cli: Cli) -> Result<()> {
         );
     }
 
+    // Update doesn't need a project root
+    if let Commands::Update { check } = cli.command {
+        return hlv::cmd::update::run(check);
+    }
+
     // Workspace commands don't need a project root
     if let Commands::Workspace { action, config } = cli.command {
         return match action {
@@ -761,6 +772,7 @@ fn run(cli: Cli) -> Result<()> {
             ),
         },
         Commands::Mcp { .. } => unreachable!(),
+        Commands::Update { .. } => unreachable!(),
         Commands::Workspace { .. } => unreachable!(),
         Commands::Stage { action } => match action {
             StageAction::Reopen { id } => hlv::cmd::stage::run_reopen(&project_root, id),

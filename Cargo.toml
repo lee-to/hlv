@@ -39,8 +39,11 @@ tokio-util = "0.7"
 schemars = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+flate2 = "1"
+tar = "0.4"
+zip = "2"
 
 [dev-dependencies]
 tempfile = "3"
 jsonschema = "0.28"
-reqwest = { version = "0.12", features = ["json"] }
