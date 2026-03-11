@@ -21,7 +21,13 @@ pub fn find_project_root(explicit: Option<&str>) -> Result<PathBuf> {
         return Ok(path);
     }
 
-    let mut dir = std::env::current_dir().context("cannot get current directory")?;
+    let start = std::env::current_dir().context("cannot get current directory")?;
+    find_project_root_from(&start)
+}
+
+/// Search upward from `start` for a directory containing `project.yaml`.
+pub fn find_project_root_from(start: &Path) -> Result<PathBuf> {
+    let mut dir = start.to_path_buf();
     loop {
         if dir.join("project.yaml").exists() {
             return Ok(dir);
@@ -74,18 +80,12 @@ mod tests {
     #[test]
     fn find_project_root_upward_search() {
         let tmp = tempfile::tempdir().unwrap();
-        // Canonicalize to handle macOS /var → /private/var symlink
         let root = tmp.path().canonicalize().unwrap();
         std::fs::write(root.join("project.yaml"), "project: test").unwrap();
         let subdir = root.join("a/b/c");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        // Change to subdir and search upward
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&subdir).unwrap();
-        let result = find_project_root(None);
-        std::env::set_current_dir(original_dir).unwrap();
-
+        let result = find_project_root_from(&subdir);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().canonicalize().unwrap(), root);
     }
@@ -96,11 +96,7 @@ mod tests {
         let subdir = tmp.path().join("no_project_here");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&subdir).unwrap();
-        let result = find_project_root(None);
-        std::env::set_current_dir(original_dir).unwrap();
-
+        let result = find_project_root_from(&subdir);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("No project.yaml"));
     }
