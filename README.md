@@ -188,6 +188,8 @@ hlv mcp --transport sse --port 3000
 
 12 resources + 27 tools + change notifications. See [docs/MCP.md](docs/MCP.md) for details.
 
+**Web Dashboard example:** [hlv-dashboard-example](https://github.com/lee-to/hlv-dashboard-example) — a reference implementation of the [Dashboard spec](docs/specs/SPEC_DASHBOARD.md) built with HLV MCP.
+
 ## AI agent skills
 
 Built-in skills drive the full development lifecycle:
