@@ -208,6 +208,10 @@ Built-in skills drive the full development lifecycle:
 
 Skills are installed automatically by `hlv init`.
 
+## Looking for something simpler?
+
+If HLV feels like overkill for your current workflow, start with [AI Factory](https://github.com/lee-to/ai-factory) — a lighter approach to working with AI agents.
+
 ## Installation
 
 <details>
