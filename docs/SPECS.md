@@ -561,6 +561,143 @@ Integrity checks for constraint files, executed by `hlv check`.
 |-----|---------|--------------|
 | `CST-010` | error | Constraint file referenced in `project.yaml -> constraints` is not found on disk |
 | `CST-020` | error | Duplicate `rule.id` values within the same constraint file |
-| `CST-030` | warning | Invalid `severity` value (allowed: `critical`, `high`, `medium`, `low`) |
+| `CST-030` | error | Invalid `severity` value (allowed: `critical`, `high`, `medium`, `low`) |
 
-These checks run automatically as part of `hlv check`. `CST-010` and `CST-020` block `/verify`.
+These checks run automatically as part of `hlv check` and block `/verify` when reported as errors.
+
+---
+
+### `hlv check` - Full Diagnostic Code Registry
+
+Full list of diagnostics currently emitted by `hlv check`.
+
+Important notes:
+
+- Some codes are reused in multiple contexts (for example `CTR-001`, `CTR-010`, `TRC-001`), so severity may differ by check stage.
+- Phase-aware expectations can downgrade some warnings to info before later phases (`TRC-020`, `TRC-021`, `TRC-030`, `PLN-040`, `CTR-010`, `TSK-010`, `TSK-030`, `TSK-050`).
+
+#### Project (`PRJ-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `PRJ-001` | error | Cannot parse `project.yaml` |
+| `PRJ-010` | error | Referenced path does not exist |
+| `PRJ-012` | error | Referenced constraints directory does not exist |
+| `PRJ-014` | error | Referenced `gates-policy.yaml` path does not exist |
+| `PRJ-030` | warning | `glossary_types` entry not found in glossary |
+| `PRJ-040` | error | Referenced constraint file path does not exist |
+| `PRJ-080` | error | `paths.llm.src` is outside `llm/` |
+| `PRJ-081` | error | `paths.llm.tests` is outside `llm/` |
+
+#### Contracts and Code Trace (`CTR-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `CTR-001` | error / info | Cannot read contract file (error) or code-trace coverage summary (info) |
+| `CTR-002` | error | Missing contract ID in Markdown header |
+| `CTR-003` | error | Missing contract version in Markdown header |
+| `CTR-004` | error | Markdown contract version differs from `project.yaml` |
+| `CTR-010` | error / warning | Missing required contract section (error) or missing `@hlv` marker in code trace (warning) |
+| `CTR-020` | warning | Contract source link points to missing file |
+| `CTR-030` | error | Invalid Input YAML block in contract Markdown |
+| `CTR-031` | error | Missing Input YAML block in contract Markdown |
+| `CTR-032` | error | Invalid Output YAML block in contract Markdown |
+| `CTR-033` | error | Missing Output YAML block in contract Markdown |
+| `CTR-040` | warning | No happy-path example in contract Markdown |
+| `CTR-041` | warning | No error example in contract Markdown |
+| `CTR-050` | warning | Errors table is empty |
+| `CTR-051` | warning | Invariants section is empty |
+| `CTR-060` | warning | Unknown glossary type in `$ref` |
+| `CTR-Y01` | error | Cannot parse YAML contract |
+| `CTR-Y02` | error | YAML contract missing `id` |
+| `CTR-Y03` | error | YAML contract missing `version` |
+| `CTR-Y10` | error | YAML contract `id` does not match `project.yaml` entry |
+| `CTR-Y11` | error | YAML contract `version` does not match `project.yaml` entry |
+| `CTR-Y20` | error | YAML contract missing `inputs_schema` |
+| `CTR-Y21` | error | YAML contract missing `outputs_schema` |
+| `CTR-Y22` | warning | YAML contract has no `errors` |
+| `CTR-Y23` | warning | YAML contract has no `invariants` |
+
+#### Test Specs (`TST-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `TST-001` | warning | Contract entry has no `test_spec` |
+| `TST-002` | error | Cannot read test spec file |
+| `TST-010` | warning | `derived_from` does not reference source contract |
+| `TST-011` | warning | `contract_version` in test spec differs from contract version |
+| `TST-020` | warning | No contract tests (`CT-*`) in spec |
+| `TST-021` | warning | No property-based tests (`PBT-*`) in spec |
+| `TST-030` | warning | No `GATE-` references in spec |
+| `TST-040` | error | Duplicate test ID across specs |
+
+#### Traceability (`TRC-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `TRC-001` | error / info | Cannot parse traceability file (error) or traceability file is missing (info) |
+| `TRC-010` | error | Mapping references unknown contract |
+| `TRC-011` | error | Mapping references unknown requirement |
+| `TRC-020` | warning / info | Requirement has no tests mapped (warning), or infra-only mapping without contracts (info) |
+| `TRC-021` | warning | Requirement has no gates mapped |
+| `TRC-022` | warning | Mapping references unknown test ID |
+| `TRC-023` | warning | Mapping references unknown gate ID |
+| `TRC-030` | warning | Requirement has no mapping entry |
+
+#### Plan (`PLN-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `PLN-001` | info | No `stage_N.md` files found |
+| `PLN-010` | error | Stage read/parse failure or duplicate task ID across stages |
+| `PLN-020` | error | Dependency cycle within a stage |
+| `PLN-040` | warning | Contract not covered by any task |
+
+#### Stack (`STK-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `STK-001` | warning | Stack has no components |
+| `STK-010` | error | Stack component missing `id` |
+| `STK-011` | error | Duplicate stack component ID |
+| `STK-012` | warning | Stack component has no languages |
+| `STK-020` | error | Dependency entry missing name |
+| `STK-021` | warning | Duplicate dependency name inside a component |
+
+#### Constraints (`CST-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `CST-010` | error | Constraint file is missing or unparsable |
+| `CST-020` | error | Duplicate `rules[].id` in one constraint file |
+| `CST-030` | error | Invalid `rules[].severity` |
+
+#### LLM Map (`MAP-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `MAP-001` | error | Map file not found |
+| `MAP-002` | error | Map parse error |
+| `MAP-003` | info | Map has no entries |
+| `MAP-010` | error | Map entry does not exist on disk |
+| `MAP-020` | warning | File on disk is missing from map |
+| `MAP-100` | info | Forward-check summary (`found/total`) |
+| `MAP-101` | info | Reverse-check summary |
+
+#### Tasks (`TSK-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `TSK-010` | warning | Task is `in_progress` for more than 7 days |
+| `TSK-020` | error | Task is `done` but declared output path is missing |
+| `TSK-030` | warning | All stage tasks are done but stage status is not advanced |
+| `TSK-040` | error | `in_progress` task depends on unfinished dependency |
+| `TSK-050` | warning | Task exists in tracker but not in `stage_N.md` |
+
+#### Runtime File Parse (`GAT-*`, `GLO-*`, `MST-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `GAT-001` | error | Cannot parse `validation/gates-policy.yaml` |
+| `GLO-001` | error | Cannot parse `human/glossary.yaml` |
+| `MST-001` | error | Cannot parse `milestones.yaml` |

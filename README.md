@@ -214,7 +214,7 @@ Skills are installed automatically by `hlv init`.
 <summary><b>macOS (Apple Silicon)</b></summary>
 
 ```bash
-curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-apple-darwin.tar.gz | tar xz -C /usr/local/bin
+curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-apple-darwin.tar.gz | sudo tar xz -C /usr/local/bin
 ```
 </details>
 
@@ -222,7 +222,7 @@ curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-ap
 <summary><b>macOS (Intel)</b></summary>
 
 ```bash
-curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-apple-darwin.tar.gz | tar xz -C /usr/local/bin
+curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-apple-darwin.tar.gz | sudo tar xz -C /usr/local/bin
 ```
 </details>
 
@@ -230,7 +230,7 @@ curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-app
 <summary><b>Linux (x86_64)</b></summary>
 
 ```bash
-curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /usr/local/bin
+curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-unknown-linux-gnu.tar.gz | sudo tar xz -C /usr/local/bin
 ```
 </details>
 
@@ -238,7 +238,7 @@ curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-x86_64-unk
 <summary><b>Linux (aarch64)</b></summary>
 
 ```bash
-curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-unknown-linux-gnu.tar.gz | tar xz -C /usr/local/bin
+curl -fsSL https://github.com/lee-to/hlv/releases/latest/download/hlv-aarch64-unknown-linux-gnu.tar.gz | sudo tar xz -C /usr/local/bin
 ```
 </details>
 
