@@ -19,6 +19,14 @@ Execute all mandatory validation gates defined in `gates-policy.yaml`. Collect r
 - `validation/gates-policy.yaml` contains gate definitions
 - `milestones.yaml` exists with current stage status `implemented`
 
+## Agent Rules
+
+- Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call.
+- This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
+
+❌ Wrong: `git checkout main && git pull`
+✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
 ## Input
 
 ```

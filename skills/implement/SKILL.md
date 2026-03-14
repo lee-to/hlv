@@ -48,6 +48,14 @@ This changes everything about how code is structured:
 - Current stage status is `pending`, `verified`, or `validating` (remediation)
 - Stage file (`{MID}/stage_N.md`) contains tasks
 
+## Agent Rules
+
+- Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call.
+- This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
+
+❌ Wrong: `git checkout main && git pull`
+✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
 ## Input
 
 ```
@@ -225,7 +233,7 @@ Determine the correct command from `project.yaml → stack` (language, framework
 | `contract_tests` | `cargo test --lib` | `pytest tests/contract/` | `npm test` |
 | `integration_tests` | `cargo test --test integration` | `pytest tests/integration/` | `npm run test:integration` |
 | `property_based_tests` | `cargo test --lib -- pbt` | `pytest tests/pbt/` | `npm run test:pbt` |
-| `security` | `cargo audit && cargo clippy` | `bandit -r src/` | `npm audit` |
+| `security` | `cargo audit` | `bandit -r src/` | `npm audit` |
 | `mutation_testing` | `cargo mutants` | `mutmut run` | `npx stryker run` |
 | `performance` | `cargo bench` | `locust --headless` | `npx k6 run` |
 

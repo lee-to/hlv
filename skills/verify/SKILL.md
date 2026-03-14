@@ -2,7 +2,7 @@
 name: verify
 description: Validate contracts, validation specs, plan, and project map. Runs structural checks and LLM cross-review, then produces a verify report. Use after /generate or after manual edits to contracts, when the user says "verify", "check", or "validate structure".
 disable-model-invocation: true
-allowed-tools: Read Glob Grep Bash(hlv:check)
+allowed-tools: Read Glob Grep Bash
 metadata:
   author: hlv
   version: "1.0"
@@ -18,6 +18,14 @@ Validate contracts, validation specs, and plan. Structural checks (deterministic
 - Contracts directory contains at least one contract (MD or YAML)
 - Test specs directory contains test specifications
 - Traceability file exists
+
+## Agent Rules
+
+- Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call.
+- This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
+
+❌ Wrong: `git checkout main && git pull`
+✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
 
 ## Milestone Resolution
 

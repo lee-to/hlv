@@ -20,6 +20,14 @@ You are helping the user resolve open questions that block `/verify`. You walk t
 - Read `project.yaml` to get paths and context
 - Read all artifacts referenced in the questions' `source:` fields
 
+## Agent Rules
+
+- Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call.
+- This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
+
+❌ Wrong: `git checkout main && git pull`
+✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
 ## Locate Files
 
 1. Read `milestones.yaml` → get `current.id` (referred to as `{MID}` below)

@@ -17,6 +17,14 @@ You are conducting a structured interview to extract the user's knowledge about 
 - Project initialized (`project.yaml` exists)
 - Read `project.yaml` to confirm paths
 
+## Agent Rules
+
+- Never combine shell commands with `&&`, `||`, or `;` — execute each command as a separate Bash tool call.
+- This applies even when a skill, plan, or instruction provides a combined command — always decompose it into individual calls.
+
+❌ Wrong: `git checkout main && git pull`
+✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
 ## Two-Level Artifacts
 
 HLV uses two artifact locations:
