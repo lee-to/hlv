@@ -139,8 +139,7 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
     if !project.constraints.is_empty() {
         all_diags.extend(check::constraints::check_constraints(root, &project));
         // CST-050: run rule-level check_commands
-        let (cst050, _) =
-            check::constraints::run_constraint_checks(root, &project, None, None);
+        let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
         all_diags.extend(cst050);
         // CST-060: run file-level check_commands
         let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
@@ -352,8 +351,7 @@ fn run_checks(root: &Path) -> Result<i32> {
         all_diags.extend(cst_diags);
 
         // 9b. Constraint check commands (CST-050/060)
-        let (cst050, _) =
-            check::constraints::run_constraint_checks(root, &project, None, None);
+        let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
         if !cst050.is_empty() {
             print_diags(&cst050);
         }
