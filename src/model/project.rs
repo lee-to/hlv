@@ -335,6 +335,16 @@ impl std::fmt::Display for ComponentType {
     }
 }
 
+impl ComponentType {
+    /// Returns true if this component type is expected to have programming languages.
+    pub fn expects_language(&self) -> bool {
+        !matches!(
+            self,
+            Self::Datastore | Self::ExternalApi | Self::Channel | Self::Hosting
+        )
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct StackDependency {

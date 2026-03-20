@@ -29,8 +29,8 @@ pub fn check_stack(stack: &Stack) -> Vec<Diagnostic> {
             ));
         }
 
-        // STK-012: component missing languages
-        if comp.languages.is_empty() {
+        // STK-012: component missing languages (only for types that should have them)
+        if comp.languages.is_empty() && comp.component_type.expects_language() {
             diags.push(Diagnostic::warning(
                 "STK-012",
                 format!("Stack component '{}' has no languages", comp.id),

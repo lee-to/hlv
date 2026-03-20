@@ -2026,6 +2026,51 @@ fn stack_missing_languages_warning() {
 }
 
 #[test]
+fn stack_no_language_warning_for_infra_types() {
+    let infra_types = vec![
+        ("postgres", ComponentType::Datastore),
+        ("stripe", ComponentType::ExternalApi),
+        ("slack", ComponentType::Channel),
+        ("vercel", ComponentType::Hosting),
+    ];
+    for (id, ct) in infra_types {
+        let stack = Stack {
+            components: vec![make_stack_component(id, ct, &[], vec![])],
+        };
+        let diags = check_stack(&stack);
+        assert!(
+            !has_warning(&diags, "STK-012"),
+            "{} should not warn about missing languages: {:?}",
+            id,
+            diags
+        );
+    }
+}
+
+#[test]
+fn stack_language_warning_for_code_types() {
+    let code_types = vec![
+        ("api", ComponentType::Service),
+        ("lib", ComponentType::Library),
+        ("tool", ComponentType::Cli),
+        ("setup", ComponentType::Script),
+        ("app", ComponentType::Application),
+    ];
+    for (id, ct) in code_types {
+        let stack = Stack {
+            components: vec![make_stack_component(id, ct, &[], vec![])],
+        };
+        let diags = check_stack(&stack);
+        assert!(
+            has_warning(&diags, "STK-012"),
+            "{} should warn about missing languages: {:?}",
+            id,
+            diags
+        );
+    }
+}
+
+#[test]
 fn stack_dependency_missing_name() {
     let stack = Stack {
         components: vec![make_stack_component(
