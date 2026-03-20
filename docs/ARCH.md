@@ -313,7 +313,7 @@ This is not dogma: for UI/frontend, bot/automation tasks, glue code, ML/data/AI-
 
 ### 5.2 Code Traceability (`@hlv` markers)
 
-Every error code, invariant, and constraint rule from contracts MUST have an `@hlv <ID>` marker next to the test that verifies it:
+Every error code, invariant, and constraint rule from contracts MUST have an `@hlv <ID>` marker next to the test that verifies it. Constraint rules that have `check_command` are exempt — they are verified programmatically:
 
 ```rust
 // @ctx: stock validation for order.create contract
@@ -333,7 +333,7 @@ fn test_no_sql_injection() { ... }
 
 `@ctx` comments are navigation hints for the LLM. They help understand context quickly without reading the entire file. They are optional, but recommended for complex logic.
 
-`hlv check` automatically collects all IDs from `contracts/*.yaml` (`errors[].code`, `invariants[].id`) and `constraints/*.yaml` (`rules[].id`), then scans `src/` and `tests/` for markers. Missing markers produce warning `CTR-010`; in phase `implemented` and later they block `/validate`.
+`hlv check` automatically collects all IDs from `contracts/*.yaml` (`errors[].code`, `invariants[].id`) and `constraints/*.yaml` (`rules[].id`), then scans `src/` and `tests/` for markers. Rules with `check_command` are skipped (verified by their command via CST-050). Missing markers produce warning `CTR-010`; in phase `implemented` and later they block `/validate`.
 
 ### 5.3 Agent Protocol
 
@@ -478,9 +478,11 @@ Architecture for managing constraint files in `human/constraints/`.
 
 **CRUD.** `hlv constraints add` creates a new YAML file from a `ConstraintFile` template. `add-rule` / `remove-rule` mutate the `rules[]` array inside an existing file. All operations follow: read file -> deserialize -> mutate -> serialize -> write.
 
-**`hlv check` checks.** `CST-010` - file from `project.yaml -> constraints` not found. `CST-020` - duplicate `rule.id` values inside the file. `CST-030` - invalid severity. `CST-010`/`020` are errors (block `/verify`), `CST-030` is a warning.
+**`hlv check` checks.** `CST-010` - file from `project.yaml -> constraints` not found. `CST-020` - duplicate `rule.id` values inside the file. `CST-030` - invalid `severity` or `error_level` value. `CST-050` - runs `check_command` for each constraint rule that has one; severity is determined by the rule's `error_level` override, or mapped from rule severity (`critical`/`high` -> error, `medium`/`low` -> warning). `CST-060` - runs file-level `check_command` on the constraint file itself; failure is always an error. `CST-010`/`020` are errors (block `/verify`), `CST-030` is a warning.
 
-**Contract linkage.** Contracts refer to constraint rules through `depends_on_constraints`. `hlv check` (`CTR-010`) verifies that every `rule.id` from constraints has an `@hlv` marker in code.
+**`hlv constraints check`.** Runs `check_command` for constraint rules with additional filters: `hlv constraints check <constraint>`, `--rule <id>`, `--json`. The same checks also run as part of `hlv check`.
+
+**Contract linkage.** Contracts refer to constraint rules through `depends_on_constraints`. `hlv check` (`CTR-010`) verifies that every `rule.id` from constraints has an `@hlv` marker in code. Rules that have `check_command` are exempt from the `@hlv` marker requirement — they are verified programmatically by their command.
 
 ---
 

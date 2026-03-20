@@ -497,6 +497,15 @@ enum ConstraintsAction {
         /// Rule statement
         #[arg(long)]
         statement: String,
+        /// Shell command to check this rule
+        #[arg(long)]
+        check_command: Option<String>,
+        /// Working directory for check command (relative to project root)
+        #[arg(long)]
+        check_cwd: Option<String>,
+        /// Override diagnostic level for check failures: error, warning, info
+        #[arg(long)]
+        error_level: Option<String>,
     },
     /// Remove a rule from a constraint
     RemoveRule {
@@ -504,6 +513,17 @@ enum ConstraintsAction {
         constraint: String,
         /// Rule ID
         rule_id: String,
+    },
+    /// Run check commands for constraint rules
+    Check {
+        /// Constraint name filter (e.g. observability)
+        constraint: Option<String>,
+        /// Filter by specific rule ID
+        #[arg(long)]
+        rule: Option<String>,
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -683,17 +703,33 @@ fn run(cli: Cli) -> Result<()> {
                 rule_id,
                 severity: sev,
                 statement,
+                check_command,
+                check_cwd,
+                error_level,
             }) => hlv::cmd::constraints::run_add_rule(
                 &project_root,
                 &constraint,
                 &rule_id,
                 &sev,
                 &statement,
+                check_command.as_deref(),
+                check_cwd.as_deref(),
+                error_level.as_deref(),
             ),
             Some(ConstraintsAction::RemoveRule {
                 constraint,
                 rule_id,
             }) => hlv::cmd::constraints::run_remove_rule(&project_root, &constraint, &rule_id),
+            Some(ConstraintsAction::Check {
+                constraint,
+                rule,
+                json: j,
+            }) => hlv::cmd::constraints::run_check(
+                &project_root,
+                constraint.as_deref(),
+                rule.as_deref(),
+                j || json,
+            ),
         },
         Commands::CommitMsg { stage, r#type } => {
             hlv::cmd::commit_msg::run(&project_root, stage, r#type.as_deref())

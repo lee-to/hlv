@@ -21,6 +21,14 @@
     "intent": {
       "type": "string"
     },
+    "check_command": {
+      "type": "string",
+      "description": "Shell command to check this entire constraint file (executed via sh -c)"
+    },
+    "check_cwd": {
+      "type": "string",
+      "description": "Working directory for check_command, relative to project root"
+    },
     "rules": {
       "type": "array",
       "items": { "$ref": "#/$defs/SecurityConstraintRule" },
@@ -56,6 +64,19 @@
           },
           "description": "How this rule is verified",
           "default": []
+        },
+        "check_command": {
+          "type": "string",
+          "description": "Shell command to check this rule (executed via sh -c)"
+        },
+        "check_cwd": {
+          "type": "string",
+          "description": "Working directory for check_command, relative to project root"
+        },
+        "error_level": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "description": "Override diagnostic level for check failures. If omitted, derived from severity (critical|high → error, medium|low → warning)"
         }
       },
       "additionalProperties": false

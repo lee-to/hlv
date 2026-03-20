@@ -294,6 +294,12 @@ pub struct ConstraintFile {
     pub owner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<String>,
+    /// Shell command to check this entire constraint file (executed via `sh -c`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_command: Option<String>,
+    /// Working directory for check_command, relative to project root
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_cwd: Option<String>,
     #[serde(default)]
     pub rules: Vec<ConstraintRule>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -308,6 +314,16 @@ pub struct ConstraintRule {
     pub statement: String,
     #[serde(default)]
     pub enforcement: Vec<String>,
+    /// Shell command to check this rule (executed via `sh -c`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_command: Option<String>,
+    /// Working directory for check_command, relative to project root
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_cwd: Option<String>,
+    /// Override diagnostic level for check failures: error, warning, info.
+    /// If omitted, level is derived from severity (critical|high → error, medium|low → warning).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_level: Option<String>,
 }
 
 impl ConstraintFile {
@@ -796,6 +812,8 @@ validation:
             version: "1.0.0".to_string(),
             owner: None,
             intent: None,
+            check_command: None,
+            check_cwd: None,
             rules: vec![],
             exceptions: None,
         };
@@ -805,6 +823,9 @@ validation:
             severity: "critical".to_string(),
             statement: "Test rule".to_string(),
             enforcement: vec!["sast".to_string()],
+            check_command: None,
+            check_cwd: None,
+            error_level: None,
         };
         cf.add_rule(rule).unwrap();
         assert_eq!(cf.rules.len(), 1);
@@ -815,6 +836,9 @@ validation:
             severity: "high".to_string(),
             statement: "Dup".to_string(),
             enforcement: vec![],
+            check_command: None,
+            check_cwd: None,
+            error_level: None,
         };
         assert!(cf.add_rule(dup).is_err());
 
@@ -837,11 +861,16 @@ validation:
             version: "1.0.0".to_string(),
             owner: Some("platform".to_string()),
             intent: Some("Observability".to_string()),
+            check_command: None,
+            check_cwd: None,
             rules: vec![ConstraintRule {
                 id: "structured_logging".to_string(),
                 severity: "critical".to_string(),
                 statement: "All logs must be structured".to_string(),
                 enforcement: vec!["sast".to_string()],
+                check_command: None,
+                check_cwd: None,
+                error_level: None,
             }],
             exceptions: Some(ExceptionPolicy {
                 process: Some("Approval required".to_string()),

@@ -350,8 +350,8 @@ it('masks PII in logs', () => { ... });
 1. One `@hlv` marker per validation/constraint per test. A test may carry multiple markers if it covers several validations.
 2. Every `errors[].code` from every contract YAML must appear as `@hlv <code>` somewhere in `src/` or `tests/`.
 3. Every `invariants[].id` must appear as `@hlv <id>`.
-4. Every constraint `rules[].id` must appear as `@hlv <id>`.
-5. `hlv check` reports missing markers as warnings (`CTR-010`). At `implemented` phase and later, these become hard warnings that block `/validate`.
+4. Every constraint `rules[].id` must appear as `@hlv <id>` — except rules that have `check_command` (they are verified programmatically, not via markers).
+5. `hlv check` reports missing markers as warnings (`CTR-010`). At `implemented` phase and later, these become hard warnings that block `/validate`. `hlv check` also runs `check_command` for rules that define one (CST-050/CST-060).
 
 ### Verification
 

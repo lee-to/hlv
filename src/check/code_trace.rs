@@ -66,6 +66,10 @@ pub fn check_code_trace(
         if let Some(rules) = value.get("rules").and_then(|r| r.as_sequence()) {
             for rule in rules {
                 if let Some(id) = rule.get("id").and_then(|i| i.as_str()) {
+                    // Rules with check_command are verified programmatically, not via @hlv markers
+                    if rule.get("check_command").is_some() {
+                        continue;
+                    }
                     expected.push(ExpectedMarker {
                         id: id.to_string(),
                         kind: "constraint",

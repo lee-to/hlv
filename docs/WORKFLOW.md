@@ -335,7 +335,7 @@ Agents work in parallel inside a group. Between groups - git commit.
 
 **`llm/map.yaml` is the main navigator.** When creating a new file, the agent MUST add an entry to `llm/map.yaml` with a description sufficient to choose the file without opening it. The LLM finds code by descriptions in `map.yaml`, not by file names. `hlv check` verifies that all entries exist on disk.
 
-**`@hlv` markers.** Every test must carry an `@hlv <ID>` marker pointing to an error code, invariant, or constraint rule from contracts. This provides 100% contract->code traceability. `hlv check` verifies that all IDs are covered. Example:
+**`@hlv` markers.** Every test must carry an `@hlv <ID>` marker pointing to an error code, invariant, or constraint rule from contracts. This provides 100% contract->code traceability. `hlv check` verifies that all IDs are covered. Constraint rules that have `check_command` are exempt — they are verified by their command, not by markers. Example:
 
 ```rust
 // @ctx: validates stock availability check from order.create contract
@@ -543,7 +543,7 @@ hlv milestone abort          # abort milestone
 /generate                    # artifacts -> contracts + validation + stages
 
 # Verification
-hlv check                    # structural validation + run gate commands
+hlv check                    # structural validation + run gate commands + constraint checks (CST-050)
 hlv check --watch            # same + watch
 /verify                      # full verification (structure + semantics)
 
@@ -580,6 +580,12 @@ hlv stage label <N> add|remove <label>
 hlv stage meta <N> set|delete <key> [<value>]
 hlv milestone label add|remove <label>
 hlv milestone meta set|delete <key> [<value>]
+
+# Constraint checks
+hlv constraints check                    # run check_command for all rules
+hlv constraints check observability      # filter by constraint
+hlv constraints check --rule my_rule     # filter by rule
+hlv constraints check --json             # JSON output
 
 # Artifacts and glossary
 hlv artifacts [--global|--milestone] [--json]

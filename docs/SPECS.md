@@ -469,8 +469,9 @@ CRUD management for constraint files in `human/constraints/`. Each file is a rul
 | `hlv constraints show <name> [--json]` | Show the content of a constraint file (all rules, owner, intent) |
 | `hlv constraints add <name> [--owner <owner>] [--intent <text>] [--applies-to <scope>]` | Create a new constraint file |
 | `hlv constraints remove <name> [--force]` | Remove a constraint file. Without `--force`, confirmation is required |
-| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text>` | Add a rule to an existing constraint file |
+| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text> [--check-command <cmd>] [--check-cwd <dir>] [--error-level <lvl>]` | Add a rule to an existing constraint file. Optional: `--check-command` sets a shell command to verify the rule, `--check-cwd` sets the working directory, `--error-level` overrides diagnostic severity (`error`, `warning`, `info`) |
 | `hlv constraints remove-rule <constraint> <rule-id>` | Remove a rule from a constraint file |
+| `hlv constraints check [<constraint>] [--rule <id>] [--json]` | Run `check_command` for constraint rules. Optionally filter by constraint name or rule ID |
 
 `<name>` is the file name without extension (for example `security` -> `human/constraints/security.yaml`). Severity values are `critical`, `high`, `medium`, `low`.
 
@@ -531,6 +532,9 @@ rules:
     statement: "Secrets must not appear in logs"
     enforcement:
       - log_policy_check
+    check_command: "grep -rn 'secret\\|password' src/ && exit 1 || exit 0"
+    check_cwd: "llm"
+    error_level: error
 exceptions:
   process: "Requires security team approval"
   max_duration_days: 30
@@ -547,6 +551,9 @@ exceptions:
 | `rules[].severity` | enum | Severity: `critical`, `high`, `medium`, `low` |
 | `rules[].statement` | string | Rule wording |
 | `rules[].enforcement[]` | array | Verification methods (`sast`, `integration_test`, `runtime_scan`, etc.) |
+| `rules[].check_command` | string (optional) | Shell command to verify the rule (used by `CST-050` and `hlv constraints check`) |
+| `rules[].check_cwd` | string (optional) | Working directory for `check_command` (relative to project root; defaults to project root) |
+| `rules[].error_level` | enum (optional) | Override diagnostic severity: `error`, `warning`, `info`. If unset, mapped from `severity` (`critical`/`high` -> error, `medium`/`low` -> warning) |
 | `exceptions` | object | Exception process (`process`, `max_duration_days`) |
 
 Rust model: `model::policy::ConstraintFile`. Schema: `schema/constraint-schema.json`.
@@ -561,7 +568,9 @@ Integrity checks for constraint files, executed by `hlv check`.
 |-----|---------|--------------|
 | `CST-010` | error | Constraint file referenced in `project.yaml -> constraints` is not found on disk |
 | `CST-020` | error | Duplicate `rule.id` values within the same constraint file |
-| `CST-030` | error | Invalid `severity` value (allowed: `critical`, `high`, `medium`, `low`) |
+| `CST-030` | error | Invalid `severity` value (allowed: `critical`, `high`, `medium`, `low`) or invalid `error_level` (allowed: `error`, `warning`, `info`) |
+| `CST-050` | varies | Runs `check_command` for a constraint rule. Severity is determined by `error_level` override, or mapped from rule severity (`critical`/`high` -> error, `medium`/`low` -> warning) |
+| `CST-060` | error | Runs file-level `check_command` on the constraint file. Failure is always an error |
 
 These checks run automatically as part of `hlv check` and block `/verify` when reported as errors.
 
@@ -597,7 +606,7 @@ Important notes:
 | `CTR-002` | error | Missing contract ID in Markdown header |
 | `CTR-003` | error | Missing contract version in Markdown header |
 | `CTR-004` | error | Markdown contract version differs from `project.yaml` |
-| `CTR-010` | error / warning | Missing required contract section (error) or missing `@hlv` marker in code trace (warning) |
+| `CTR-010` | error / warning | Missing required contract section (error) or missing `@hlv` marker in code trace (warning). Constraint rules with `check_command` are exempt from the marker requirement |
 | `CTR-020` | warning | Contract source link points to missing file |
 | `CTR-030` | error | Invalid Input YAML block in contract Markdown |
 | `CTR-031` | error | Missing Input YAML block in contract Markdown |
@@ -670,7 +679,9 @@ Important notes:
 |-----|---------|--------------|
 | `CST-010` | error | Constraint file is missing or unparsable |
 | `CST-020` | error | Duplicate `rules[].id` in one constraint file |
-| `CST-030` | error | Invalid `rules[].severity` |
+| `CST-030` | error | Invalid `rules[].severity` or `rules[].error_level` |
+| `CST-050` | varies | Rule-level `check_command` failed (severity from `error_level` or mapped from rule severity) |
+| `CST-060` | error | File-level `check_command` failed |
 
 #### LLM Map (`MAP-*`)
 

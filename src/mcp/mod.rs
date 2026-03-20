@@ -106,6 +106,12 @@ struct ConstraintRuleParams {
     severity: String,
     /// Rule statement
     statement: String,
+    /// Shell command to check this rule
+    check_command: Option<String>,
+    /// Working directory for check command (relative to project root)
+    check_cwd: Option<String>,
+    /// Override diagnostic level for check failures: error, warning, info
+    error_level: Option<String>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Default)]
@@ -116,6 +122,16 @@ struct ConstraintRuleRemoveParams {
     constraint: String,
     /// Rule ID to remove
     rule_id: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Default)]
+struct ConstraintCheckParams {
+    /// Project ID (required in workspace mode, ignored in single-project mode)
+    project_id: Option<String>,
+    /// Constraint name filter
+    constraint: Option<String>,
+    /// Rule ID filter
+    rule: Option<String>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema, Default)]
@@ -417,7 +433,16 @@ impl HlvMcpServer {
         Parameters(p): Parameters<ConstraintRuleParams>,
     ) -> Result<CallToolResult, McpError> {
         let root = self.root(p.project_id.as_deref())?;
-        tools::hlv_constraint_add_rule(&root, &p.constraint, &p.rule_id, &p.severity, &p.statement)
+        tools::hlv_constraint_add_rule(
+            &root,
+            &p.constraint,
+            &p.rule_id,
+            &p.severity,
+            &p.statement,
+            p.check_command.as_deref(),
+            p.check_cwd.as_deref(),
+            p.error_level.as_deref(),
+        )
     }
 
     #[tool(description = "Remove a rule from a constraint")]
@@ -427,6 +452,15 @@ impl HlvMcpServer {
     ) -> Result<CallToolResult, McpError> {
         let root = self.root(p.project_id.as_deref())?;
         tools::hlv_constraint_remove_rule(&root, &p.constraint, &p.rule_id)
+    }
+
+    #[tool(description = "Run check commands for constraint rules and return pass/fail results")]
+    fn hlv_constraint_check(
+        &self,
+        Parameters(p): Parameters<ConstraintCheckParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let root = self.root(p.project_id.as_deref())?;
+        tools::hlv_constraint_check(&root, p.constraint.as_deref(), p.rule.as_deref())
     }
 
     #[tool(description = "Add or remove a label on a stage")]

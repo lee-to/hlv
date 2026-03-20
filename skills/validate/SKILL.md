@@ -135,7 +135,9 @@ gate_results:
 
 ### Step 3b: Constraint rule coverage
 
-Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `llm/src/` or `tests/`. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
+Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `llm/src/` or `tests/`. Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
+
+`hlv check` also executes `check_command` for rules that define one (CST-050/CST-060). Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
 
 For each critical rule without coverage, add it to the remediation plan (Step 4a).
 

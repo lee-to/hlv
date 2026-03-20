@@ -184,6 +184,7 @@ fn server_lists_all_tools() {
         "hlv_constraint_remove",
         "hlv_constraint_add_rule",
         "hlv_constraint_remove_rule",
+        "hlv_constraint_check",
         "hlv_stage_reopen",
         "hlv_stage_label",
         "hlv_stage_meta",
@@ -1141,6 +1142,9 @@ fn tool_constraint_add_rule_remove_rule() {
         "RULE-001",
         "high",
         "All endpoints must have auth",
+        None,
+        None,
+        None,
     )
     .unwrap();
     assert!(tool_text(&result).contains("RULE-001"));
@@ -1164,6 +1168,9 @@ fn tool_constraint_add_rule_invalid_severity() {
         "RULE-001",
         "invalid-sev",
         "statement",
+        None,
+        None,
+        None,
     )
     .unwrap_err();
     assert!(

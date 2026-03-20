@@ -116,12 +116,16 @@ fn run_list_json(project_root: &Path, project: &ProjectMap, severity: Option<&st
                 .iter()
                 .filter(|r| severity.is_none_or(|s| r.severity == s))
                 .map(|r| {
-                    serde_json::json!({
+                    let mut val = serde_json::json!({
                         "id": r.id,
                         "severity": r.severity,
                         "statement": r.statement,
                         "enforcement": r.enforcement,
-                    })
+                    });
+                    if let Some(ref el) = r.error_level {
+                        val["error_level"] = serde_json::json!(el);
+                    }
+                    val
                 })
                 .collect();
 
@@ -164,12 +168,18 @@ pub fn run_show(project_root: &Path, name: &str, json: bool) -> Result<()> {
                 "version": cf.version,
                 "owner": cf.owner,
                 "intent": cf.intent,
-                "rules": cf.rules.iter().map(|r| serde_json::json!({
-                    "id": r.id,
-                    "severity": r.severity,
-                    "statement": r.statement,
-                    "enforcement": r.enforcement,
-                })).collect::<Vec<_>>(),
+                "rules": cf.rules.iter().map(|r| {
+                    let mut val = serde_json::json!({
+                        "id": r.id,
+                        "severity": r.severity,
+                        "statement": r.statement,
+                        "enforcement": r.enforcement,
+                    });
+                    if let Some(ref el) = r.error_level {
+                        val["error_level"] = serde_json::json!(el);
+                    }
+                    val
+                }).collect::<Vec<_>>(),
                 "exceptions": cf.exceptions.as_ref().map(|e| serde_json::json!({
                     "process": e.process,
                     "max_exception_days": e.max_exception_days,
@@ -250,6 +260,8 @@ pub fn run_add(
         version: "1.0.0".to_string(),
         owner: owner.map(|s| s.to_string()),
         intent: intent.map(|s| s.to_string()),
+        check_command: None,
+        check_cwd: None,
         rules: vec![],
         exceptions: None,
     };
@@ -348,12 +360,16 @@ pub fn run_remove(project_root: &Path, name: &str, force: bool) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_add_rule(
     project_root: &Path,
     constraint_name: &str,
     rule_id: &str,
     severity: &str,
     statement: &str,
+    check_command: Option<&str>,
+    check_cwd: Option<&str>,
+    error_level: Option<&str>,
 ) -> Result<()> {
     // Validate severity
     if !["critical", "high", "medium", "low"].contains(&severity) {
@@ -361,6 +377,16 @@ pub fn run_add_rule(
             "Invalid severity '{}'. Must be: critical, high, medium, low",
             severity
         );
+    }
+
+    // Validate error_level if provided
+    if let Some(el) = error_level {
+        if !["error", "warning", "info"].contains(&el) {
+            anyhow::bail!(
+                "Invalid error_level '{}'. Must be: error, warning, info",
+                el
+            );
+        }
     }
 
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
@@ -382,6 +408,9 @@ pub fn run_add_rule(
         severity: severity.to_string(),
         statement: statement.to_string(),
         enforcement: vec![],
+        check_command: check_command.map(|s| s.to_string()),
+        check_cwd: check_cwd.map(|s| s.to_string()),
+        error_level: error_level.map(|s| s.to_string()),
     })?;
 
     cf.save(&file_path)?;
@@ -415,4 +444,127 @@ pub fn run_remove_rule(project_root: &Path, constraint_name: &str, rule_id: &str
         rule_id, constraint_name
     ));
     Ok(())
+}
+
+pub fn run_check(
+    project_root: &Path,
+    constraint: Option<&str>,
+    rule: Option<&str>,
+    json: bool,
+) -> Result<()> {
+    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+
+    let (mut diags, mut results) =
+        crate::check::constraints::run_constraint_checks(project_root, &project, constraint, rule);
+
+    // Also run file-level checks (CST-060)
+    if rule.is_none() {
+        let (file_diags, file_results) =
+            crate::check::constraints::run_file_level_checks(project_root, &project, constraint);
+        diags.extend(file_diags);
+        results.extend(file_results);
+    }
+
+    if json {
+        let output = serde_json::json!({
+            "results": results,
+            "diagnostics": diags.iter().map(|d| serde_json::json!({
+                "code": d.code,
+                "severity": format!("{:?}", d.severity).to_lowercase(),
+                "message": d.message,
+                "file": d.file,
+            })).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+        return Ok(());
+    }
+
+    style::header("constraints check");
+
+    if results.is_empty() {
+        style::hint("No rules with check_command found");
+        return Ok(());
+    }
+
+    let mut passed = 0u32;
+    let mut failed = 0u32;
+
+    for r in &results {
+        let icon = if r.passed {
+            "✓".green().to_string()
+        } else {
+            "✗".red().to_string()
+        };
+        let sev_color = match r.severity.as_str() {
+            "critical" => r.severity.red(),
+            "high" => r.severity.yellow(),
+            "medium" => r.severity.normal(),
+            _ => r.severity.dimmed(),
+        };
+        println!(
+            "  {} {} {} [{}] {}",
+            icon,
+            r.rule_id.bold(),
+            sev_color,
+            r.constraint_id.dimmed(),
+            if r.passed {
+                "ok".dimmed().to_string()
+            } else {
+                r.message.clone()
+            }
+        );
+        if r.passed {
+            passed += 1;
+        } else {
+            failed += 1;
+        }
+    }
+
+    let failed_str = if failed > 0 {
+        failed.to_string().red().bold().to_string()
+    } else {
+        failed.to_string().dimmed().to_string()
+    };
+    println!(
+        "\n  {} passed, {} failed",
+        passed.to_string().green().bold(),
+        failed_str
+    );
+
+    // Print diagnostics
+    for d in &diags {
+        d.print();
+    }
+
+    Ok(())
+}
+
+/// Get constraint check results as structured data (for MCP / JSON consumers).
+pub fn get_constraint_check_results(
+    project_root: &Path,
+    constraint: Option<&str>,
+    rule: Option<&str>,
+) -> Result<serde_json::Value> {
+    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+
+    let (mut diags, mut results) =
+        crate::check::constraints::run_constraint_checks(project_root, &project, constraint, rule);
+
+    // Also run file-level checks (CST-060)
+    if rule.is_none() {
+        let (file_diags, file_results) =
+            crate::check::constraints::run_file_level_checks(project_root, &project, constraint);
+        diags.extend(file_diags);
+        results.extend(file_results);
+    }
+
+    Ok(serde_json::json!({
+        "results": results,
+        "diagnostics": diags.iter().map(|d| serde_json::json!({
+            "code": d.code,
+            "severity": format!("{:?}", d.severity).to_lowercase(),
+            "message": d.message,
+            "file": d.file,
+        })).collect::<Vec<_>>(),
+    }))
 }

@@ -149,18 +149,43 @@ pub fn hlv_constraint_remove(root: &Path, name: &str) -> Result<CallToolResult, 
     text_ok(format!("Constraint '{name}' removed"))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn hlv_constraint_add_rule(
     root: &Path,
     constraint: &str,
     rule_id: &str,
     severity: &str,
     statement: &str,
+    check_command: Option<&str>,
+    check_cwd: Option<&str>,
+    error_level: Option<&str>,
 ) -> Result<CallToolResult, McpError> {
-    quiet(|| crate::cmd::constraints::run_add_rule(root, constraint, rule_id, severity, statement))
-        .map_err(|e| mcp_err("constraint add-rule failed", e))?;
+    quiet(|| {
+        crate::cmd::constraints::run_add_rule(
+            root,
+            constraint,
+            rule_id,
+            severity,
+            statement,
+            check_command,
+            check_cwd,
+            error_level,
+        )
+    })
+    .map_err(|e| mcp_err("constraint add-rule failed", e))?;
     text_ok(format!(
         "Rule '{rule_id}' added to constraint '{constraint}'"
     ))
+}
+
+pub fn hlv_constraint_check(
+    root: &Path,
+    constraint: Option<&str>,
+    rule: Option<&str>,
+) -> Result<CallToolResult, McpError> {
+    let data = crate::cmd::constraints::get_constraint_check_results(root, constraint, rule)
+        .map_err(|e| mcp_err("constraint check failed", e))?;
+    json_ok(&data)
 }
 
 pub fn hlv_constraint_remove_rule(

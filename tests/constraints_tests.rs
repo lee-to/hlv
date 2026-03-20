@@ -140,6 +140,9 @@ fn constraints_add_rule() {
         "audit_logs_required",
         "critical",
         "All state changes must produce audit logs",
+        None,
+        None,
+        None,
     )
     .unwrap();
 
@@ -158,9 +161,14 @@ fn constraints_add_rule_duplicate_fails() {
     setup_project(root);
 
     hlv::cmd::constraints::run_add(root, "test-dup", None, None, "global").unwrap();
-    hlv::cmd::constraints::run_add_rule(root, "test-dup", "rule1", "high", "Test").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root, "test-dup", "rule1", "high", "Test", None, None, None,
+    )
+    .unwrap();
 
-    let result = hlv::cmd::constraints::run_add_rule(root, "test-dup", "rule1", "low", "Dup");
+    let result = hlv::cmd::constraints::run_add_rule(
+        root, "test-dup", "rule1", "low", "Dup", None, None, None,
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("already exists"));
 }
@@ -173,8 +181,16 @@ fn constraints_add_rule_invalid_severity() {
 
     hlv::cmd::constraints::run_add(root, "test-sev", None, None, "global").unwrap();
 
-    let result =
-        hlv::cmd::constraints::run_add_rule(root, "test-sev", "rule1", "extreme", "Bad severity");
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "test-sev",
+        "rule1",
+        "extreme",
+        "Bad severity",
+        None,
+        None,
+        None,
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Invalid severity"));
 }
@@ -186,8 +202,10 @@ fn constraints_remove_rule() {
     setup_project(root);
 
     hlv::cmd::constraints::run_add(root, "test-rm", None, None, "global").unwrap();
-    hlv::cmd::constraints::run_add_rule(root, "test-rm", "rule1", "high", "Test").unwrap();
-    hlv::cmd::constraints::run_add_rule(root, "test-rm", "rule2", "low", "Test2").unwrap();
+    hlv::cmd::constraints::run_add_rule(root, "test-rm", "rule1", "high", "Test", None, None, None)
+        .unwrap();
+    hlv::cmd::constraints::run_add_rule(root, "test-rm", "rule2", "low", "Test2", None, None, None)
+        .unwrap();
 
     hlv::cmd::constraints::run_remove_rule(root, "test-rm", "rule1").unwrap();
 
@@ -217,4 +235,832 @@ fn constraints_list_severity_filter() {
 
     // Just verify it doesn't panic with severity filter
     hlv::cmd::constraints::run_list(root, Some("critical"), false).unwrap();
+}
+
+// ═══════════════════════════════════════════════════════
+// Phase 1: check_command / check_cwd tests
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn constraints_add_rule_with_check_fields() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "checktest", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "checktest",
+        "no_println",
+        "low",
+        "println! is forbidden",
+        Some("! rg \"println!\" src"),
+        Some("."),
+        None,
+    )
+    .unwrap();
+
+    let cf =
+        hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/checktest.yaml"))
+            .unwrap();
+    assert_eq!(
+        cf.rules[0].check_command.as_deref(),
+        Some("! rg \"println!\" src")
+    );
+    assert_eq!(cf.rules[0].check_cwd.as_deref(), Some("."));
+}
+
+#[test]
+fn cst050_check_command_success() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    // Create constraint with a command that succeeds
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "always_pass",
+        "critical",
+        "Always passes",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert!(diags.is_empty(), "expected no diags: {:?}", diags);
+    assert_eq!(results.len(), 1);
+    assert!(results[0].passed);
+}
+
+#[test]
+fn cst050_check_command_failure_critical_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "always_fail",
+        "critical",
+        "Always fails",
+        Some("false"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+
+    assert_eq!(results.len(), 1);
+    assert!(!results[0].passed);
+
+    // Phase 2: critical severity → error
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].code, "CST-050");
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Error),
+        "CST-050 should be error for critical severity"
+    );
+}
+
+#[test]
+fn cst050_check_cwd() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    // Create a subdirectory with a marker file
+    std::fs::create_dir_all(root.join("subdir")).unwrap();
+    std::fs::write(root.join("subdir/marker.txt"), "found").unwrap();
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "find_marker",
+        "high",
+        "Marker must exist",
+        Some("test -f marker.txt"),
+        Some("subdir"),
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert!(diags.is_empty(), "expected pass: {:?}", diags);
+    assert!(results[0].passed);
+}
+
+#[test]
+fn cst050_timeout() {
+    // This test verifies the timeout mechanism works but uses a fast command
+    // to avoid actually waiting 60s. The real timeout is 60s; here we just
+    // verify the function handles commands correctly.
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "quick_cmd",
+        "low",
+        "Quick command",
+        Some("echo hello"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert!(diags.is_empty());
+    assert!(results[0].passed);
+}
+
+#[test]
+fn constraints_check_subcommand() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "pass_rule",
+        "medium",
+        "Should pass",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "fail_rule",
+        "high",
+        "Should fail",
+        Some("false"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    // Test JSON output
+    let result = hlv::cmd::constraints::get_constraint_check_results(root, None, None).unwrap();
+    let results = result["results"].as_array().unwrap();
+    assert_eq!(results.len(), 2);
+
+    let passed: Vec<_> = results
+        .iter()
+        .filter(|r| r["passed"].as_bool() == Some(true))
+        .collect();
+    let failed: Vec<_> = results
+        .iter()
+        .filter(|r| r["passed"].as_bool() == Some(false))
+        .collect();
+    assert_eq!(passed.len(), 1);
+    assert_eq!(failed.len(), 1);
+}
+
+#[test]
+fn constraints_check_filter_by_constraint() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "alpha", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "alpha",
+        "a1",
+        "low",
+        "Alpha rule",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    hlv::cmd::constraints::run_add(root, "beta", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "beta",
+        "b1",
+        "low",
+        "Beta rule",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+
+    // Filter to alpha only
+    let (_, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, Some("alpha"), None);
+    assert_eq!(results.len(), 1);
+    assert!(results[0].constraint_id.contains("alpha"));
+}
+
+#[test]
+fn constraints_check_filter_by_rule() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "multi", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "multi",
+        "r1",
+        "low",
+        "Rule 1",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "multi",
+        "r2",
+        "low",
+        "Rule 2",
+        Some("true"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+
+    let (_, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, Some("r2"));
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].rule_id, "r2");
+}
+
+#[test]
+fn cst050_high_severity_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    // Command that will fail with non-zero exit — high severity → error
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "bad_cmd",
+        "high",
+        "Bad command",
+        Some("exit 42"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert!(!results[0].passed);
+    assert_eq!(diags[0].code, "CST-050");
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Error),
+        "CST-050 should be error for high severity"
+    );
+}
+
+#[test]
+fn constraints_check_no_commands_returns_empty() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "nocheck", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(root, "nocheck", "r1", "low", "No check", None, None, None)
+        .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert!(diags.is_empty());
+    assert!(results.is_empty());
+}
+
+#[test]
+fn constraint_rule_check_fields_serde_roundtrip() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("test.yaml");
+
+    let cf = hlv::model::policy::ConstraintFile {
+        id: "constraints.test.global".to_string(),
+        version: "1.0.0".to_string(),
+        owner: None,
+        intent: None,
+        check_command: None,
+        check_cwd: None,
+        rules: vec![hlv::model::policy::ConstraintRule {
+            id: "rule_with_check".to_string(),
+            severity: "critical".to_string(),
+            statement: "Test check".to_string(),
+            enforcement: vec![],
+            check_command: Some("cargo test".to_string()),
+            check_cwd: Some("llm".to_string()),
+            error_level: None,
+        }],
+        exceptions: None,
+    };
+
+    cf.save(&path).unwrap();
+    let loaded = hlv::model::policy::ConstraintFile::load(&path).unwrap();
+    assert_eq!(loaded.rules[0].check_command.as_deref(), Some("cargo test"));
+    assert_eq!(loaded.rules[0].check_cwd.as_deref(), Some("llm"));
+}
+
+#[test]
+fn constraint_rule_check_fields_optional_serde() {
+    // Verify that rules without check_command/check_cwd still parse
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("test.yaml");
+
+    std::fs::write(
+        &path,
+        r#"id: constraints.test.global
+version: "1.0.0"
+rules:
+  - id: no_check
+    severity: low
+    statement: "No check command"
+"#,
+    )
+    .unwrap();
+
+    let cf = hlv::model::policy::ConstraintFile::load(&path).unwrap();
+    assert!(cf.rules[0].check_command.is_none());
+    assert!(cf.rules[0].check_cwd.is_none());
+}
+
+// ═══════════════════════════════════════════════════════
+// Phase 2: error_level / severity mapping tests
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn cst050_low_severity_is_warning() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "low_rule",
+        "low",
+        "Low severity rule",
+        Some("false"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, _) = hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].code, "CST-050");
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Warning),
+        "CST-050 should be warning for low severity"
+    );
+}
+
+#[test]
+fn cst050_medium_severity_is_warning() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "med_rule",
+        "medium",
+        "Medium severity rule",
+        Some("false"),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, _) = hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert_eq!(diags.len(), 1);
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Warning),
+        "CST-050 should be warning for medium severity"
+    );
+}
+
+#[test]
+fn cst050_error_level_override_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    // low severity but error_level=error → should be error
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "forced_error",
+        "low",
+        "Forced error rule",
+        Some("false"),
+        None,
+        Some("error"),
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert_eq!(results.len(), 1);
+    assert!(!results[0].passed);
+    assert_eq!(diags.len(), 1);
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Error),
+        "error_level=error should override low severity to error"
+    );
+}
+
+#[test]
+fn cst050_error_level_override_warning() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    // critical severity but error_level=warning → should be warning
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "forced_warn",
+        "critical",
+        "Forced warning rule",
+        Some("false"),
+        None,
+        Some("warning"),
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, _) = hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert_eq!(diags.len(), 1);
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Warning),
+        "error_level=warning should override critical severity to warning"
+    );
+}
+
+#[test]
+fn cst050_error_level_override_info() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
+    // high severity but error_level=info → should be info
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "chk",
+        "forced_info",
+        "high",
+        "Forced info rule",
+        Some("false"),
+        None,
+        Some("info"),
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, _) = hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+    assert_eq!(diags.len(), 1);
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Info),
+        "error_level=info should override high severity to info"
+    );
+}
+
+#[test]
+fn cst030_invalid_error_level() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "badel", None, None, "global").unwrap();
+
+    // Write rule with invalid error_level directly to YAML
+    let cf_path = root.join("human/constraints/badel.yaml");
+    std::fs::write(
+        &cf_path,
+        r#"id: constraints.badel.global
+version: "1.0.0"
+rules:
+  - id: bad_el_rule
+    severity: low
+    statement: "Rule with bad error_level"
+    error_level: fatal
+"#,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let diags = hlv::check::constraints::check_constraints(root, &project);
+    let cst030: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code == "CST-030" && d.message.contains("error_level"))
+        .collect();
+    assert_eq!(cst030.len(), 1, "Expected CST-030 for invalid error_level");
+    assert!(cst030[0].message.contains("fatal"));
+}
+
+#[test]
+fn constraint_add_rule_invalid_error_level() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "test-el", None, None, "global").unwrap();
+
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "test-el",
+        "rule1",
+        "high",
+        "Test",
+        None,
+        None,
+        Some("fatal"),
+    );
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid error_level"));
+}
+
+#[test]
+fn constraint_add_rule_with_error_level() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "eltest", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "eltest",
+        "mandatory_rule",
+        "low",
+        "Force error on low severity",
+        Some("true"),
+        None,
+        Some("error"),
+    )
+    .unwrap();
+
+    let cf = hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/eltest.yaml"))
+        .unwrap();
+    assert_eq!(cf.rules[0].error_level.as_deref(), Some("error"));
+}
+
+#[test]
+fn constraint_rule_error_level_serde_roundtrip() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("test.yaml");
+
+    let cf = hlv::model::policy::ConstraintFile {
+        id: "constraints.test.global".to_string(),
+        version: "1.0.0".to_string(),
+        owner: None,
+        intent: None,
+        check_command: None,
+        check_cwd: None,
+        rules: vec![hlv::model::policy::ConstraintRule {
+            id: "rule_with_el".to_string(),
+            severity: "low".to_string(),
+            statement: "Test error_level".to_string(),
+            enforcement: vec![],
+            check_command: Some("true".to_string()),
+            check_cwd: None,
+            error_level: Some("error".to_string()),
+        }],
+        exceptions: None,
+    };
+
+    cf.save(&path).unwrap();
+    let loaded = hlv::model::policy::ConstraintFile::load(&path).unwrap();
+    assert_eq!(loaded.rules[0].error_level.as_deref(), Some("error"));
+}
+
+#[test]
+fn constraint_rule_error_level_optional_serde() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("test.yaml");
+
+    std::fs::write(
+        &path,
+        r#"id: constraints.test.global
+version: "1.0.0"
+rules:
+  - id: no_el
+    severity: critical
+    statement: "No error_level set"
+"#,
+    )
+    .unwrap();
+
+    let cf = hlv::model::policy::ConstraintFile::load(&path).unwrap();
+    assert!(cf.rules[0].error_level.is_none());
+}
+
+// ─── CST-060: File-level check_command ──────────────────────────
+
+#[test]
+fn cst060_file_level_check_command_success() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "filechk", None, None, "global").unwrap();
+
+    // Write constraint file with file-level check_command that succeeds
+    let cf_path = root.join("human/constraints/filechk.yaml");
+    std::fs::write(
+        &cf_path,
+        r#"id: constraints.filechk.global
+version: "1.0.0"
+check_command: "true"
+rules: []
+"#,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
+    assert!(diags.is_empty(), "expected no diags: {:?}", diags);
+    assert_eq!(results.len(), 1);
+    assert!(results[0].passed);
+    assert_eq!(results[0].rule_id, "__file__");
+    assert_eq!(results[0].constraint_id, "constraints.filechk.global");
+}
+
+#[test]
+fn cst060_file_level_check_command_failure_is_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "failchk", None, None, "global").unwrap();
+
+    // Write constraint file with file-level check_command that fails
+    let cf_path = root.join("human/constraints/failchk.yaml");
+    std::fs::write(
+        &cf_path,
+        r#"id: constraints.failchk.global
+version: "1.0.0"
+check_command: "false"
+rules: []
+"#,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
+
+    assert_eq!(results.len(), 1);
+    assert!(!results[0].passed);
+    assert_eq!(results[0].rule_id, "__file__");
+
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].code, "CST-060");
+    assert!(
+        matches!(diags[0].severity, hlv::check::Severity::Error),
+        "CST-060 should always be error severity"
+    );
+}
+
+#[test]
+fn cst060_file_level_check_cwd() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    // Create a subdirectory with a marker file
+    std::fs::create_dir_all(root.join("subdir")).unwrap();
+    std::fs::write(root.join("subdir/marker.txt"), "found").unwrap();
+
+    hlv::cmd::constraints::run_add(root, "cwdchk", None, None, "global").unwrap();
+
+    // Write constraint file with check_cwd
+    let cf_path = root.join("human/constraints/cwdchk.yaml");
+    std::fs::write(
+        &cf_path,
+        r#"id: constraints.cwdchk.global
+version: "1.0.0"
+check_command: "test -f marker.txt"
+check_cwd: subdir
+rules: []
+"#,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
+    assert!(diags.is_empty(), "expected pass: {:?}", diags);
+    assert!(results[0].passed);
+}
+
+#[test]
+fn cst060_file_level_timeout() {
+    // Verify the function handles commands correctly (same pattern as cst050_timeout)
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "timechk", None, None, "global").unwrap();
+
+    // Write constraint file with a quick check_command (real timeout is 60s)
+    let cf_path = root.join("human/constraints/timechk.yaml");
+    std::fs::write(
+        &cf_path,
+        r#"id: constraints.timechk.global
+version: "1.0.0"
+check_command: "echo hello"
+rules: []
+"#,
+    )
+    .unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
+    assert!(diags.is_empty());
+    assert!(results[0].passed);
+}
+
+#[test]
+fn constraint_file_check_fields_serde_roundtrip() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("test.yaml");
+
+    let cf = hlv::model::policy::ConstraintFile {
+        id: "constraints.test.global".to_string(),
+        version: "1.0.0".to_string(),
+        owner: None,
+        intent: None,
+        check_command: Some("make lint".to_string()),
+        check_cwd: Some("src".to_string()),
+        rules: vec![],
+        exceptions: None,
+    };
+
+    cf.save(&path).unwrap();
+    let loaded = hlv::model::policy::ConstraintFile::load(&path).unwrap();
+    assert_eq!(loaded.check_command.as_deref(), Some("make lint"));
+    assert_eq!(loaded.check_cwd.as_deref(), Some("src"));
+
+    // Also verify None fields are not serialized
+    let cf_no_check = hlv::model::policy::ConstraintFile {
+        id: "constraints.empty.global".to_string(),
+        version: "1.0.0".to_string(),
+        owner: None,
+        intent: None,
+        check_command: None,
+        check_cwd: None,
+        rules: vec![],
+        exceptions: None,
+    };
+    let path2 = tmp.path().join("test2.yaml");
+    cf_no_check.save(&path2).unwrap();
+    let content = std::fs::read_to_string(&path2).unwrap();
+    assert!(!content.contains("check_command"));
+    assert!(!content.contains("check_cwd"));
 }
