@@ -27,6 +27,28 @@ pub struct ProjectMap {
     pub stack: Option<Stack>,
     #[serde(default)]
     pub git: GitPolicy,
+    #[serde(default)]
+    pub features: Features,
+}
+
+// ── Features ────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct Features {
+    #[serde(default = "default_true")]
+    pub linear_architecture: bool,
+    #[serde(default = "default_true")]
+    pub hlv_markers: bool,
+}
+
+impl Default for Features {
+    fn default() -> Self {
+        Self {
+            linear_architecture: true,
+            hlv_markers: true,
+        }
+    }
 }
 
 // ── Git Policy ──────────────────────────────────────────
@@ -513,6 +535,7 @@ type: some_new_type
             validation: None,
             stack: None,
             git: GitPolicy::default(),
+            features: Features::default(),
         };
 
         pm.save(&path).unwrap();
@@ -556,6 +579,7 @@ type: some_new_type
             validation: None,
             stack: None,
             git: GitPolicy::default(),
+            features: Features::default(),
         };
 
         pm.add_constraint(ConstraintEntry {
@@ -641,5 +665,96 @@ custom_field: hello
         assert_eq!(comp.id, "backend");
         assert!(comp.extra.contains_key("engine"));
         assert!(comp.extra.contains_key("custom_field"));
+    }
+
+    #[test]
+    fn features_default_both_true() {
+        let f = Features::default();
+        assert!(f.linear_architecture);
+        assert!(f.hlv_markers);
+    }
+
+    #[test]
+    fn features_deserialize_explicit_false() {
+        let yaml = "linear_architecture: false\nhlv_markers: false\n";
+        let f: Features = serde_yaml::from_str(yaml).unwrap();
+        assert!(!f.linear_architecture);
+        assert!(!f.hlv_markers);
+    }
+
+    #[test]
+    fn features_deserialize_empty_defaults_true() {
+        let yaml = "{}\n";
+        let f: Features = serde_yaml::from_str(yaml).unwrap();
+        assert!(f.linear_architecture);
+        assert!(f.hlv_markers);
+    }
+
+    #[test]
+    fn features_deserialize_partial() {
+        let yaml = "hlv_markers: false\n";
+        let f: Features = serde_yaml::from_str(yaml).unwrap();
+        assert!(f.linear_architecture); // default true
+        assert!(!f.hlv_markers);
+    }
+
+    #[test]
+    fn project_map_without_features_defaults() {
+        // A project.yaml without features section should deserialize with defaults
+        let path = std::path::Path::new("tests/fixtures/example-project/project.yaml");
+        let pm = ProjectMap::load(path).unwrap();
+        // Fixture may or may not have features; either way it should load
+        // and features should have sensible values
+        let _ = pm.features.linear_architecture;
+        let _ = pm.features.hlv_markers;
+    }
+
+    #[test]
+    fn project_map_roundtrip_with_features() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("project.yaml");
+
+        let mut pm = ProjectMap {
+            schema_version: 1,
+            project: "test-features".to_string(),
+            spec: None,
+            updated_at: None,
+            status: ProjectStatus::Draft,
+            last_skill: None,
+            last_skill_result: None,
+            paths: ProjectPaths {
+                human: HumanPaths {
+                    glossary: "g.yaml".to_string(),
+                    constraints: "c/".to_string(),
+                    artifacts: None,
+                },
+                validation: ValidationPaths {
+                    gates_policy: "v/g.yaml".to_string(),
+                    scenarios: "v/s/".to_string(),
+                    test_specs: None,
+                    traceability: None,
+                    verify_report: None,
+                },
+                llm: LlmPaths {
+                    src: "llm/".to_string(),
+                    tests: None,
+                    map: None,
+                },
+            },
+            glossary_types: vec![],
+            constraints: vec![],
+            validation: None,
+            stack: None,
+            git: GitPolicy::default(),
+            features: Features {
+                linear_architecture: true,
+                hlv_markers: false,
+            },
+        };
+
+        pm.save(&path).unwrap();
+        let loaded = ProjectMap::load(&path).unwrap();
+        assert!(loaded.features.linear_architecture);
+        assert!(!loaded.features.hlv_markers);
     }
 }

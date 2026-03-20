@@ -21,7 +21,13 @@ pub fn check_code_trace(
     constraints: &[ConstraintEntry],
     src_path: &str,
     tests_path: Option<&str>,
+    markers_enabled: bool,
 ) -> Vec<Diagnostic> {
+    if !markers_enabled {
+        tracing::debug!("Skipping code trace check — hlv_markers disabled");
+        return Vec::new();
+    }
+
     let mut diags = Vec::new();
 
     // 1. Collect expected markers from contracts
@@ -205,12 +211,34 @@ def test_sql():
     }
 
     #[test]
+    fn check_code_trace_disabled_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("llm/src")).unwrap();
+
+        // Even with contracts that would produce diagnostics, disabled markers = empty
+        let contracts = vec![ContractEntry {
+            id: "test.contract".to_string(),
+            version: "1.0.0".to_string(),
+            path: "contracts/test.md".to_string(),
+            yaml_path: Some("contracts/test.yaml".to_string()),
+            owner: None,
+            status: crate::model::project::ContractStatus::Implemented,
+            test_spec: None,
+            depends_on: vec![],
+            artifacts: vec![],
+        }];
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, false);
+        assert!(diags.is_empty(), "markers disabled = no diagnostics");
+    }
+
+    #[test]
     fn check_code_trace_empty_contracts() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         fs::create_dir_all(root.join("llm/src")).unwrap();
 
-        let diags = check_code_trace(root, &[], &[], "llm/src", None);
+        let diags = check_code_trace(root, &[], &[], "llm/src", None, true);
         assert!(diags.is_empty(), "no contracts = no expected markers");
     }
 
@@ -267,7 +295,7 @@ fn test_atomicity() {}
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
 
         // Should have CTR-001 summary but no CTR-010 warnings
         assert!(
@@ -319,7 +347,7 @@ outputs_schema:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
         let warnings: Vec<_> = diags.iter().filter(|d| d.code == "CTR-010").collect();
         assert_eq!(warnings.len(), 2, "2 missing markers: {:?}", warnings);
         assert!(diags.iter().any(|d| d.code == "CTR-001"));
@@ -361,7 +389,7 @@ rules:
             applies_to: Some("all".to_string()),
         }];
 
-        let diags = check_code_trace(root, &[], &constraints, "llm/src", None);
+        let diags = check_code_trace(root, &[], &constraints, "llm/src", None, true);
         // One marker found, one missing
         let warnings: Vec<_> = diags.iter().filter(|d| d.code == "CTR-010").collect();
         assert_eq!(
@@ -416,7 +444,7 @@ output:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", Some("llm/tests"));
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", Some("llm/tests"), true);
         assert!(
             !diags.iter().any(|d| d.code == "CTR-010"),
             "marker found in tests dir should count: {:?}",
@@ -443,7 +471,7 @@ output:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
         assert!(diags.is_empty(), "no yaml = no expected markers");
     }
 }

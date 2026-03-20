@@ -1,5 +1,7 @@
 /target
 .idea
 .claude
+.ai-factory
+.ai-factory.json
 Cargo.lock
 .DS_Store

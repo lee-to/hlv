@@ -207,6 +207,15 @@ pub fn run_with_milestone(
         None => prompt_with_default("First milestone name", "init")?,
     };
 
+    let linear_arch = prompt_yes_no("Enable linear architecture style?", true)?;
+    let hlv_markers = prompt_yes_no("Enable @hlv code traceability markers?", true)?;
+
+    tracing::debug!(
+        linear_architecture = linear_arch,
+        hlv_markers = hlv_markers,
+        "Feature flags selected"
+    );
+
     let agent_dir = format!(".{agent_name}");
     let skills_dir = format!("{agent_dir}/skills");
 
@@ -287,7 +296,7 @@ pub fn run_with_milestone(
     write_template(
         root,
         "project.yaml",
-        &project_template(&project_name, &owner_name),
+        &project_template(&project_name, &owner_name, linear_arch, hlv_markers),
     )?;
     write_template(root, "milestones.yaml", &milestones_template(&project_name))?;
     write_template(
@@ -348,6 +357,28 @@ fn prompt_with_default(label: &str, default: &str) -> Result<String> {
         Ok(default.to_string())
     } else {
         Ok(value.to_string())
+    }
+}
+
+/// Prompt user for a yes/no answer with a default.
+fn prompt_yes_no(label: &str, default: bool) -> Result<bool> {
+    let hint = if default { "Y/n" } else { "y/N" };
+    print!("  {} {} [{}]: ", "?".cyan().bold(), label, hint);
+    io::stdout().flush()?;
+    let mut line = String::new();
+    io::stdin()
+        .lock()
+        .read_line(&mut line)
+        .context("failed to read input")?;
+    let value = line.trim().to_lowercase();
+    if value.is_empty() {
+        Ok(default)
+    } else {
+        match value.as_str() {
+            "y" | "yes" => Ok(true),
+            "n" | "no" => Ok(false),
+            _ => anyhow::bail!("Expected y/n, got '{}'", line.trim()),
+        }
     }
 }
 
@@ -635,7 +666,12 @@ exceptions:
     )
 }
 
-fn project_template(project: &str, _owner: &str) -> String {
+fn project_template(
+    project: &str,
+    _owner: &str,
+    linear_architecture: bool,
+    hlv_markers: bool,
+) -> String {
     format!(
         r#"# yaml-language-server: $schema=schema/project-schema.json
 # HLV Project Map
@@ -669,6 +705,10 @@ constraints:
   - id: observability.global
     path: human/constraints/observability.yaml
     applies_to: all
+
+features:
+  linear_architecture: {linear_architecture}
+  hlv_markers: {hlv_markers}
 
 git:
   branch_per_milestone: false

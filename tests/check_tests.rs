@@ -2844,7 +2844,7 @@ outputs_schema:
         "contracts/order.md",
         "contracts/order.yaml",
     )];
-    let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+    let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
     assert!(
         !diags.iter().any(|d| d.code == "CTR-010"),
         "all markers present: {:?}",
@@ -2882,7 +2882,7 @@ outputs_schema:
         "contracts/order.md",
         "contracts/order.yaml",
     )];
-    let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+    let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
     assert!(
         diags
             .iter()
@@ -2918,7 +2918,7 @@ rules:
         path: "human/constraints/security.yaml".to_string(),
         applies_to: Some("all".to_string()),
     }];
-    let diags = check_code_trace(root, &[], &constraints, "llm/src", None);
+    let diags = check_code_trace(root, &[], &constraints, "llm/src", None, true);
     assert!(
         !diags.iter().any(|d| d.code == "CTR-010"),
         "constraint marker found: {:?}",
@@ -3773,6 +3773,7 @@ fn minimal_project_with_constraints(
         validation: None,
         stack: None,
         git: Default::default(),
+        features: Default::default(),
     }
 }
 

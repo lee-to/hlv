@@ -63,6 +63,9 @@
     },
     "git": {
       "$ref": "#/$defs/GitPolicy"
+    },
+    "features": {
+      "$ref": "#/$defs/Features"
     }
   },
   "additionalProperties": false,
@@ -219,6 +222,23 @@
           "default": [],
           "deprecated": true,
           "description": "Deprecated: gates are now read from gates-policy.yaml."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Features": {
+      "type": "object",
+      "description": "Optional feature flags controlling HLV's opinionated conventions",
+      "properties": {
+        "linear_architecture": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable linear architecture style in skills"
+        },
+        "hlv_markers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable @hlv code traceability markers and CTR-010/CTR-001 checks"
         }
       },
       "additionalProperties": false

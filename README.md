@@ -69,7 +69,7 @@ $ hlv check
 | **Test specs** | `derived_from` refs, unique IDs, gate coverage |
 | **Traceability** | REQ → CTR → TST → GATE chains, no dangling refs |
 | **Plan** | DAG without cycles, contract coverage |
-| **Code traceability** | `@hlv` markers in code match contract rules |
+| **Code traceability** | `@hlv` markers in code match contract rules (skipped when `features.hlv_markers: false`) |
 | **LLM map** | every `map.yaml` entry exists on disk |
 | **Constraints** | rule IDs, severity validation |
 
@@ -79,7 +79,7 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 
 | Command | What it does |
 |---------|-------------|
-| `hlv init` | Scaffold the full HLV directory structure in seconds |
+| `hlv init` | Scaffold the full HLV directory structure (asks for feature flags) |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
 | `hlv milestone` | Track progress across milestones |
 | `hlv workflow` | See where you are and what the next step is |
@@ -139,6 +139,18 @@ Each layer catches a different class of drift:
 - **Validation gates** catch integration drift
 
 > The compiler doesn't care that the LLM was pretty sure. Neither does hlv.
+
+## Feature flags
+
+HLV ships with opinionated defaults, but you can opt out via `project.yaml`:
+
+```yaml
+features:
+  linear_architecture: true   # flat module structure, no layered arch
+  hlv_markers: true            # @hlv code traceability markers + CTR-010/CTR-001
+```
+
+Both default to `true`. Set to `false` to use your preferred architecture style or skip `@hlv` markers entirely. `hlv init` asks about these during project setup.
 
 ## Your best practices are LLM anti-patterns
 

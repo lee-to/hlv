@@ -4,7 +4,7 @@ Canonical structure created by `hlv init` + `hlv milestone new`.
 Source of truth for fixture validation and legacy detection.
 
 ```
-project.yaml                        # entry point - status, paths, stack, constraints
+project.yaml                        # entry point - status, paths, stack, constraints, features
 milestones.yaml                     # current milestone, stages, history
 HLV.md                              # methodology rules (auto-generated)
 AGENTS.md                           # project-specific rules (user-editable)

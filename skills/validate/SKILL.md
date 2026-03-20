@@ -12,6 +12,13 @@ metadata:
 
 Execute all mandatory validation gates defined in `gates-policy.yaml`. Collect results, update project status, produce release decision. The gate set depends on the project profile — do NOT assume a fixed number of gates.
 
+## Step 0: Read Configuration
+
+Before proceeding, read `project.yaml → features` and note the flag values:
+- `features.hlv_markers` (default: `true`)
+
+This flag controls whether marker-related validation (Step 3b) is active. If `project.yaml` has no `features` section, treat as `true`.
+
 ## Prerequisites
 
 - All tasks in current stage completed
@@ -134,6 +141,9 @@ gate_results:
 ```
 
 ### Step 3b: Constraint rule coverage
+
+> **Conditional: `features.hlv_markers: true`**
+> If `hlv_markers` is `false` in project.yaml, skip the `@hlv` marker check below. `hlv check` will not produce CTR-010 diagnostics. Still run `check_command`-based rules (CST-050/CST-060) as those are independent of markers.
 
 Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `llm/src/` or `tests/`. Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
 

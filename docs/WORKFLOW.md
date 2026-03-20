@@ -33,9 +33,14 @@ hlv init -> hlv milestone new "feature"
 
 ```bash
 hlv init --project payments --owner backend-team
-# init asks for the gate profile (minimal/standard/full) and the first milestone name
+# init asks for:
+#   - gate profile (minimal/standard/full)
+#   - first milestone name
+#   - feature flags: linear architecture (Y/n), @hlv markers (Y/n)
 # --profile minimal|standard|full can be passed explicitly
 ```
+
+Feature flags (`features.linear_architecture`, `features.hlv_markers`) control whether HLV's opinionated code style and `@hlv` marker system are enforced. Both default to `true`. Set to `false` in `project.yaml` to opt out.
 
 ### 2. Fill in the context
 

@@ -95,6 +95,10 @@ git:
     - chore
   merge_strategy: manual
 
+features:
+  linear_architecture: true
+  hlv_markers: true
+
 # --- Validation State ---
 
 validation:
