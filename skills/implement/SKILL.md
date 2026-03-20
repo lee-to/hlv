@@ -12,7 +12,18 @@ metadata:
 
 Execute the implementation plan: agents perform tasks from milestone stage files in parallel, generating code and tests from contracts.
 
+## Step 0: Read Configuration
+
+Before proceeding, read `project.yaml → features` and note the flag values:
+- `features.linear_architecture` (default: `true`)
+- `features.hlv_markers` (default: `true`)
+
+These flags control which sections below are active. If `project.yaml` has no `features` section, treat both as `true`.
+
 ## CRITICAL: Code Architecture Philosophy
+
+> **Conditional: `features.linear_architecture: true`**
+> If `linear_architecture` is `false` in project.yaml, skip this entire section. Use your preferred architecture style instead.
 
 > **The human DOES NOT read the generated code. The code is written FOR machines — LLM agents read it, LLM agents modify it, automated gates validate it.**
 
@@ -136,13 +147,13 @@ Each agent when executing a task:
    - Test spec (`{MID}/test-specs/<contract>.md`)
    - Dependent code (output of previous tasks)
 4. **Generate (linear, inline, TDD)**:
-   - **Code structure**: write linearly — input → validation → logic → output → errors. No layers (controller/service/repository). One file per logical unit. File names are arbitrary (e.g., `01.rs`, `create.rs`) — describe each file in `llm/map.yaml`.
+   - **Code structure** *(when `features.linear_architecture: true`)*: write linearly — input → validation → logic → output → errors. No layers (controller/service/repository). One file per logical unit. File names are arbitrary (e.g., `01.rs`, `create.rs`) — describe each file in `llm/map.yaml`. *(When `false`: use your preferred architecture style — layered, hexagonal, etc.)*
    - **Tests inline**: unit tests go in the same file as code (`#[cfg(test)] mod tests`). Separate `tests/` only for integration tests.
    - **`@ctx` comments**: add LLM navigation markers — `// @ctx: stock check for order.create`. Not human docs, but LLM orientation.
    - **Tests first**: write unit tests from contract test spec and property-based tests from invariants BEFORE implementation code. Tests must compile (with stubs/unimplemented markers) and clearly fail.
-   - **Then implement**: write implementation code to make the failing tests pass. No layered abstractions — write the simplest linear code.
+   - **Then implement**: write implementation code to make the failing tests pass. *(When `features.linear_architecture: true`)* No layered abstractions — write the simplest linear code.
    - **Then refine**: once tests are green, refactor if needed while keeping tests green. Duplication across features is OK — don't extract until it hurts.
-   - **`@hlv` markers (MANDATORY)**: every test MUST carry an `@hlv <ID>` comment linking it to a contract validation or constraint. See "Code Traceability Markers" below.
+   - **`@hlv` markers** *(when `features.hlv_markers: true`, MANDATORY)*: every test MUST carry an `@hlv <ID>` comment linking it to a contract validation or constraint. See "Code Traceability Markers" below. *(When `false`: skip `@hlv` markers entirely.)*
 5. **Validate locally**:
    - `cargo check` / `npm run build` / equivalent
    - Unit tests pass
@@ -292,6 +303,9 @@ milestones.yaml                 # updated stage status
 ```
 
 ## Code Traceability Markers (`@hlv`)
+
+> **Conditional: `features.hlv_markers: true`**
+> If `hlv_markers` is `false` in project.yaml, skip this entire section. No `@hlv` markers are required and `hlv check` will not run CTR-010/CTR-001 checks.
 
 Every contract validation and constraint rule MUST be traceable to test code. `hlv check` enforces this automatically.
 
