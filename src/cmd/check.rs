@@ -129,6 +129,7 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
             &project.constraints,
             &project.paths.llm.src,
             tests_path,
+            project.features.hlv_markers,
         ));
     }
 
@@ -330,6 +331,7 @@ fn run_checks(root: &Path) -> Result<i32> {
             &project.constraints,
             &project.paths.llm.src,
             tests_path,
+            project.features.hlv_markers,
         );
         print_diags(&code_diags);
         all_diags.extend(code_diags);

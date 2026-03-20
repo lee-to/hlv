@@ -21,7 +21,13 @@ pub fn check_code_trace(
     constraints: &[ConstraintEntry],
     src_path: &str,
     tests_path: Option<&str>,
+    markers_enabled: bool,
 ) -> Vec<Diagnostic> {
+    if !markers_enabled {
+        tracing::debug!("Skipping code trace check — hlv_markers disabled");
+        return Vec::new();
+    }
+
     let mut diags = Vec::new();
 
     // 1. Collect expected markers from contracts
@@ -210,7 +216,7 @@ def test_sql():
         let root = dir.path();
         fs::create_dir_all(root.join("llm/src")).unwrap();
 
-        let diags = check_code_trace(root, &[], &[], "llm/src", None);
+        let diags = check_code_trace(root, &[], &[], "llm/src", None, true);
         assert!(diags.is_empty(), "no contracts = no expected markers");
     }
 
@@ -267,7 +273,7 @@ fn test_atomicity() {}
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
 
         // Should have CTR-001 summary but no CTR-010 warnings
         assert!(
@@ -319,7 +325,7 @@ outputs_schema:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
         let warnings: Vec<_> = diags.iter().filter(|d| d.code == "CTR-010").collect();
         assert_eq!(warnings.len(), 2, "2 missing markers: {:?}", warnings);
         assert!(diags.iter().any(|d| d.code == "CTR-001"));
@@ -361,7 +367,7 @@ rules:
             applies_to: Some("all".to_string()),
         }];
 
-        let diags = check_code_trace(root, &[], &constraints, "llm/src", None);
+        let diags = check_code_trace(root, &[], &constraints, "llm/src", None, true);
         // One marker found, one missing
         let warnings: Vec<_> = diags.iter().filter(|d| d.code == "CTR-010").collect();
         assert_eq!(
@@ -416,7 +422,7 @@ output:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", Some("llm/tests"));
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", Some("llm/tests"), true);
         assert!(
             !diags.iter().any(|d| d.code == "CTR-010"),
             "marker found in tests dir should count: {:?}",
@@ -443,7 +449,7 @@ output:
             artifacts: vec![],
         }];
 
-        let diags = check_code_trace(root, &contracts, &[], "llm/src", None);
+        let diags = check_code_trace(root, &contracts, &[], "llm/src", None, true);
         assert!(diags.is_empty(), "no yaml = no expected markers");
     }
 }
