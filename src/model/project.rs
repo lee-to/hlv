@@ -40,6 +40,8 @@ pub struct Features {
     pub linear_architecture: bool,
     #[serde(default = "default_true")]
     pub hlv_markers: bool,
+    #[serde(default = "default_true")]
+    pub security_markers: bool,
 }
 
 impl Default for Features {
@@ -47,6 +49,7 @@ impl Default for Features {
         Self {
             linear_architecture: true,
             hlv_markers: true,
+            security_markers: true,
         }
     }
 }
@@ -678,18 +681,20 @@ custom_field: hello
     }
 
     #[test]
-    fn features_default_both_true() {
+    fn features_default_all_true() {
         let f = Features::default();
         assert!(f.linear_architecture);
         assert!(f.hlv_markers);
+        assert!(f.security_markers);
     }
 
     #[test]
     fn features_deserialize_explicit_false() {
-        let yaml = "linear_architecture: false\nhlv_markers: false\n";
+        let yaml = "linear_architecture: false\nhlv_markers: false\nsecurity_markers: false\n";
         let f: Features = serde_yaml::from_str(yaml).unwrap();
         assert!(!f.linear_architecture);
         assert!(!f.hlv_markers);
+        assert!(!f.security_markers);
     }
 
     #[test]
@@ -698,6 +703,7 @@ custom_field: hello
         let f: Features = serde_yaml::from_str(yaml).unwrap();
         assert!(f.linear_architecture);
         assert!(f.hlv_markers);
+        assert!(f.security_markers);
     }
 
     #[test]
@@ -759,6 +765,7 @@ custom_field: hello
             features: Features {
                 linear_architecture: true,
                 hlv_markers: false,
+                security_markers: true,
             },
         };
 

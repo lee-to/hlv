@@ -209,10 +209,12 @@ pub fn run_with_milestone(
 
     let linear_arch = prompt_yes_no("Enable linear architecture style?", true)?;
     let hlv_markers = prompt_yes_no("Enable @hlv code traceability markers?", true)?;
+    let security_markers = prompt_yes_no("Enable @hlv:sec security attention markers?", true)?;
 
     tracing::debug!(
         linear_architecture = linear_arch,
         hlv_markers = hlv_markers,
+        security_markers = security_markers,
         "Feature flags selected"
     );
 
@@ -296,7 +298,7 @@ pub fn run_with_milestone(
     write_template(
         root,
         "project.yaml",
-        &project_template(&project_name, &owner_name, linear_arch, hlv_markers),
+        &project_template(&project_name, &owner_name, linear_arch, hlv_markers, security_markers),
     )?;
     write_template(root, "milestones.yaml", &milestones_template(&project_name))?;
     write_template(
@@ -671,6 +673,7 @@ fn project_template(
     _owner: &str,
     linear_architecture: bool,
     hlv_markers: bool,
+    security_markers: bool,
 ) -> String {
     format!(
         r#"# yaml-language-server: $schema=schema/project-schema.json
@@ -709,6 +712,7 @@ constraints:
 features:
   linear_architecture: {linear_architecture}
   hlv_markers: {hlv_markers}
+  security_markers: {security_markers}
 
 git:
   branch_per_milestone: false

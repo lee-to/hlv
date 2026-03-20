@@ -239,6 +239,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable @hlv code traceability markers and CTR-010/CTR-001 checks"
+        },
+        "security_markers": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable @hlv:sec security attention markers and SEC-010 diagnostic"
         }
       },
       "additionalProperties": false
