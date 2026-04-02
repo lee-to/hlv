@@ -163,6 +163,21 @@ const INIT_GENERATED_CASES: &[(&str, &str)] = &[
     ),
 ];
 
+fn quote_gate_arg(arg: &str) -> String {
+    if arg.contains([' ', '\t', '"']) {
+        format!("\"{}\"", arg.replace('"', "\\\""))
+    } else {
+        arg.to_string()
+    }
+}
+
+fn portable_gate_command(args: &[&str]) -> String {
+    let exe = std::env::current_exe().unwrap();
+    let mut parts = vec![quote_gate_arg(exe.to_string_lossy().as_ref())];
+    parts.extend(args.iter().map(|arg| quote_gate_arg(arg)));
+    parts.join(" ")
+}
+
 fn validate_in(root: &Path, schema_name: &str, yaml_rel: &str) {
     let schema_path = Path::new(SCHEMA_DIR).join(schema_name);
     let yaml_path = root.join(yaml_rel);
@@ -250,7 +265,8 @@ fn assert_generated_yaml_is_schema_valid(profile: &str) {
     }
 
     // Exercise gates-policy writer path (enabled/command/cwd fields).
-    hlv::cmd::gates::run_set_command(tmp.path(), "GATE-CONTRACT-001", "true").unwrap();
+    let pass_cmd = portable_gate_command(&["--help"]);
+    hlv::cmd::gates::run_set_command(tmp.path(), "GATE-CONTRACT-001", &pass_cmd).unwrap();
     hlv::cmd::gates::run_set_cwd(tmp.path(), "GATE-CONTRACT-001", "llm").unwrap();
     hlv::cmd::gates::run_disable(tmp.path(), "GATE-CONTRACT-001").unwrap();
     hlv::cmd::gates::run_enable(tmp.path(), "GATE-CONTRACT-001").unwrap();

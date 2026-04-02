@@ -563,9 +563,9 @@ hlv dashboard                # interactive TUI (Gates tab = management)
 # Gate management
 hlv gates enable <ID>        # enable gate
 hlv gates disable <ID>       # disable gate
-hlv gates set-cmd <ID> "cmd" # set command
+hlv gates set-cmd <ID> "cmd" # set executable + args (no shell operators/pipelines)
 hlv gates set-cwd <ID> "dir" # set working directory
-hlv gates run                # run all gates with commands
+hlv gates run                # run all gates (reports syntax/parse/spawn/exit failures)
 
 # Task management (task-level tracking)
 hlv task list [--stage N] [--status S] [--label L] [--json]

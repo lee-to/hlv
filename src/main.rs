@@ -371,11 +371,11 @@ enum GatesAction {
         /// Gate ID (e.g. GATE-CONTRACT-001)
         id: String,
     },
-    /// Set the shell command for a gate
+    /// Set executable + arguments for a gate
     SetCmd {
         /// Gate ID
         id: String,
-        /// Shell command to run (e.g. "cargo test")
+        /// Portable command string (e.g. "cargo test --workspace")
         command: String,
     },
     /// Clear the command for a gate
@@ -410,7 +410,7 @@ enum GatesAction {
         /// Mark gate as mandatory
         #[arg(long)]
         mandatory: bool,
-        /// Shell command to run
+        /// Portable command string to run
         #[arg(long)]
         command: Option<String>,
         /// Working directory relative to project root
@@ -497,7 +497,7 @@ enum ConstraintsAction {
         /// Rule statement
         #[arg(long)]
         statement: String,
-        /// Shell command to check this rule
+        /// Executable command to check this rule (program + args; shell operators are not supported)
         #[arg(long)]
         check_command: Option<String>,
         /// Working directory for check command (relative to project root)

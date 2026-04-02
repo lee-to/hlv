@@ -49,6 +49,7 @@ pub struct Gate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pass_criteria: Option<serde_yaml::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Portable executable + arguments string (no shell operators/pipelines).
     pub command: Option<String>,
     /// Working directory for command, relative to project root. Defaults to project root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -294,7 +295,7 @@ pub struct ConstraintFile {
     pub owner: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<String>,
-    /// Shell command to check this entire constraint file (executed via `sh -c`)
+    /// Executable command for checking this entire constraint file (program + args; no shell operators)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_command: Option<String>,
     /// Working directory for check_command, relative to project root
@@ -314,7 +315,7 @@ pub struct ConstraintRule {
     pub statement: String,
     #[serde(default)]
     pub enforcement: Vec<String>,
-    /// Shell command to check this rule (executed via `sh -c`)
+    /// Executable command for checking this rule (program + args; no shell operators)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_command: Option<String>,
     /// Working directory for check_command, relative to project root

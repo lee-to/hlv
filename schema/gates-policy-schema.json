@@ -76,7 +76,7 @@
         },
         "command": {
           "type": "string",
-          "description": "Shell command to execute this gate"
+          "description": "Portable executable + arguments string to execute this gate (no shell operators/pipelines)"
         },
         "cwd": {
           "type": "string",

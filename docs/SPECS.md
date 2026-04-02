@@ -303,7 +303,7 @@ Each gate has these fields:
 - `type` - gate type (`contract_tests`, `security`, etc.)
 - `mandatory` - whether it blocks the release
 - `enabled` - on/off (default: `true`)
-- `command` - shell command to run (filled by `/implement`)
+- `command` - portable executable + arguments string (filled by `/implement`)
 - `cwd` - working directory relative to the project root (for example `llm`)
 - `pass_criteria` - pass thresholds
 
@@ -450,10 +450,10 @@ CRUD management for gates in `validation/gates-policy.yaml`. All changes are sav
 | `hlv gates edit <id> [--type <type>] [--mandatory \| --no-mandatory]` | Change gate type or mandatory flag |
 | `hlv gates run [<id>]` | Run all gates with commands or one specific gate |
 | `hlv gates enable <id>` / `hlv gates disable <id>` | Enable / disable a gate |
-| `hlv gates set-cmd <id> <cmd>` / `hlv gates clear-cmd <id>` | Set or remove the shell command |
+| `hlv gates set-cmd <id> <cmd>` / `hlv gates clear-cmd <id>` | Set or remove the executable command string |
 | `hlv gates set-cwd <id> <dir>` / `hlv gates clear-cwd <id>` | Set or remove the working directory |
 
-Gate ID must be unique. Adding a duplicate is an error. When `run` is used, `command` is executed in `cwd` (or the project root), and the result includes exit code + stdout/stderr.
+Gate ID must be unique. Adding a duplicate is an error. When `run` is used, `command` is parsed as `program + args` and executed in `cwd` (or the project root). Shell operators and pipelines (`&&`, `||`, `|`, `;`, redirection) are rejected. Runtime failures are reported as unsupported syntax, parse failure, spawn failure, or non-zero exit.
 
 ---
 
@@ -469,7 +469,7 @@ CRUD management for constraint files in `human/constraints/`. Each file is a rul
 | `hlv constraints show <name> [--json]` | Show the content of a constraint file (all rules, owner, intent) |
 | `hlv constraints add <name> [--owner <owner>] [--intent <text>] [--applies-to <scope>]` | Create a new constraint file |
 | `hlv constraints remove <name> [--force]` | Remove a constraint file. Without `--force`, confirmation is required |
-| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text> [--check-command <cmd>] [--check-cwd <dir>] [--error-level <lvl>]` | Add a rule to an existing constraint file. Optional: `--check-command` sets a shell command to verify the rule, `--check-cwd` sets the working directory, `--error-level` overrides diagnostic severity (`error`, `warning`, `info`) |
+| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text> [--check-command <cmd>] [--check-cwd <dir>] [--error-level <lvl>]` | Add a rule to an existing constraint file. Optional: `--check-command` sets an executable command (`program + args`, no shell operators), `--check-cwd` sets the working directory, `--error-level` overrides diagnostic severity (`error`, `warning`, `info`) |
 | `hlv constraints remove-rule <constraint> <rule-id>` | Remove a rule from a constraint file |
 | `hlv constraints check [<constraint>] [--rule <id>] [--json]` | Run `check_command` for constraint rules. Optionally filter by constraint name or rule ID |
 
@@ -532,7 +532,7 @@ rules:
     statement: "Secrets must not appear in logs"
     enforcement:
       - log_policy_check
-    check_command: "grep -rn 'secret\\|password' src/ && exit 1 || exit 0"
+    check_command: "cargo clippy --all-targets -- -D warnings"
     check_cwd: "llm"
     error_level: error
 exceptions:
@@ -551,7 +551,7 @@ exceptions:
 | `rules[].severity` | enum | Severity: `critical`, `high`, `medium`, `low` |
 | `rules[].statement` | string | Rule wording |
 | `rules[].enforcement[]` | array | Verification methods (`sast`, `integration_test`, `runtime_scan`, etc.) |
-| `rules[].check_command` | string (optional) | Shell command to verify the rule (used by `CST-050` and `hlv constraints check`) |
+| `rules[].check_command` | string (optional) | Executable command to verify the rule (`program + args`; shell operators like `&&`, `\|`, `;` are not supported) |
 | `rules[].check_cwd` | string (optional) | Working directory for `check_command` (relative to project root; defaults to project root) |
 | `rules[].error_level` | enum (optional) | Override diagnostic severity: `error`, `warning`, `info`. If unset, mapped from `severity` (`critical`/`high` -> error, `medium`/`low` -> warning) |
 | `exceptions` | object | Exception process (`process`, `max_duration_days`) |

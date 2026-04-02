@@ -3034,6 +3034,21 @@ gates:
     .unwrap();
 }
 
+fn quote_gate_arg(arg: &str) -> String {
+    if arg.contains([' ', '\t', '"']) {
+        format!("\"{}\"", arg.replace('"', "\\\""))
+    } else {
+        arg.to_string()
+    }
+}
+
+fn portable_gate_command(args: &[&str]) -> String {
+    let exe = std::env::current_exe().unwrap();
+    let mut parts = vec![quote_gate_arg(exe.to_string_lossy().as_ref())];
+    parts.extend(args.iter().map(|arg| quote_gate_arg(arg)));
+    parts.join(" ")
+}
+
 #[test]
 fn gates_enable_disable() {
     let tmp = TempDir::new().unwrap();
@@ -3117,7 +3132,8 @@ fn gates_run_commands_passing() {
     setup_gates_project(root);
 
     // Set a passing command
-    hlv::cmd::gates::run_set_command(root, "GATE-001", "true").unwrap();
+    let pass_cmd = portable_gate_command(&["--help"]);
+    hlv::cmd::gates::run_set_command(root, "GATE-001", &pass_cmd).unwrap();
 
     // Create milestones.yaml so results can be saved
     hlv::cmd::milestone::run_new(root, "test").unwrap();
@@ -3142,8 +3158,61 @@ fn gates_run_commands_failing() {
     let root = tmp.path();
     setup_gates_project(root);
 
-    hlv::cmd::gates::run_set_command(root, "GATE-001", "false").unwrap();
+    let fail_cmd = portable_gate_command(&["--definitely-invalid-gate-option"]);
+    hlv::cmd::gates::run_set_command(root, "GATE-001", &fail_cmd).unwrap();
 
+    let (passed, failed, _) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
+    assert_eq!(passed, 0);
+    assert_eq!(failed, 1);
+}
+
+#[test]
+fn gates_run_commands_with_quoted_args_and_cwd() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_gates_project(root);
+
+    let llm_dir = root.join("llm");
+    fs::create_dir_all(&llm_dir).unwrap();
+
+    let cmd = portable_gate_command(&["--exact", "quoted argument with spaces"]);
+    hlv::cmd::gates::run_set_command(root, "GATE-001", &cmd).unwrap();
+    hlv::cmd::gates::run_set_cwd(root, "GATE-001", "llm").unwrap();
+
+    hlv::cmd::milestone::run_new(root, "cwd-test").unwrap();
+
+    let (passed, failed, _) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
+    assert_eq!(passed, 1);
+    assert_eq!(failed, 0);
+
+    let ms = hlv::model::milestone::MilestoneMap::load(&root.join("milestones.yaml")).unwrap();
+    let current = ms.current.unwrap();
+    assert_eq!(current.gate_results.len(), 1);
+    assert_eq!(
+        current.gate_results[0].status,
+        hlv::model::milestone::GateRunStatus::Passed
+    );
+}
+
+#[test]
+fn gates_run_commands_missing_program_reports_failure() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_gates_project(root);
+
+    hlv::cmd::gates::run_set_command(root, "GATE-001", "definitely-not-a-real-hlv-binary").unwrap();
+    let (passed, failed, _) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
+    assert_eq!(passed, 0);
+    assert_eq!(failed, 1);
+}
+
+#[test]
+fn gates_run_commands_reject_shell_syntax_without_sh_lookup() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_gates_project(root);
+
+    hlv::cmd::gates::run_set_command(root, "GATE-001", "tool-a && tool-b").unwrap();
     let (passed, failed, _) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
     assert_eq!(passed, 0);
     assert_eq!(failed, 1);

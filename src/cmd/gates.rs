@@ -11,6 +11,40 @@ use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QuoteMode {
+    Single,
+    Double,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedGateCommand {
+    program: String,
+    args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum GateCommandParseError {
+    EmptyCommand,
+    MissingProgram,
+    UnmatchedQuote,
+    UnsupportedSyntax(&'static str),
+}
+
+impl GateCommandParseError {
+    fn failure_reason(&self) -> String {
+        match self {
+            Self::EmptyCommand => "command is empty".to_string(),
+            Self::MissingProgram => "missing executable in command".to_string(),
+            Self::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
+            Self::UnsupportedSyntax(op) => format!(
+                "unsupported command syntax '{}' (use one executable per gate; shell operators are not supported)",
+                op
+            ),
+        }
+    }
+}
+
 pub fn run(project_root: &Path) -> Result<()> {
     run_show(project_root)
 }
@@ -365,58 +399,85 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
             std::io::Write::flush(&mut std::io::stdout())?;
         }
 
-        let result = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .current_dir(&work_dir)
-            .output();
+        let parsed = parse_gate_command(cmd);
 
-        match result {
-            Ok(output) if output.status.success() => {
-                if !quiet {
-                    println!("{}", "PASSED".green());
-                }
-                passed += 1;
-                gate_results.push(GateResult {
-                    id: gate.id.clone(),
-                    status: GateRunStatus::Passed,
-                    run_at: Some(now.clone()),
-                });
-            }
-            Ok(output) => {
-                if !quiet {
-                    println!("{}", "FAILED".red());
-                }
-                failed += 1;
-                gate_results.push(GateResult {
-                    id: gate.id.clone(),
-                    status: GateRunStatus::Failed,
-                    run_at: Some(now.clone()),
-                });
-                if !quiet {
-                    // Show last lines of stderr/stdout for diagnostics
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let output_text = if !stderr.is_empty() {
-                        stderr.to_string()
-                    } else {
-                        stdout_str.to_string()
-                    };
-                    for line in output_text
-                        .lines()
-                        .rev()
-                        .take(5)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                    {
-                        println!("    {}", line.dimmed());
+        match parsed {
+            Ok(parsed_cmd) => {
+                let result = Command::new(&parsed_cmd.program)
+                    .args(&parsed_cmd.args)
+                    .current_dir(&work_dir)
+                    .output();
+
+                match result {
+                    Ok(output) if output.status.success() => {
+                        if !quiet {
+                            println!("{}", "PASSED".green());
+                        }
+                        passed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Passed,
+                            run_at: Some(now.clone()),
+                        });
+                    }
+                    Ok(output) => {
+                        if !quiet {
+                            println!("{}", "FAILED".red());
+                            let status_text = output
+                                .status
+                                .code()
+                                .map(|code| format!("exit code {}", code))
+                                .unwrap_or_else(|| "terminated by signal".to_string());
+                            println!("    {}", format!("reason: {}", status_text).dimmed());
+                        }
+                        failed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Failed,
+                            run_at: Some(now.clone()),
+                        });
+                        if !quiet {
+                            // Show last lines of stderr/stdout for diagnostics
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let stdout_str = String::from_utf8_lossy(&output.stdout);
+                            let output_text = if !stderr.is_empty() {
+                                stderr.to_string()
+                            } else {
+                                stdout_str.to_string()
+                            };
+                            for line in output_text
+                                .lines()
+                                .rev()
+                                .take(5)
+                                .collect::<Vec<_>>()
+                                .into_iter()
+                                .rev()
+                            {
+                                println!("    {}", line.dimmed());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            println!("{}", "FAILED".red());
+                            println!(
+                                "    {}",
+                                format!("reason: failed to start executable: {}", e).dimmed()
+                            );
+                        }
+                        failed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Failed,
+                            run_at: Some(now.clone()),
+                        });
                     }
                 }
             }
             Err(e) => {
                 if !quiet {
-                    println!("{} ({})", "FAILED".red(), e);
+                    println!("{}", "FAILED".red());
+                    println!("    {}", format!("reason: {}", e.failure_reason()).dimmed());
                 }
                 failed += 1;
                 gate_results.push(GateResult {
@@ -457,4 +518,200 @@ fn save_gate_results(project_root: &Path, results: &[GateResult]) {
     };
     current.gate_results = results.to_vec();
     let _ = milestones.save(&ms_path);
+}
+
+fn parse_gate_command(
+    command: &str,
+) -> std::result::Result<ParsedGateCommand, GateCommandParseError> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err(GateCommandParseError::EmptyCommand);
+    }
+
+    if let Some(operator) = find_unsupported_shell_syntax(trimmed) {
+        return Err(GateCommandParseError::UnsupportedSyntax(operator));
+    }
+
+    let mut parts = split_command_line(trimmed)?.into_iter();
+    let program = parts.next().ok_or(GateCommandParseError::MissingProgram)?;
+    let args = parts.collect();
+
+    Ok(ParsedGateCommand { program, args })
+}
+
+fn split_command_line(command: &str) -> std::result::Result<Vec<String>, GateCommandParseError> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut chars = command.chars().peekable();
+    let mut quote_mode: Option<QuoteMode> = None;
+
+    while let Some(ch) = chars.next() {
+        match quote_mode {
+            Some(QuoteMode::Single) => {
+                if ch == '\'' {
+                    quote_mode = None;
+                } else {
+                    current.push(ch);
+                }
+            }
+            Some(QuoteMode::Double) => {
+                if ch == '"' {
+                    quote_mode = None;
+                } else if ch == '\\' {
+                    if let Some(next) = chars.peek().copied() {
+                        if next == '"' {
+                            current.push(next);
+                            let _ = chars.next();
+                        } else {
+                            current.push(ch);
+                        }
+                    } else {
+                        current.push(ch);
+                    }
+                } else {
+                    current.push(ch);
+                }
+            }
+            None => {
+                if ch.is_whitespace() {
+                    if !current.is_empty() {
+                        tokens.push(std::mem::take(&mut current));
+                    }
+                } else if ch == '\'' {
+                    quote_mode = Some(QuoteMode::Single);
+                } else if ch == '"' {
+                    quote_mode = Some(QuoteMode::Double);
+                } else {
+                    current.push(ch);
+                }
+            }
+        }
+    }
+
+    if quote_mode.is_some() {
+        return Err(GateCommandParseError::UnmatchedQuote);
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    if tokens.is_empty() {
+        return Err(GateCommandParseError::EmptyCommand);
+    }
+
+    Ok(tokens)
+}
+
+fn find_unsupported_shell_syntax(command: &str) -> Option<&'static str> {
+    let mut chars = command.chars().peekable();
+    let mut quote_mode: Option<QuoteMode> = None;
+
+    while let Some(ch) = chars.next() {
+        match quote_mode {
+            Some(QuoteMode::Single) => {
+                if ch == '\'' {
+                    quote_mode = None;
+                }
+            }
+            Some(QuoteMode::Double) => {
+                if ch == '"' {
+                    quote_mode = None;
+                } else if ch == '\\' {
+                    if let Some(next) = chars.peek().copied() {
+                        if next == '"' {
+                            let _ = chars.next();
+                        }
+                    }
+                }
+            }
+            None => match ch {
+                '\'' => quote_mode = Some(QuoteMode::Single),
+                '"' => quote_mode = Some(QuoteMode::Double),
+                '&' => {
+                    if chars.peek().copied() == Some('&') {
+                        return Some("&&");
+                    }
+                    return Some("&");
+                }
+                '|' => {
+                    if chars.peek().copied() == Some('|') {
+                        return Some("||");
+                    }
+                    return Some("|");
+                }
+                ';' => return Some(";"),
+                '>' => return Some(">"),
+                '<' => return Some("<"),
+                '`' => return Some("`"),
+                '$' => {
+                    if chars.peek().copied() == Some('(') {
+                        return Some("$(");
+                    }
+                }
+                _ => {}
+            },
+        }
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_command_line_supports_quoted_arguments() {
+        let tokens = split_command_line(r#"cargo run --message "hello world""#).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                "cargo".to_string(),
+                "run".to_string(),
+                "--message".to_string(),
+                "hello world".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn split_command_line_handles_windows_path_in_quotes() {
+        let tokens = split_command_line(r#""C:\Program Files\tool.exe" --help"#).unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                r"C:\Program Files\tool.exe".to_string(),
+                "--help".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn split_command_line_preserves_unc_prefix_in_quotes() {
+        let tokens = split_command_line(r#""\\server\share\tool.exe" --help"#).unwrap();
+        assert_eq!(
+            tokens,
+            vec![r"\\server\share\tool.exe".to_string(), "--help".to_string()]
+        );
+    }
+
+    #[test]
+    fn split_command_line_rejects_unmatched_quote() {
+        let err = split_command_line(r#"cargo --message "broken"#).unwrap_err();
+        assert_eq!(err, GateCommandParseError::UnmatchedQuote);
+    }
+
+    #[test]
+    fn parse_gate_command_rejects_shell_operators() {
+        let err = parse_gate_command("cargo test && cargo clippy").unwrap_err();
+        assert_eq!(err, GateCommandParseError::UnsupportedSyntax("&&"));
+    }
+
+    #[test]
+    fn parse_gate_command_ignores_operator_chars_inside_quotes() {
+        let parsed = parse_gate_command(r#"echo "a && b""#).unwrap();
+        assert_eq!(parsed.program, "echo");
+        assert_eq!(parsed.args, vec!["a && b".to_string()]);
+    }
 }
