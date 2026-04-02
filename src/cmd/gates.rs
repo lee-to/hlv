@@ -560,7 +560,14 @@ fn split_command_line(command: &str) -> std::result::Result<Vec<String>, GateCom
                 } else if ch == '\\' {
                     if let Some(next) = chars.peek().copied() {
                         if next == '"' {
-                            current.push(next);
+                            let mut lookahead = chars.clone();
+                            let _ = lookahead.next();
+                            if has_unescaped_double_quote(lookahead) {
+                                current.push(next);
+                            } else {
+                                current.push(ch);
+                                quote_mode = None;
+                            }
                             let _ = chars.next();
                         } else {
                             current.push(ch);
@@ -601,6 +608,18 @@ fn split_command_line(command: &str) -> std::result::Result<Vec<String>, GateCom
     }
 
     Ok(tokens)
+}
+
+fn has_unescaped_double_quote(mut chars: std::iter::Peekable<std::str::Chars<'_>>) -> bool {
+    while let Some(ch) = chars.next() {
+        if ch == '"' {
+            return true;
+        }
+        if ch == '\\' && chars.peek().copied() == Some('"') {
+            let _ = chars.next();
+        }
+    }
+    false
 }
 
 fn find_unsupported_shell_syntax(command: &str) -> Option<&'static str> {
@@ -693,6 +712,22 @@ mod tests {
         assert_eq!(
             tokens,
             vec![r"\\server\share\tool.exe".to_string(), "--help".to_string()]
+        );
+    }
+
+    #[test]
+    fn split_command_line_preserves_trailing_backslash_before_closing_quote() {
+        let tokens = split_command_line("cmd /C exit /B 0 \"C:\\tmp\\\"").unwrap();
+        assert_eq!(
+            tokens,
+            vec![
+                "cmd".to_string(),
+                "/C".to_string(),
+                "exit".to_string(),
+                "/B".to_string(),
+                "0".to_string(),
+                r"C:\tmp\".to_string()
+            ]
         );
     }
 
