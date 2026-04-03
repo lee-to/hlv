@@ -532,7 +532,7 @@ rules:
     statement: "Secrets must not appear in logs"
     enforcement:
       - log_policy_check
-    check_command: "cargo clippy --all-targets -- -D warnings"
+    check_command: "policy-check --rule no-secrets-in-logs"
     check_cwd: "llm"
     error_level: error
 exceptions:
