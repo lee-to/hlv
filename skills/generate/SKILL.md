@@ -271,12 +271,12 @@ Stage 2 uses types from Stage 1
 
 TASK-001 <name>
   contracts: [contract.name]
-  output: llm/src/features/<dir>/
+  output: {paths.llm.src}features/<dir>/
 
 TASK-002 <name>
   depends_on: [TASK-001]
   contracts: [contract.name, other.contract]
-  output: llm/tests/integration/
+  output: {paths.llm.tests}integration/
 
 ## Remediation
 (filled by /validate when gates fail)
@@ -297,7 +297,7 @@ After completing all tasks in this stage, commit with:
 
 ### Step 6: Update LLM map
 
-Update `llm/map.yaml` (schema: `schema/llm-map-schema.json`, path from `project.yaml → paths.llm.map`) — add entries for every new file and directory created during this step:
+Update the file map at `project.yaml → paths.llm.map` (schema: `schema/llm-map-schema.json`) — add entries for every new file and directory created during this step:
 - Contracts (md + yaml)
 - Test specs, scenarios
 - Plan, traceability, glossary

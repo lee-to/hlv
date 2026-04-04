@@ -23,7 +23,7 @@ These flags control whether marker-related validation (Step 3b, 3c) is active. I
 ## Prerequisites
 
 - All tasks in current stage completed
-- Code and inline tests generated in `llm/src/` (integration tests in `llm/tests/`)
+- Code and inline tests generated in `paths.llm.src` from `project.yaml` (integration tests in `paths.llm.tests`)
 - `validation/gates-policy.yaml` contains gate definitions
 - `milestones.yaml` exists with current stage status `implemented`
 
@@ -40,8 +40,8 @@ These flags control whether marker-related validation (Step 3b, 3c) is active. I
 ```
 milestones.yaml               # entry point — read FIRST
 project.yaml                  # global config (stack for context)
-llm/src/                      # generated code (unit tests inline in same files)
-llm/tests/                    # integration tests only
+{paths.llm.src}               # generated code (unit tests inline in same files) — read from project.yaml
+{paths.llm.tests}             # integration tests only — read from project.yaml
 
 validation/
   gates-policy.yaml            # thresholds and criteria
@@ -63,8 +63,13 @@ Note: `project.yaml → stack` provides tech stack context (languages, framework
 ### Step 1: Pre-flight and gate status
 
 1. Read `project.yaml` (global config: stack, paths)
-2. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
-3. **STATUS GATE (hard stop)**:
+2. **Bind LLM paths from `project.yaml → paths.llm`**:
+   - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
+   - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
+   - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
+   All gate execution, code scanning, and marker checks MUST target these directories — not hardcoded paths.
+3. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
+4. **STATUS GATE (hard stop)**:
    - Allowed stage statuses to proceed: `implemented`, `validating`
    - `implemented` — normal validation after /implement
    - `validating` — re-run, execute failed/skipped gates
@@ -78,11 +83,11 @@ Note: `project.yaml → stack` provides tech stack context (languages, framework
      Finish /implement for this stage first.
      ```
    - `validated` — this stage already passed, inform user
-4. Read `validation/gates-policy.yaml`
-5. **Install required tooling**: read `project.yaml → stack` to determine the language/ecosystem, then for each gate that will run, ensure required tools are available. Install missing ones silently:
+5. Read `validation/gates-policy.yaml`
+6. **Install required tooling**: read `project.yaml → stack` to determine the language/ecosystem, then for each gate that will run, ensure required tools are available. Install missing ones silently:
    - Do NOT ask the human to install tools. The human writes artifacts, not `pip install`.
-6. Verify code compiles (`cargo build` / `npm run build` / language-appropriate check)
-7. Update stage status → `validating` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
+7. Verify code compiles (`cargo build` / `npm run build` / language-appropriate check)
+8. Update stage status → `validating` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
 
 ### Step 2: Execute gates
 
@@ -113,7 +118,7 @@ For each gate, determine how to run it based on its `type` field:
 | `integration_tests` | `validation/scenarios/*.md` | `cargo test --test integration` / `pytest integration/` | `p0_pass_rate`, `p1_min_pass_rate` |
 | `performance` | `{MID}/test-specs/*.md` → "Performance Tests" | `criterion` / `k6` / `locust` | `max_error_rate`, latency from NFR |
 | `security` | `human/constraints/security.yaml` + test-specs | SAST + dependency scan | `max_open_critical`, `max_open_high` |
-| `mutation_testing` | changed modules in `src/` | `cargo-mutants` / `mutmut` / `stryker` | `min_mutation_score_changed_modules` |
+| `mutation_testing` | changed modules in `LLM_SRC` | `cargo-mutants` / `mutmut` / `stryker` | `min_mutation_score_changed_modules` |
 | `observability` | `gates-policy.yaml` → `pass_criteria` | static analysis + runtime | `required_for_public_capabilities` |
 
 For each gate in the file:
@@ -146,7 +151,7 @@ gate_results:
 > **Conditional: `features.hlv_markers: true`**
 > If `hlv_markers` is `false` in project.yaml, skip the `@hlv` marker check below. `hlv check` will not produce CTR-010 diagnostics. Still run `check_command`-based rules (CST-050/CST-060) as those are independent of markers.
 
-Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `llm/src/` or `tests/`. Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
+Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `paths.llm.src` or `paths.llm.tests` (from `project.yaml`). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
 
 `hlv check` also executes `check_command` for rules that define one (CST-050/CST-060). Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
 
@@ -202,11 +207,11 @@ Remediation tasks go into the `## Remediation` section of the current `{MID}/sta
 
 FIX-OBS-001 Add metrics/traces/structured logging
   contracts: [payment.process, payment.refund]
-  output: llm/src/features/observability/
+  output: {paths.llm.src}features/observability/
 
 FIX-MUT-001 Strengthen assertions for 3 mutation survivors
   contracts: [payment.process]
-  output: llm/src/features/payment_process/
+  output: {paths.llm.src}features/payment_process/
 ```
 
 Human decisions → add to `{MID}/open-questions.md`.

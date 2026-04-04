@@ -140,7 +140,7 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
     ));
 
     if let Some(ref map_path) = project.paths.llm.map {
-        all_diags.extend(check::llm_map::check_llm_map(root, map_path));
+        all_diags.extend(check::llm_map::check_llm_map(root, map_path, &project.paths.llm));
     }
 
     if !project.constraints.is_empty() {
@@ -360,7 +360,7 @@ fn run_checks(root: &Path) -> Result<i32> {
     // 8. LLM map (llm/map.yaml)
     if let Some(ref map_path) = project.paths.llm.map {
         style::section("LLM map");
-        let map_diags = check::llm_map::check_llm_map(root, map_path);
+        let map_diags = check::llm_map::check_llm_map(root, map_path, &project.paths.llm);
         print_diags(&map_diags);
         all_diags.extend(map_diags);
     }

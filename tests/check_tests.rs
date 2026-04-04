@@ -6,6 +6,7 @@ use hlv::check::code_trace::check_code_trace;
 use hlv::check::constraints::check_constraints;
 use hlv::check::contracts::check_contracts;
 use hlv::check::llm_map::check_llm_map;
+use hlv::model::project::LlmPaths;
 use hlv::check::plan::check_stage_plans;
 use hlv::check::project_map::check_project_map;
 use hlv::check::sec_markers::check_sec_markers;
@@ -2607,12 +2608,28 @@ fn pln_with_fixture_milestone_project() {
 // check::llm_map — MAP-* integration tests
 // ═══════════════════════════════════════════════════════
 
+fn default_llm_paths() -> LlmPaths {
+    LlmPaths {
+        src: "llm/src/".to_string(),
+        tests: Some("llm/tests/".to_string()),
+        map: Some("llm/map.yaml".to_string()),
+    }
+}
+
+fn flat_llm_paths() -> LlmPaths {
+    LlmPaths {
+        src: "src/".to_string(),
+        tests: Some("tests/".to_string()),
+        map: Some("map.yaml".to_string()),
+    }
+}
+
 #[test]
 fn map001_missing_map_file() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
 
-    let diags = check_llm_map(root, "llm/map.yaml");
+    let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
     assert!(
         has_error(&diags, "MAP-001"),
         "expected MAP-001 when map file is missing: {:?}",
@@ -2627,7 +2644,7 @@ fn map002_invalid_yaml() {
     fs::create_dir_all(root.join("llm")).unwrap();
     fs::write(root.join("llm/map.yaml"), "not: [valid: yaml: {{{").unwrap();
 
-    let diags = check_llm_map(root, "llm/map.yaml");
+    let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
     assert!(
         has_error(&diags, "MAP-002"),
         "expected MAP-002 for invalid YAML: {:?}",
@@ -2646,7 +2663,7 @@ fn map003_empty_entries() {
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "llm/map.yaml");
+    let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
     assert!(
         has_info(&diags, "MAP-003"),
         "expected MAP-003 info for empty entries: {:?}",
@@ -2671,7 +2688,7 @@ entries:
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "llm/map.yaml");
+    let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
     assert!(
         has_error(&diags, "MAP-010"),
         "expected MAP-010 for missing file on disk: {:?}",
@@ -2703,7 +2720,7 @@ entries:
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "map.yaml");
+    let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
     assert!(
         has_warning(&diags, "MAP-020"),
         "expected MAP-020 for unlisted file: {:?}",
@@ -2743,7 +2760,7 @@ entries:
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "map.yaml");
+    let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
     assert!(
         has_info(&diags, "MAP-100"),
         "expected MAP-100 forward summary: {:?}",
@@ -2780,7 +2797,7 @@ entries:
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "map.yaml");
+    let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
     assert!(
         has_info(&diags, "MAP-101"),
         "expected MAP-101 reverse summary: {:?}",
@@ -2818,7 +2835,7 @@ entries:
     )
     .unwrap();
 
-    let diags = check_llm_map(root, "map.yaml");
+    let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
     let map101 = diags.iter().find(|d| d.code == "MAP-101").unwrap();
     assert!(
         map101.message.contains("1 file(s)"),
@@ -2830,7 +2847,7 @@ entries:
 #[test]
 fn map_with_fixture_example_project() {
     let root = Path::new("tests/fixtures/example-project");
-    let diags = check_llm_map(root, "llm/map.yaml");
+    let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
     // Should at least parse and produce MAP-100 summary
     assert!(
         has_info(&diags, "MAP-100"),

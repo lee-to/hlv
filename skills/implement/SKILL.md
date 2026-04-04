@@ -38,9 +38,9 @@ This changes everything about how code is structured:
 
 4. **Domain types are the shared language.** `domain/types` is the ONLY shared code between features. Everything else is self-contained. Duplication across features is PREFERRED over coupling. **Duplication is normal until it hurts**: copy-paste between features is not refactored until it causes real problems (behavioral divergence, forgotten updates when contracts change).
 
-5. **Tests live next to code.** Tests are in the same file as the code (`#[cfg(test)] mod tests {}` in Rust, equivalents in other languages). Every test traces back to a contract invariant, error case, or NFR via `@hlv` marker. No "just in case" tests. No test helpers that hide behavior. Test code is as explicit as production code. `hlv check` verifies every error code, invariant, and constraint rule has an `@hlv <ID>` marker in code. Separate `tests/` directory is only for integration tests (cross-contract scenarios).
+5. **Tests live next to code.** Tests are in the same file as the code (`#[cfg(test)] mod tests {}` in Rust, equivalents in other languages). Every test traces back to a contract invariant, error case, or NFR via `@hlv` marker. No "just in case" tests. No test helpers that hide behavior. Test code is as explicit as production code. `hlv check` verifies every error code, invariant, and constraint rule has an `@hlv <ID>` marker in code. The integration-tests directory (`paths.llm.tests` from `project.yaml`) is only for cross-contract scenarios.
 
-6. **File names are arbitrary. `map.yaml` is the navigator.** Files can be named `01.rs`, `handler.rs`, `f3a.rs` — any name is valid. `llm/map.yaml` is the single source of truth about what each file does. LLM finds code by reading descriptions in `map.yaml`, not by file names. Descriptions MUST be sufficient to choose a file without reading it. Each file does one thing, <300 lines, fully replaceable by an LLM without understanding neighboring files.
+6. **File names are arbitrary. `map.yaml` is the navigator.** Files can be named `01.rs`, `handler.rs`, `f3a.rs` — any name is valid. The file map (`paths.llm.map` from `project.yaml`) is the single source of truth about what each file does. LLM finds code by reading descriptions in `map.yaml`, not by file names. Descriptions MUST be sufficient to choose a file without reading it. Each file does one thing, <300 lines, fully replaceable by an LLM without understanding neighboring files.
 
 7. **No abstraction layers "for the future."** No base classes, no generic frameworks, no plugin systems unless the contract explicitly requires extensibility. Write the simplest code that satisfies the contract. Three similar lines of code are better than a premature abstraction.
 
@@ -73,7 +73,7 @@ This changes everything about how code is structured:
 ```
 milestones.yaml              # entry point — read FIRST
 project.yaml                 # global config (stack, paths)
-llm/map.yaml                 # project file map — update when creating files
+{paths.llm.map}              # project file map — update when creating files (read path from project.yaml)
 human/
   glossary.yaml              # domain types (read-only)
   constraints/*.yaml         # global constraints (read-only)
@@ -93,10 +93,22 @@ validation/
 ### Step 1: Read project map and load milestone context
 
 1. Read `project.yaml` (global config: stack, paths)
-2. Read `milestones.yaml` → get `current.id` and `current.stage` (current stage number)
-3. Set `MID = human/milestones/{current.id}`
-4. Find the current stage in `current.stages[]` by matching the stage number
-5. **STATUS GATE (hard stop)**:
+2. **Bind LLM paths from `project.yaml → paths.llm`** — these are the ONLY directories where generated code may be placed:
+   - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
+   - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
+   - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
+   **All subsequent steps MUST use these variables. Never assume `llm/src/` — always use the configured path.**
+
+   > **HARD CONSTRAINT — Output directory isolation**
+   > ALL generated code and test files MUST be written exclusively inside `LLM_SRC` and `LLM_TESTS`.
+   > Even if the project has existing code elsewhere (e.g., `apps/backend/src/`, `src/`, `packages/`),
+   > you MUST NOT write there. The existing project structure outside LLM paths is READ-ONLY context.
+   > Violation of this rule means generated code is invisible to `hlv check`, `map.yaml`, and `/validate`.
+
+3. Read `milestones.yaml` → get `current.id` and `current.stage` (current stage number)
+4. Set `MID = human/milestones/{current.id}`
+5. Find the current stage in `current.stages[]` by matching the stage number
+6. **STATUS GATE (hard stop)**:
    - Read stage `status`
    - Allowed values to proceed: `pending`, `verified`, `implementing`, `validating`
    - `pending` — implementation without prior /verify
@@ -104,9 +116,9 @@ validation/
    - `implementing` — re-run, continue from pending tasks
    - `validating` — remediation: /validate found gate failures and added FIX tasks to stage_N.md Remediation section. Execute only pending remediation tasks.
    - `implemented` or `validated` — this stage is done. Check if there's a next stage to advance to, or inform user.
-6. Update stage status → `implementing` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
-7. Read `{MID}/stage_N.md` — load tasks for the current stage
-8. Read `project.yaml → stack.components` — understand target languages, frameworks
+7. Update stage status → `implementing` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
+8. Read `{MID}/stage_N.md` — load tasks for the current stage
+9. Read `project.yaml → stack.components` — understand target languages, frameworks
 
 ### Step 2: Execute tasks
 
@@ -123,7 +135,7 @@ ready_tasks = tasks with no pending depends_on
 while ready_tasks not empty:
   for task in ready_tasks (parallel):
     1. Load context: contract from {MID}/contracts/, glossary, test spec from {MID}/test-specs/, dependency outputs
-    2. Generate code + tests within declared output paths (llm/src/, llm/tests/)
+    2. Generate code + tests within declared output paths (`LLM_SRC`, `LLM_TESTS`)
     3. Run local checks: compile, lint, unit tests
     4. Mark task completed in stage_N.md
 
@@ -147,9 +159,9 @@ Each agent when executing a task:
    - Stack (`project.yaml → stack.components`) — target language, framework, dependencies
    - Test spec (`{MID}/test-specs/<contract>.md`)
    - Dependent code (output of previous tasks)
-4. **Generate (linear, inline, TDD)**:
-   - **Code structure** *(when `features.linear_architecture: true`)*: write linearly — input → validation → logic → output → errors. No layers (controller/service/repository). One file per logical unit. File names are arbitrary (e.g., `01.rs`, `create.rs`) — describe each file in `llm/map.yaml`. *(When `false`: use your preferred architecture style — layered, hexagonal, etc.)*
-   - **Tests inline**: unit tests go in the same file as code (`#[cfg(test)] mod tests`). Separate `tests/` only for integration tests.
+4. **Generate (linear, inline, TDD)** — all files MUST be created inside `LLM_SRC` (code) or `LLM_TESTS` (integration tests). Do NOT write to any other directory, even if it already contains project code:
+   - **Code structure** *(when `features.linear_architecture: true`)*: write linearly — input → validation → logic → output → errors. No layers (controller/service/repository). One file per logical unit. File names are arbitrary (e.g., `01.rs`, `create.rs`) — describe each file in `LLM_MAP`. *(When `false`: use your preferred architecture style — layered, hexagonal, etc.)*
+   - **Tests inline**: unit tests go in the same file as code (`#[cfg(test)] mod tests`). Separate `LLM_TESTS` directory only for integration tests.
    - **`@ctx` comments**: add LLM navigation markers — `// @ctx: stock check for order.create`. Not human docs, but LLM orientation.
    - **Tests first**: write unit tests from contract test spec and property-based tests from invariants BEFORE implementation code. Tests must compile (with stubs/unimplemented markers) and clearly fail.
    - **Then implement**: write implementation code to make the failing tests pass. *(When `features.linear_architecture: true`)* No layered abstractions — write the simplest linear code.
@@ -159,7 +171,7 @@ Each agent when executing a task:
    - `cargo check` / `npm run build` / equivalent
    - Unit tests pass
    - Lint is clean
-6. **Update `llm/map.yaml`** (schema: `schema/llm-map-schema.json`, from `project.yaml → paths.llm.map`):
+6. **Update `LLM_MAP`** (schema: `schema/llm-map-schema.json`):
    - Add entries for every new file and directory created during this task
    - Each entry: `path`, `kind` (file/dir), `layer: llm`, `description` (what the file does)
    - Do NOT add build artifacts, caches, or generated files — they should be covered by `ignore` patterns
@@ -254,7 +266,7 @@ For each gate in `gates-policy.yaml`:
 - If the gate has no tests yet (will be covered in a later stage) → leave `command: null`
 - Do NOT disable (`enabled: false`) gates that the user has enabled — only the user controls enable/disable
 
-Also set the `cwd` field — the working directory relative to project root where the command should run. Typically this is `llm` (where `Cargo.toml` / `package.json` lives), but security gates may run from root.
+Also set the `cwd` field — the working directory relative to project root where the command should run. Derive this from `LLM_SRC` (e.g. if `paths.llm.src` is `llm/src/`, cwd is `llm`; if it's `apps/backend/src/`, cwd is `apps/backend`). Security gates may run from root.
 
 Example update to `gates-policy.yaml`:
 ```yaml
@@ -285,20 +297,27 @@ The user can also manage gates manually via CLI or dashboard (`hlv dashboard` �
 
 ## Output
 
-All generated code MUST go inside `paths.llm.src` and `paths.llm.tests` from `project.yaml` (typically `llm/src/` and `llm/tests/`). Never create `src/` or `tests/` in the project root.
+All generated code MUST go inside the paths configured in `project.yaml → paths.llm`:
+- **Source code** → `LLM_SRC` (bound in Step 1 from `paths.llm.src`)
+- **Integration tests** → `LLM_TESTS` (bound in Step 1 from `paths.llm.tests`)
+- **File map** → `LLM_MAP` (bound in Step 1 from `paths.llm.map`)
+
+**Never hardcode `llm/src/` or `llm/tests/`** — always use the configured paths. Never create `src/` or `tests/` in the project root.
+
+Example layout when `paths.llm.src: llm/src/`, `paths.llm.tests: llm/tests/`, `paths.llm.map: llm/map.yaml`:
 
 ```
 llm/
-  src/                          # generated code (unit tests inline via #[cfg(test)])
+  src/                          # LLM_SRC — generated code (unit tests inline via #[cfg(test)])
     domain/types.rs             # from TASK-001 (types + tests in same file)
     domain/errors.rs
     features/order_create/      # from TASK-002 (handler + tests in same file)
     features/order_cancel/      # from TASK-003
     middleware/                  # from TASK-004
     observability/              # from TASK-006
-  tests/                        # integration tests ONLY (cross-contract scenarios)
+  tests/                        # LLM_TESTS — integration tests ONLY (cross-contract scenarios)
     integration/                # from TASK-005
-  map.yaml                      # updated with new entries
+  map.yaml                      # LLM_MAP — updated with new entries
 
 milestones.yaml                 # updated stage status
 ```
@@ -363,7 +382,7 @@ it('masks PII in logs', () => { ... });
 ### Rules
 
 1. One `@hlv` marker per validation/constraint per test. A test may carry multiple markers if it covers several validations.
-2. Every `errors[].code` from every contract YAML must appear as `@hlv <code>` somewhere in `src/` or `tests/`.
+2. Every `errors[].code` from every contract YAML must appear as `@hlv <code>` somewhere in `LLM_SRC` or `LLM_TESTS`.
 3. Every `invariants[].id` must appear as `@hlv <id>`.
 4. Every constraint `rules[].id` must appear as `@hlv <id>` — except rules that have `check_command` (they are verified programmatically, not via markers).
 5. `hlv check` reports missing markers as warnings (`CTR-010`). At `implemented` phase and later, these become hard warnings that block `/validate`. `hlv check` also runs `check_command` for rules that define one (CST-050/CST-060).

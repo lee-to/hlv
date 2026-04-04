@@ -3,11 +3,13 @@ use std::path::Path;
 
 use crate::check::Diagnostic;
 use crate::model::llm_map::{LlmMap, MapEntryKind};
+use crate::model::project::LlmPaths;
 
 /// Validate llm/map.yaml:
 /// 1. Forward: every entry in map exists on disk (MAP-010)
 /// 2. Reverse: every file in tracked dirs exists in map (MAP-020)
-pub fn check_llm_map(root: &Path, map_rel: &str) -> Vec<Diagnostic> {
+/// 3. Path isolation: llm-layer entries must be inside configured paths (MAP-030)
+pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let full_path = root.join(map_rel);
 
@@ -68,6 +70,38 @@ pub fn check_llm_map(root: &Path, map_rel: &str) -> Vec<Diagnostic> {
         "MAP-100",
         format!("Forward: {}/{} entries exist on disk", found, total),
     ));
+
+    // --- Path isolation: llm-layer entries must be inside configured paths (MAP-030) ---
+    let llm_src = normalize(&llm_paths.src);
+    let llm_tests = llm_paths.tests.as_deref().map(normalize);
+
+    for entry in &map.entries {
+        if entry.layer != "llm" {
+            continue;
+        }
+        let norm_path = normalize(&entry.path);
+        let inside_src = norm_path.starts_with(&llm_src);
+        let inside_tests = llm_tests
+            .as_ref()
+            .is_some_and(|t| norm_path.starts_with(t));
+
+        if !inside_src && !inside_tests {
+            let expected = match &llm_tests {
+                Some(t) => format!("{}, {}", llm_paths.src, t),
+                None => llm_paths.src.clone(),
+            };
+            diags.push(
+                Diagnostic::error(
+                    "MAP-030",
+                    format!(
+                        "'{}' is layer:llm but outside configured paths (expected: {})",
+                        entry.path, expected,
+                    ),
+                )
+                .with_file(map_rel),
+            );
+        }
+    }
 
     // --- Reverse check: every real file/dir in tracked dirs is in map ---
     let map_rel_normalized = map_rel.trim_end_matches('/');
@@ -220,6 +254,23 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn default_llm_paths() -> LlmPaths {
+        LlmPaths {
+            src: "llm/src/".to_string(),
+            tests: Some("llm/tests/".to_string()),
+            map: Some("llm/map.yaml".to_string()),
+        }
+    }
+
+    /// Convenience: paths where src root IS the map root (flat layout).
+    fn flat_llm_paths() -> LlmPaths {
+        LlmPaths {
+            src: "src/".to_string(),
+            tests: Some("tests/".to_string()),
+            map: Some("map.yaml".to_string()),
+        }
+    }
+
     #[test]
     fn all_entries_exist() {
         let dir = tempfile::tempdir().unwrap();
@@ -245,7 +296,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         assert!(
             !diags.iter().any(|d| d.code == "MAP-010"),
             "should have no MAP-010 errors"
@@ -270,14 +321,14 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         assert!(diags.iter().any(|d| d.code == "MAP-010"));
     }
 
     #[test]
     fn missing_map_file_reports_error() {
         let dir = tempfile::tempdir().unwrap();
-        let diags = check_llm_map(dir.path(), "nonexistent.yaml");
+        let diags = check_llm_map(dir.path(), "nonexistent.yaml", &flat_llm_paths());
         assert!(diags.iter().any(|d| d.code == "MAP-001"));
     }
 
@@ -301,7 +352,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         assert!(diags.iter().any(|d| d.code == "MAP-010"));
     }
 
@@ -333,7 +384,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         let unlisted: Vec<_> = diags.iter().filter(|d| d.code == "MAP-020").collect();
         assert_eq!(unlisted.len(), 1);
         assert!(unlisted[0].message.contains("forgotten.rs"));
@@ -361,7 +412,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         let unlisted: Vec<_> = diags.iter().filter(|d| d.code == "MAP-020").collect();
         assert!(unlisted.len() >= 2, "should detect subdir and file");
     }
@@ -388,7 +439,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         assert!(
             !diags.iter().any(|d| d.code == "MAP-020"),
             "hidden files should not trigger MAP-020"
@@ -420,7 +471,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         assert!(
             !diags.iter().any(|d| d.code == "MAP-020"),
             "all files listed — no MAP-020"
@@ -461,7 +512,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         let unlisted: Vec<_> = diags.iter().filter(|d| d.code == "MAP-020").collect();
         assert!(
             unlisted.is_empty(),
@@ -498,7 +549,7 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "map.yaml");
+        let diags = check_llm_map(root, "map.yaml", &flat_llm_paths());
         let unlisted: Vec<_> = diags.iter().filter(|d| d.code == "MAP-020").collect();
         assert!(
             unlisted.is_empty(),
@@ -526,10 +577,142 @@ entries:
         )
         .unwrap();
 
-        let diags = check_llm_map(root, "llm/map.yaml");
+        let diags = check_llm_map(root, "llm/map.yaml", &default_llm_paths());
         assert!(
             !diags.iter().any(|d| d.code == "MAP-020"),
             "map.yaml itself should not trigger MAP-020"
+        );
+    }
+
+    #[test]
+    fn path_isolation_detects_llm_outside_configured() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // llm entry at apps/backend/src/ but config says llm/src/
+        fs::create_dir_all(root.join("apps/backend/src")).unwrap();
+        fs::write(root.join("apps/backend/src/handler.ts"), "").unwrap();
+
+        fs::write(
+            root.join("map.yaml"),
+            r#"
+schema_version: 1
+entries:
+  - path: apps/backend/src/handler.ts
+    kind: file
+    layer: llm
+    description: "Handler"
+"#,
+        )
+        .unwrap();
+
+        let paths = LlmPaths {
+            src: "llm/src/".to_string(),
+            tests: Some("llm/tests/".to_string()),
+            map: Some("map.yaml".to_string()),
+        };
+
+        let diags = check_llm_map(root, "map.yaml", &paths);
+        let violations: Vec<_> = diags.iter().filter(|d| d.code == "MAP-030").collect();
+        assert_eq!(violations.len(), 1);
+        assert!(violations[0].message.contains("apps/backend/src/handler.ts"));
+        assert!(violations[0].message.contains("llm/src/"));
+    }
+
+    #[test]
+    fn path_isolation_allows_llm_inside_configured() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        fs::create_dir_all(root.join("llm/src/features")).unwrap();
+        fs::write(root.join("llm/src/features/order.rs"), "").unwrap();
+        fs::create_dir_all(root.join("llm/tests")).unwrap();
+        fs::write(root.join("llm/tests/integration.rs"), "").unwrap();
+
+        fs::write(
+            root.join("map.yaml"),
+            r#"
+schema_version: 1
+entries:
+  - path: llm/src/features/order.rs
+    kind: file
+    layer: llm
+    description: "Order handler"
+  - path: llm/tests/integration.rs
+    kind: file
+    layer: llm
+    description: "Integration tests"
+"#,
+        )
+        .unwrap();
+
+        let diags = check_llm_map(root, "map.yaml", &default_llm_paths());
+        assert!(
+            !diags.iter().any(|d| d.code == "MAP-030"),
+            "files inside configured paths should not trigger MAP-030"
+        );
+    }
+
+    #[test]
+    fn path_isolation_ignores_non_llm_layers() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        fs::create_dir_all(root.join("human/contracts")).unwrap();
+        fs::write(root.join("human/contracts/order.md"), "").unwrap();
+
+        fs::write(
+            root.join("map.yaml"),
+            r#"
+schema_version: 1
+entries:
+  - path: human/contracts/order.md
+    kind: file
+    layer: human
+    description: "Order contract"
+"#,
+        )
+        .unwrap();
+
+        let diags = check_llm_map(root, "map.yaml", &default_llm_paths());
+        assert!(
+            !diags.iter().any(|d| d.code == "MAP-030"),
+            "human layer should not trigger MAP-030"
+        );
+    }
+
+    #[test]
+    fn path_isolation_works_with_custom_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Custom paths: apps/backend/src/ and apps/backend/test/
+        fs::create_dir_all(root.join("apps/backend/src")).unwrap();
+        fs::write(root.join("apps/backend/src/handler.ts"), "").unwrap();
+
+        fs::write(
+            root.join("map.yaml"),
+            r#"
+schema_version: 1
+entries:
+  - path: apps/backend/src/handler.ts
+    kind: file
+    layer: llm
+    description: "Handler"
+"#,
+        )
+        .unwrap();
+
+        let paths = LlmPaths {
+            src: "apps/backend/src/".to_string(),
+            tests: Some("apps/backend/test/".to_string()),
+            map: Some("map.yaml".to_string()),
+        };
+
+        let diags = check_llm_map(root, "map.yaml", &paths);
+        assert!(
+            !diags.iter().any(|d| d.code == "MAP-030"),
+            "file inside custom configured path should not trigger MAP-030"
         );
     }
 }
