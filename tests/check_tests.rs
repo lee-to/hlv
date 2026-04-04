@@ -6,7 +6,6 @@ use hlv::check::code_trace::check_code_trace;
 use hlv::check::constraints::check_constraints;
 use hlv::check::contracts::check_contracts;
 use hlv::check::llm_map::check_llm_map;
-use hlv::model::project::LlmPaths;
 use hlv::check::plan::check_stage_plans;
 use hlv::check::project_map::check_project_map;
 use hlv::check::sec_markers::check_sec_markers;
@@ -16,6 +15,7 @@ use hlv::check::validation::check_test_specs;
 use hlv::check::{self, Severity};
 use hlv::model::glossary::Glossary;
 use hlv::model::project::ConstraintEntry;
+use hlv::model::project::LlmPaths;
 use hlv::model::project::{
     ComponentType, ContractEntry, ContractStatus, DependencyType, Stack, StackComponent,
     StackDependency,

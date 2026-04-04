@@ -140,7 +140,11 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
     ));
 
     if let Some(ref map_path) = project.paths.llm.map {
-        all_diags.extend(check::llm_map::check_llm_map(root, map_path, &project.paths.llm));
+        all_diags.extend(check::llm_map::check_llm_map(
+            root,
+            map_path,
+            &project.paths.llm,
+        ));
     }
 
     if !project.constraints.is_empty() {

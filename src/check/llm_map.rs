@@ -81,9 +81,7 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
         }
         let norm_path = normalize(&entry.path);
         let inside_src = norm_path.starts_with(&llm_src);
-        let inside_tests = llm_tests
-            .as_ref()
-            .is_some_and(|t| norm_path.starts_with(t));
+        let inside_tests = llm_tests.as_ref().is_some_and(|t| norm_path.starts_with(t));
 
         if !inside_src && !inside_tests {
             let expected = match &llm_tests {
@@ -615,7 +613,9 @@ entries:
         let diags = check_llm_map(root, "map.yaml", &paths);
         let violations: Vec<_> = diags.iter().filter(|d| d.code == "MAP-030").collect();
         assert_eq!(violations.len(), 1);
-        assert!(violations[0].message.contains("apps/backend/src/handler.ts"));
+        assert!(violations[0]
+            .message
+            .contains("apps/backend/src/handler.ts"));
         assert!(violations[0].message.contains("llm/src/"));
     }
 
