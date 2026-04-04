@@ -106,7 +106,7 @@ struct ConstraintRuleParams {
     severity: String,
     /// Rule statement
     statement: String,
-    /// Executable command to check this rule (program + args; shell operators are not supported)
+    /// Executable command to check this rule (program + args; shell operators and shell variable expansion are not supported)
     check_command: Option<String>,
     /// Working directory for check command (relative to project root)
     check_cwd: Option<String>,

@@ -466,7 +466,7 @@ Architecture for CRUD management of gates in `validation/gates-policy.yaml`.
 
 **Persistence.** `GatesPolicy::save()` serializes the structure to YAML and writes it to `validation/gates-policy.yaml`. The path is taken from `project.yaml -> paths.validation`. All CRUD operations (`add`/`remove`/`edit`/`enable`/`disable`/`set-cmd`/`clear-cmd`/`set-cwd`/`clear-cwd`) call `save()` after mutation.
 
-**Execution.** `gates run [<id>]` parses `command` as `program + args` and executes it via `std::process::Command`. Working directory is `cwd` relative to the project root (or the project root if `cwd` is not set). Unsupported shell syntax (`&&`, `||`, `|`, `;`, redirection), parse errors, spawn failures, and non-zero exits are reported distinctly. Exit code `0` = pass.
+**Execution.** `gates run [<id>]` parses `command` as `program + args` and executes it via `std::process::Command`. Working directory is `cwd` relative to the project root (or the project root if `cwd` is not set). Unsupported shell syntax (`&&`, `||`, `|`, `;`, redirection, shell variable expansion like `$VAR`/`${VAR}`/`$()`), parse errors, spawn failures, and non-zero exits are reported distinctly. Exit code `0` = pass.
 
 ---
 

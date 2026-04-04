@@ -10,40 +10,7 @@ use super::style;
 use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum QuoteMode {
-    Single,
-    Double,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ParsedGateCommand {
-    program: String,
-    args: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum GateCommandParseError {
-    EmptyCommand,
-    MissingProgram,
-    UnmatchedQuote,
-    UnsupportedSyntax(&'static str),
-}
-
-impl GateCommandParseError {
-    fn failure_reason(&self) -> String {
-        match self {
-            Self::EmptyCommand => "command is empty".to_string(),
-            Self::MissingProgram => "missing executable in command".to_string(),
-            Self::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
-            Self::UnsupportedSyntax(op) => format!(
-                "unsupported command syntax '{}' (use one executable per gate; shell operators are not supported)",
-                op
-            ),
-        }
-    }
-}
+use crate::util::command_parser::{parse_portable_command, CommandParseError};
 
 pub fn run(project_root: &Path) -> Result<()> {
     run_show(project_root)
@@ -399,7 +366,7 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
             std::io::Write::flush(&mut std::io::stdout())?;
         }
 
-        let parsed = parse_gate_command(cmd);
+        let parsed = parse_portable_command(cmd);
 
         match parsed {
             Ok(parsed_cmd) => {
@@ -477,7 +444,10 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
             Err(e) => {
                 if !quiet {
                     println!("{}", "FAILED".red());
-                    println!("    {}", format!("reason: {}", e.failure_reason()).dimmed());
+                    println!(
+                        "    {}",
+                        format!("reason: {}", gate_command_failure_reason(&e)).dimmed()
+                    );
                 }
                 failed += 1;
                 gate_results.push(GateResult {
@@ -520,233 +490,14 @@ fn save_gate_results(project_root: &Path, results: &[GateResult]) {
     let _ = milestones.save(&ms_path);
 }
 
-fn parse_gate_command(
-    command: &str,
-) -> std::result::Result<ParsedGateCommand, GateCommandParseError> {
-    let trimmed = command.trim();
-    if trimmed.is_empty() {
-        return Err(GateCommandParseError::EmptyCommand);
-    }
-
-    if let Some(operator) = find_unsupported_shell_syntax(trimmed) {
-        return Err(GateCommandParseError::UnsupportedSyntax(operator));
-    }
-
-    let mut parts = split_command_line(trimmed)?.into_iter();
-    let program = parts.next().ok_or(GateCommandParseError::MissingProgram)?;
-    let args = parts.collect();
-
-    Ok(ParsedGateCommand { program, args })
-}
-
-fn split_command_line(command: &str) -> std::result::Result<Vec<String>, GateCommandParseError> {
-    let mut tokens = Vec::new();
-    let mut current = String::new();
-    let mut chars = command.chars().peekable();
-    let mut quote_mode: Option<QuoteMode> = None;
-
-    while let Some(ch) = chars.next() {
-        match quote_mode {
-            Some(QuoteMode::Single) => {
-                if ch == '\'' {
-                    quote_mode = None;
-                } else {
-                    current.push(ch);
-                }
-            }
-            Some(QuoteMode::Double) => {
-                if ch == '"' {
-                    quote_mode = None;
-                } else if ch == '\\' {
-                    if let Some(next) = chars.peek().copied() {
-                        if next == '"' {
-                            let mut lookahead = chars.clone();
-                            let _ = lookahead.next();
-                            if has_unescaped_double_quote(lookahead) {
-                                current.push(next);
-                            } else {
-                                current.push(ch);
-                                quote_mode = None;
-                            }
-                            let _ = chars.next();
-                        } else {
-                            current.push(ch);
-                        }
-                    } else {
-                        current.push(ch);
-                    }
-                } else {
-                    current.push(ch);
-                }
-            }
-            None => {
-                if ch.is_whitespace() {
-                    if !current.is_empty() {
-                        tokens.push(std::mem::take(&mut current));
-                    }
-                } else if ch == '\'' {
-                    quote_mode = Some(QuoteMode::Single);
-                } else if ch == '"' {
-                    quote_mode = Some(QuoteMode::Double);
-                } else {
-                    current.push(ch);
-                }
-            }
-        }
-    }
-
-    if quote_mode.is_some() {
-        return Err(GateCommandParseError::UnmatchedQuote);
-    }
-
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-
-    if tokens.is_empty() {
-        return Err(GateCommandParseError::EmptyCommand);
-    }
-
-    Ok(tokens)
-}
-
-fn has_unescaped_double_quote(mut chars: std::iter::Peekable<std::str::Chars<'_>>) -> bool {
-    while let Some(ch) = chars.next() {
-        if ch == '"' {
-            return true;
-        }
-        if ch == '\\' && chars.peek().copied() == Some('"') {
-            let _ = chars.next();
-        }
-    }
-    false
-}
-
-fn find_unsupported_shell_syntax(command: &str) -> Option<&'static str> {
-    let mut chars = command.chars().peekable();
-    let mut quote_mode: Option<QuoteMode> = None;
-
-    while let Some(ch) = chars.next() {
-        match quote_mode {
-            Some(QuoteMode::Single) => {
-                if ch == '\'' {
-                    quote_mode = None;
-                }
-            }
-            Some(QuoteMode::Double) => {
-                if ch == '"' {
-                    quote_mode = None;
-                } else if ch == '\\' {
-                    if let Some(next) = chars.peek().copied() {
-                        if next == '"' {
-                            let _ = chars.next();
-                        }
-                    }
-                }
-            }
-            None => match ch {
-                '\'' => quote_mode = Some(QuoteMode::Single),
-                '"' => quote_mode = Some(QuoteMode::Double),
-                '&' => {
-                    if chars.peek().copied() == Some('&') {
-                        return Some("&&");
-                    }
-                    return Some("&");
-                }
-                '|' => {
-                    if chars.peek().copied() == Some('|') {
-                        return Some("||");
-                    }
-                    return Some("|");
-                }
-                ';' => return Some(";"),
-                '>' => return Some(">"),
-                '<' => return Some("<"),
-                '`' => return Some("`"),
-                '$' => {
-                    if chars.peek().copied() == Some('(') {
-                        return Some("$(");
-                    }
-                }
-                _ => {}
-            },
-        }
-    }
-
-    None
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn split_command_line_supports_quoted_arguments() {
-        let tokens = split_command_line(r#"cargo run --message "hello world""#).unwrap();
-        assert_eq!(
-            tokens,
-            vec![
-                "cargo".to_string(),
-                "run".to_string(),
-                "--message".to_string(),
-                "hello world".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn split_command_line_handles_windows_path_in_quotes() {
-        let tokens = split_command_line(r#""C:\Program Files\tool.exe" --help"#).unwrap();
-        assert_eq!(
-            tokens,
-            vec![
-                r"C:\Program Files\tool.exe".to_string(),
-                "--help".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn split_command_line_preserves_unc_prefix_in_quotes() {
-        let tokens = split_command_line(r#""\\server\share\tool.exe" --help"#).unwrap();
-        assert_eq!(
-            tokens,
-            vec![r"\\server\share\tool.exe".to_string(), "--help".to_string()]
-        );
-    }
-
-    #[test]
-    fn split_command_line_preserves_trailing_backslash_before_closing_quote() {
-        let tokens = split_command_line("cmd /C exit /B 0 \"C:\\tmp\\\"").unwrap();
-        assert_eq!(
-            tokens,
-            vec![
-                "cmd".to_string(),
-                "/C".to_string(),
-                "exit".to_string(),
-                "/B".to_string(),
-                "0".to_string(),
-                r"C:\tmp\".to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn split_command_line_rejects_unmatched_quote() {
-        let err = split_command_line(r#"cargo --message "broken"#).unwrap_err();
-        assert_eq!(err, GateCommandParseError::UnmatchedQuote);
-    }
-
-    #[test]
-    fn parse_gate_command_rejects_shell_operators() {
-        let err = parse_gate_command("cargo test && cargo clippy").unwrap_err();
-        assert_eq!(err, GateCommandParseError::UnsupportedSyntax("&&"));
-    }
-
-    #[test]
-    fn parse_gate_command_ignores_operator_chars_inside_quotes() {
-        let parsed = parse_gate_command(r#"echo "a && b""#).unwrap();
-        assert_eq!(parsed.program, "echo");
-        assert_eq!(parsed.args, vec!["a && b".to_string()]);
+fn gate_command_failure_reason(err: &CommandParseError) -> String {
+    match err {
+        CommandParseError::EmptyCommand => "command is empty".to_string(),
+        CommandParseError::MissingProgram => "missing executable in command".to_string(),
+        CommandParseError::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
+        CommandParseError::UnsupportedSyntax(op) => format!(
+            "unsupported command syntax '{}' (use one executable per gate; shell operators and shell variable expansion are not supported)",
+            op
+        ),
     }
 }

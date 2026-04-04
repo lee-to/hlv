@@ -453,7 +453,7 @@ CRUD management for gates in `validation/gates-policy.yaml`. All changes are sav
 | `hlv gates set-cmd <id> <cmd>` / `hlv gates clear-cmd <id>` | Set or remove the executable command string |
 | `hlv gates set-cwd <id> <dir>` / `hlv gates clear-cwd <id>` | Set or remove the working directory |
 
-Gate ID must be unique. Adding a duplicate is an error. When `run` is used, `command` is parsed as `program + args` and executed in `cwd` (or the project root). Shell operators and pipelines (`&&`, `||`, `|`, `;`, redirection) are rejected. Runtime failures are reported as unsupported syntax, parse failure, spawn failure, or non-zero exit.
+Gate ID must be unique. Adding a duplicate is an error. When `run` is used, `command` is parsed as `program + args` and executed in `cwd` (or the project root). Shell operators and pipelines (`&&`, `||`, `|`, `;`, redirection) and shell variable expansion (`$VAR`, `${VAR}`, `$()`) are rejected. Runtime failures are reported as unsupported syntax, parse failure, spawn failure, or non-zero exit.
 
 ---
 
@@ -469,7 +469,7 @@ CRUD management for constraint files in `human/constraints/`. Each file is a rul
 | `hlv constraints show <name> [--json]` | Show the content of a constraint file (all rules, owner, intent) |
 | `hlv constraints add <name> [--owner <owner>] [--intent <text>] [--applies-to <scope>]` | Create a new constraint file |
 | `hlv constraints remove <name> [--force]` | Remove a constraint file. Without `--force`, confirmation is required |
-| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text> [--check-command <cmd>] [--check-cwd <dir>] [--error-level <lvl>]` | Add a rule to an existing constraint file. Optional: `--check-command` sets an executable command (`program + args`, no shell operators), `--check-cwd` sets the working directory, `--error-level` overrides diagnostic severity (`error`, `warning`, `info`) |
+| `hlv constraints add-rule <constraint> <rule-id> --severity <sev> --statement <text> [--check-command <cmd>] [--check-cwd <dir>] [--error-level <lvl>]` | Add a rule to an existing constraint file. Optional: `--check-command` sets an executable command (`program + args`, no shell operators or shell variable expansion), `--check-cwd` sets the working directory, `--error-level` overrides diagnostic severity (`error`, `warning`, `info`) |
 | `hlv constraints remove-rule <constraint> <rule-id>` | Remove a rule from a constraint file |
 | `hlv constraints check [<constraint>] [--rule <id>] [--json]` | Run `check_command` for constraint rules. Optionally filter by constraint name or rule ID |
 
@@ -551,7 +551,7 @@ exceptions:
 | `rules[].severity` | enum | Severity: `critical`, `high`, `medium`, `low` |
 | `rules[].statement` | string | Rule wording |
 | `rules[].enforcement[]` | array | Verification methods (`sast`, `integration_test`, `runtime_scan`, etc.) |
-| `rules[].check_command` | string (optional) | Executable command to verify the rule (`program + args`; shell operators like `&&`, `\|`, `;` are not supported) |
+| `rules[].check_command` | string (optional) | Executable command to verify the rule (`program + args`; shell operators like `&&`, `\|`, `;` and shell variable expansion like `$VAR` are not supported) |
 | `rules[].check_cwd` | string (optional) | Working directory for `check_command` (relative to project root; defaults to project root) |
 | `rules[].error_level` | enum (optional) | Override diagnostic severity: `error`, `warning`, `info`. If unset, mapped from `severity` (`critical`/`high` -> error, `medium`/`low` -> warning) |
 | `exceptions` | object | Exception process (`process`, `max_duration_days`) |

@@ -497,7 +497,7 @@ enum ConstraintsAction {
         /// Rule statement
         #[arg(long)]
         statement: String,
-        /// Executable command to check this rule (program + args; shell operators are not supported)
+        /// Executable command to check this rule (program + args; shell operators and shell variable expansion are not supported)
         #[arg(long)]
         check_command: Option<String>,
         /// Working directory for check command (relative to project root)

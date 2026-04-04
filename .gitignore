@@ -1,11 +1,13 @@
 /target
 .idea
 .claude
+.agents
+.codex
+.opencode
 .ai-factory
 .ai-factory.json
 Cargo.lock
 .DS_Store
-/.*
 /.github/skills
 !/.github
 

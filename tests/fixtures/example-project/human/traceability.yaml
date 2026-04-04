@@ -13,19 +13,19 @@ requirements:
 
 mappings:
   - requirement: REQ-ORDER-001
-    contracts: []
+    contracts: [order.create]
     scenarios: [scenario.checkout.happy_path, scenario.checkout.partial_failure]
-    tests: []
+    tests: [CT-ORDER-CREATE-001, PBT-ORDER-INV-001, EC-ORDER-001]
     runtime_gates: [GATE-CONTRACT-001, GATE-PBT-001, GATE-INTEGRATION-001]
   - requirement: REQ-ORDER-002
-    contracts: []
+    contracts: [order.create]
     scenarios: [scenario.checkout.happy_path]
-    tests: []
+    tests: [PBT-ORDER-INV-002]
     runtime_gates: [GATE-PBT-001]
   - requirement: REQ-ORDER-003
-    contracts: []
+    contracts: [order.create]
     scenarios: [scenario.checkout.partial_failure]
-    tests: []
+    tests: [CT-ORDER-CREATE-003, EC-ORDER-002]
     runtime_gates: [GATE-CONTRACT-001, GATE-INTEGRATION-001]
 
 coverage_policy:

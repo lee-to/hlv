@@ -44,8 +44,7 @@ fn file_exists_check_command(path: &str) -> String {
     if cfg!(windows) {
         format!("cmd /C if exist {} (exit 0) else (exit 1)", path)
     } else {
-        let script = format!("test -f {}", path);
-        format!("sh -c {}", quote_arg(&script))
+        format!("test -f {}", quote_arg(path))
     }
 }
 
