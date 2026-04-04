@@ -4,6 +4,7 @@ pub mod mcp;
 pub mod model;
 pub mod parse;
 pub mod tui;
+pub mod util;
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};

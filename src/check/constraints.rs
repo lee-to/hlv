@@ -5,6 +5,7 @@ use std::time::Duration;
 use crate::check::{Diagnostic, Severity};
 use crate::model::policy::ConstraintFile;
 use crate::model::project::ProjectMap;
+use crate::util::command_parser::{parse_portable_command, CommandParseError};
 
 /// Default timeout for check_command execution (60 seconds).
 const CHECK_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
@@ -268,9 +269,13 @@ pub fn run_file_level_checks(
 
 /// Execute a check command and return (passed, message).
 fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
-    let child = Command::new("sh")
-        .arg("-c")
-        .arg(cmd)
+    let parsed = match parse_portable_command(cmd) {
+        Ok(parsed) => parsed,
+        Err(e) => return (false, check_command_failure_reason(&e)),
+    };
+
+    let child = Command::new(&parsed.program)
+        .args(&parsed.args)
         .current_dir(work_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -333,5 +338,19 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
             }
             Err(e) => return (false, format!("wait error: {}", e)),
         }
+    }
+}
+
+fn check_command_failure_reason(err: &CommandParseError) -> String {
+    match err {
+        CommandParseError::EmptyCommand => "check_command is empty".to_string(),
+        CommandParseError::MissingProgram => "check_command is missing executable".to_string(),
+        CommandParseError::UnmatchedQuote => {
+            "invalid check_command format (unmatched quote)".to_string()
+        }
+        CommandParseError::UnsupportedSyntax(op) => format!(
+            "unsupported check_command syntax '{}' (use one executable per check_command; shell operators and shell variable expansion are not supported)",
+            op
+        ),
     }
 }

@@ -460,13 +460,13 @@ llm/
 
 Architecture for CRUD management of gates in `validation/gates-policy.yaml`.
 
-**Data model.** `GatesPolicy` contains `Vec<Gate>`. Each `Gate` is a struct with fields `id`, `type`, `mandatory`, `enabled`, `command`, `cwd`, `pass_criteria`. Serialization/deserialization uses serde.
+**Data model.** `GatesPolicy` contains `Vec<Gate>`. Each `Gate` is a struct with fields `id`, `type`, `mandatory`, `enabled`, `command`, `cwd`, `pass_criteria`. `command` is a portable `executable + args` string (not a shell script). Serialization/deserialization uses serde.
 
 **Uniqueness.** `add_gate()` checks that `id` does not exist in the current list - duplicates are forbidden. `remove_gate()` looks up by id and returns an error if not found.
 
 **Persistence.** `GatesPolicy::save()` serializes the structure to YAML and writes it to `validation/gates-policy.yaml`. The path is taken from `project.yaml -> paths.validation`. All CRUD operations (`add`/`remove`/`edit`/`enable`/`disable`/`set-cmd`/`clear-cmd`/`set-cwd`/`clear-cwd`) call `save()` after mutation.
 
-**Execution.** `gates run [<id>]` executes the `command` of each enabled gate (or the specified one) via `std::process::Command`. Working directory is `cwd` relative to the project root (or the project root if `cwd` is not set). Result: exit code, stdout, stderr. Exit code `0` = pass.
+**Execution.** `gates run [<id>]` parses `command` as `program + args` and executes it via `std::process::Command`. Working directory is `cwd` relative to the project root (or the project root if `cwd` is not set). Unsupported shell syntax (`&&`, `||`, `|`, `;`, redirection, shell variable expansion like `$VAR`/`${VAR}`/`$()`), parse errors, spawn failures, and non-zero exits are reported distinctly. Exit code `0` = pass.
 
 ---
 

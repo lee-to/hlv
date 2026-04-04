@@ -10,6 +10,7 @@ use super::style;
 use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
+use crate::util::command_parser::{parse_portable_command, CommandParseError};
 
 pub fn run(project_root: &Path) -> Result<()> {
     run_show(project_root)
@@ -365,58 +366,88 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
             std::io::Write::flush(&mut std::io::stdout())?;
         }
 
-        let result = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .current_dir(&work_dir)
-            .output();
+        let parsed = parse_portable_command(cmd);
 
-        match result {
-            Ok(output) if output.status.success() => {
-                if !quiet {
-                    println!("{}", "PASSED".green());
-                }
-                passed += 1;
-                gate_results.push(GateResult {
-                    id: gate.id.clone(),
-                    status: GateRunStatus::Passed,
-                    run_at: Some(now.clone()),
-                });
-            }
-            Ok(output) => {
-                if !quiet {
-                    println!("{}", "FAILED".red());
-                }
-                failed += 1;
-                gate_results.push(GateResult {
-                    id: gate.id.clone(),
-                    status: GateRunStatus::Failed,
-                    run_at: Some(now.clone()),
-                });
-                if !quiet {
-                    // Show last lines of stderr/stdout for diagnostics
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    let stdout_str = String::from_utf8_lossy(&output.stdout);
-                    let output_text = if !stderr.is_empty() {
-                        stderr.to_string()
-                    } else {
-                        stdout_str.to_string()
-                    };
-                    for line in output_text
-                        .lines()
-                        .rev()
-                        .take(5)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                    {
-                        println!("    {}", line.dimmed());
+        match parsed {
+            Ok(parsed_cmd) => {
+                let result = Command::new(&parsed_cmd.program)
+                    .args(&parsed_cmd.args)
+                    .current_dir(&work_dir)
+                    .output();
+
+                match result {
+                    Ok(output) if output.status.success() => {
+                        if !quiet {
+                            println!("{}", "PASSED".green());
+                        }
+                        passed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Passed,
+                            run_at: Some(now.clone()),
+                        });
+                    }
+                    Ok(output) => {
+                        if !quiet {
+                            println!("{}", "FAILED".red());
+                            let status_text = output
+                                .status
+                                .code()
+                                .map(|code| format!("exit code {}", code))
+                                .unwrap_or_else(|| "terminated by signal".to_string());
+                            println!("    {}", format!("reason: {}", status_text).dimmed());
+                        }
+                        failed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Failed,
+                            run_at: Some(now.clone()),
+                        });
+                        if !quiet {
+                            // Show last lines of stderr/stdout for diagnostics
+                            let stderr = String::from_utf8_lossy(&output.stderr);
+                            let stdout_str = String::from_utf8_lossy(&output.stdout);
+                            let output_text = if !stderr.is_empty() {
+                                stderr.to_string()
+                            } else {
+                                stdout_str.to_string()
+                            };
+                            for line in output_text
+                                .lines()
+                                .rev()
+                                .take(5)
+                                .collect::<Vec<_>>()
+                                .into_iter()
+                                .rev()
+                            {
+                                println!("    {}", line.dimmed());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            println!("{}", "FAILED".red());
+                            println!(
+                                "    {}",
+                                format!("reason: failed to start executable: {}", e).dimmed()
+                            );
+                        }
+                        failed += 1;
+                        gate_results.push(GateResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Failed,
+                            run_at: Some(now.clone()),
+                        });
                     }
                 }
             }
             Err(e) => {
                 if !quiet {
-                    println!("{} ({})", "FAILED".red(), e);
+                    println!("{}", "FAILED".red());
+                    println!(
+                        "    {}",
+                        format!("reason: {}", gate_command_failure_reason(&e)).dimmed()
+                    );
                 }
                 failed += 1;
                 gate_results.push(GateResult {
@@ -457,4 +488,16 @@ fn save_gate_results(project_root: &Path, results: &[GateResult]) {
     };
     current.gate_results = results.to_vec();
     let _ = milestones.save(&ms_path);
+}
+
+fn gate_command_failure_reason(err: &CommandParseError) -> String {
+    match err {
+        CommandParseError::EmptyCommand => "command is empty".to_string(),
+        CommandParseError::MissingProgram => "missing executable in command".to_string(),
+        CommandParseError::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
+        CommandParseError::UnsupportedSyntax(op) => format!(
+            "unsupported command syntax '{}' (use one executable per gate; shell operators and shell variable expansion are not supported)",
+            op
+        ),
+    }
 }

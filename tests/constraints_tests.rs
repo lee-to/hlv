@@ -12,6 +12,42 @@ fn setup_project(root: &std::path::Path) {
     .unwrap();
 }
 
+fn quote_arg(arg: &str) -> String {
+    if arg.contains([' ', '\t', '"']) {
+        format!("\"{}\"", arg.replace('"', "\\\""))
+    } else {
+        arg.to_string()
+    }
+}
+
+fn command_from_current_exe(args: &[&str]) -> String {
+    let exe = std::env::current_exe().unwrap();
+    let exe_path = quote_arg(exe.to_string_lossy().as_ref());
+    let mut parts = vec![exe_path];
+    parts.extend(args.iter().map(|arg| quote_arg(arg)));
+    parts.join(" ")
+}
+
+fn passing_command() -> String {
+    command_from_current_exe(&["--help"])
+}
+
+fn failing_command() -> String {
+    command_from_current_exe(&["--definitely-invalid-constraint-option"])
+}
+
+fn yaml_double_quoted(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+fn file_exists_check_command(path: &str) -> String {
+    if cfg!(windows) {
+        format!("cmd /C if exist {} (exit 0) else (exit 1)", path)
+    } else {
+        format!("test -f {}", quote_arg(path))
+    }
+}
+
 #[test]
 fn constraints_list_shows_existing() {
     let tmp = TempDir::new().unwrap();
@@ -275,6 +311,7 @@ fn cst050_check_command_success() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     // Create constraint with a command that succeeds
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
@@ -284,7 +321,7 @@ fn cst050_check_command_success() {
         "always_pass",
         "critical",
         "Always passes",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -303,6 +340,7 @@ fn cst050_check_command_failure_critical_is_error() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -311,7 +349,7 @@ fn cst050_check_command_failure_critical_is_error() {
         "always_fail",
         "critical",
         "Always fails",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         None,
     )
@@ -338,8 +376,9 @@ fn cst050_check_cwd() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let cwd_cmd = file_exists_check_command("marker.txt");
 
-    // Create a subdirectory with a marker file
+    // Create a subdirectory with a marker file and verify check_cwd resolution.
     std::fs::create_dir_all(root.join("subdir")).unwrap();
     std::fs::write(root.join("subdir/marker.txt"), "found").unwrap();
 
@@ -349,8 +388,8 @@ fn cst050_check_cwd() {
         "chk",
         "find_marker",
         "high",
-        "Marker must exist",
-        Some("test -f marker.txt"),
+        "Marker must exist in check_cwd",
+        Some(&cwd_cmd),
         Some("subdir"),
         None,
     )
@@ -371,6 +410,7 @@ fn cst050_timeout() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -379,7 +419,7 @@ fn cst050_timeout() {
         "quick_cmd",
         "low",
         "Quick command",
-        Some("echo hello"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -397,6 +437,8 @@ fn constraints_check_subcommand() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -405,7 +447,7 @@ fn constraints_check_subcommand() {
         "pass_rule",
         "medium",
         "Should pass",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -416,7 +458,7 @@ fn constraints_check_subcommand() {
         "fail_rule",
         "high",
         "Should fail",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         None,
     )
@@ -444,6 +486,7 @@ fn constraints_check_filter_by_constraint() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "alpha", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -452,7 +495,7 @@ fn constraints_check_filter_by_constraint() {
         "a1",
         "low",
         "Alpha rule",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -465,7 +508,7 @@ fn constraints_check_filter_by_constraint() {
         "b1",
         "low",
         "Beta rule",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -485,6 +528,7 @@ fn constraints_check_filter_by_rule() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "multi", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -493,7 +537,7 @@ fn constraints_check_filter_by_rule() {
         "r1",
         "low",
         "Rule 1",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -504,7 +548,7 @@ fn constraints_check_filter_by_rule() {
         "r2",
         "low",
         "Rule 2",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         None,
     )
@@ -523,16 +567,17 @@ fn cst050_high_severity_is_error() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
-    // Command that will fail with non-zero exit — high severity → error
+    // Command that fails with non-zero exit — high severity → error
     hlv::cmd::constraints::run_add_rule(
         root,
         "chk",
         "bad_cmd",
         "high",
         "Bad command",
-        Some("exit 42"),
+        Some(&fail_cmd),
         None,
         None,
     )
@@ -628,6 +673,7 @@ fn cst050_low_severity_is_warning() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -636,7 +682,7 @@ fn cst050_low_severity_is_warning() {
         "low_rule",
         "low",
         "Low severity rule",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         None,
     )
@@ -657,6 +703,7 @@ fn cst050_medium_severity_is_warning() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -665,7 +712,7 @@ fn cst050_medium_severity_is_warning() {
         "med_rule",
         "medium",
         "Medium severity rule",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         None,
     )
@@ -685,6 +732,7 @@ fn cst050_error_level_override_error() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     // low severity but error_level=error → should be error
@@ -694,7 +742,7 @@ fn cst050_error_level_override_error() {
         "forced_error",
         "low",
         "Forced error rule",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         Some("error"),
     )
@@ -717,6 +765,7 @@ fn cst050_error_level_override_warning() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     // critical severity but error_level=warning → should be warning
@@ -726,7 +775,7 @@ fn cst050_error_level_override_warning() {
         "forced_warn",
         "critical",
         "Forced warning rule",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         Some("warning"),
     )
@@ -746,6 +795,7 @@ fn cst050_error_level_override_info() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "chk", None, None, "global").unwrap();
     // high severity but error_level=info → should be info
@@ -755,7 +805,7 @@ fn cst050_error_level_override_info() {
         "forced_info",
         "high",
         "Forced info rule",
-        Some("false"),
+        Some(&fail_cmd),
         None,
         Some("info"),
     )
@@ -833,6 +883,7 @@ fn constraint_add_rule_with_error_level() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "eltest", None, None, "global").unwrap();
     hlv::cmd::constraints::run_add_rule(
@@ -841,7 +892,7 @@ fn constraint_add_rule_with_error_level() {
         "mandatory_rule",
         "low",
         "Force error on low severity",
-        Some("true"),
+        Some(&pass_cmd),
         None,
         Some("error"),
     )
@@ -909,20 +960,17 @@ fn cst060_file_level_check_command_success() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "filechk", None, None, "global").unwrap();
 
     // Write constraint file with file-level check_command that succeeds
     let cf_path = root.join("human/constraints/filechk.yaml");
-    std::fs::write(
-        &cf_path,
-        r#"id: constraints.filechk.global
-version: "1.0.0"
-check_command: "true"
-rules: []
-"#,
-    )
-    .unwrap();
+    let content = format!(
+        "id: constraints.filechk.global\nversion: \"1.0.0\"\ncheck_command: {}\nrules: []\n",
+        yaml_double_quoted(&pass_cmd)
+    );
+    std::fs::write(&cf_path, content).unwrap();
 
     let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
     let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
@@ -938,20 +986,17 @@ fn cst060_file_level_check_command_failure_is_error() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let fail_cmd = failing_command();
 
     hlv::cmd::constraints::run_add(root, "failchk", None, None, "global").unwrap();
 
     // Write constraint file with file-level check_command that fails
     let cf_path = root.join("human/constraints/failchk.yaml");
-    std::fs::write(
-        &cf_path,
-        r#"id: constraints.failchk.global
-version: "1.0.0"
-check_command: "false"
-rules: []
-"#,
-    )
-    .unwrap();
+    let content = format!(
+        "id: constraints.failchk.global\nversion: \"1.0.0\"\ncheck_command: {}\nrules: []\n",
+        yaml_double_quoted(&fail_cmd)
+    );
+    std::fs::write(&cf_path, content).unwrap();
 
     let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
     let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
@@ -973,8 +1018,9 @@ fn cst060_file_level_check_cwd() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let cwd_cmd = file_exists_check_command("marker.txt");
 
-    // Create a subdirectory with a marker file
+    // Create a subdirectory with a marker file and verify check_cwd resolution.
     std::fs::create_dir_all(root.join("subdir")).unwrap();
     std::fs::write(root.join("subdir/marker.txt"), "found").unwrap();
 
@@ -982,16 +1028,11 @@ fn cst060_file_level_check_cwd() {
 
     // Write constraint file with check_cwd
     let cf_path = root.join("human/constraints/cwdchk.yaml");
-    std::fs::write(
-        &cf_path,
-        r#"id: constraints.cwdchk.global
-version: "1.0.0"
-check_command: "test -f marker.txt"
-check_cwd: subdir
-rules: []
-"#,
-    )
-    .unwrap();
+    let content = format!(
+        "id: constraints.cwdchk.global\nversion: \"1.0.0\"\ncheck_command: {}\ncheck_cwd: subdir\nrules: []\n",
+        yaml_double_quoted(&cwd_cmd)
+    );
+    std::fs::write(&cf_path, content).unwrap();
 
     let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
     let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
@@ -1005,20 +1046,17 @@ fn cst060_file_level_timeout() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_project(root);
+    let pass_cmd = passing_command();
 
     hlv::cmd::constraints::run_add(root, "timechk", None, None, "global").unwrap();
 
     // Write constraint file with a quick check_command (real timeout is 60s)
     let cf_path = root.join("human/constraints/timechk.yaml");
-    std::fs::write(
-        &cf_path,
-        r#"id: constraints.timechk.global
-version: "1.0.0"
-check_command: "echo hello"
-rules: []
-"#,
-    )
-    .unwrap();
+    let content = format!(
+        "id: constraints.timechk.global\nversion: \"1.0.0\"\ncheck_command: {}\nrules: []\n",
+        yaml_double_quoted(&pass_cmd)
+    );
+    std::fs::write(&cf_path, content).unwrap();
 
     let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
     let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
