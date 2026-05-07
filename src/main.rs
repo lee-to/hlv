@@ -307,6 +307,35 @@ enum ArtifactsAction {
         #[arg(long)]
         json: bool,
     },
+    /// Show downstream impact for an artifact id/path or current git diff
+    Impact {
+        /// Artifact id or path. Omit with --changed to inspect git diff.
+        target: Option<String>,
+        /// Use changed artifact files from git worktree status, or from --base when provided
+        #[arg(long)]
+        changed: bool,
+        /// Compare committed PR changes against the merge-base of this ref and HEAD
+        #[arg(long)]
+        base: Option<String>,
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Audit artifact graph metadata and references
+    Audit {
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Sync project.yaml code ownership stubs from artifact frontmatter
+    Sync {
+        /// Check only; exit non-zero if sync would add entries
+        #[arg(long)]
+        check: bool,
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -806,6 +835,24 @@ fn run(cli: Cli) -> Result<()> {
                 m || milestone,
                 j || json,
             ),
+            Some(ArtifactsAction::Impact {
+                target,
+                changed,
+                base,
+                json: j,
+            }) => hlv::cmd::artifacts::run_impact(
+                &project_root,
+                target.as_deref(),
+                changed,
+                base.as_deref(),
+                j || json,
+            ),
+            Some(ArtifactsAction::Audit { json: j }) => {
+                hlv::cmd::artifacts::run_audit(&project_root, j || json)
+            }
+            Some(ArtifactsAction::Sync { check, json: j }) => {
+                hlv::cmd::artifacts::run_sync(&project_root, check, j || json)
+            }
         },
         Commands::Mcp { .. } => unreachable!(),
         Commands::Update { .. } => unreachable!(),

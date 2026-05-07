@@ -81,6 +81,7 @@ No partial changes. If you add a field to `project.yaml`, all five layers must r
 | TRC | traceability | Traceability mappings |
 | PLN | plan | Implementation plan |
 | STK | stack | Tech stack components |
+| ART | artifacts | Artifact dependency graph, impact, owners, references |
 | MST | milestone | Milestone tracking (milestones.yaml) |
 
 When adding a new validation domain, register a new prefix here.

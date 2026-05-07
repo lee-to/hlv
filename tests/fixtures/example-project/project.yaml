@@ -100,6 +100,22 @@ features:
   hlv_markers: true
   security_markers: true
 
+artifact_graph:
+  code_ownership:
+    code-checkout:
+      paths:
+        - llm/src/**
+      owners: [backend]
+      implements:
+        - spec-checkout
+        - adr-checkout-consistency
+    tests-checkout:
+      paths:
+        - llm/tests/**
+      owners: [qa]
+      verifies:
+        - spec-checkout
+
 # --- Validation State ---
 
 validation:

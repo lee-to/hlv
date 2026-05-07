@@ -90,6 +90,16 @@ For the traceability file (`{MID}/traceability.yaml`):
 - [ ] No dangling references (all IDs exist)
 - [ ] No artifacts without coverage by any REQ (warning)
 
+#### 1d. Artifact dependency graph
+
+- [ ] Markdown artifact frontmatter IDs are stable and unique
+- [ ] Every artifact graph node has `owners`
+- [ ] `depends_on`/`requires`, `implements`, `verifies`, `documents`, `supersedes`, `conflicts_with`, and `affects` point to existing IDs
+- [ ] Run `hlv artifacts sync --check`; if it reports missing ownership stubs, run `hlv artifacts sync` and fill paths where known
+- [ ] Owned code/test/doc paths with declared relations include `@hlv:artifact <node-id> <relation> <artifact-id>` markers, or `ART-050` is explicitly accepted as a warning during migration
+- [ ] Accepted ADRs affect an architecture node or have an explicit review note
+- [ ] Run `hlv artifacts audit`; fix `ART-*` errors before marking the stage verified
+
 #### 1d. Plan structure
 
 For `{MID}/plan.md` (overview) and `{MID}/stage_N.md` files:

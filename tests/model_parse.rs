@@ -30,6 +30,21 @@ fn parse_features_with_security_markers() {
 }
 
 #[test]
+fn parse_project_yaml_artifact_graph() {
+    let p = ProjectMap::load(&Path::new(FIXTURE).join("project.yaml")).unwrap();
+    let graph = p.artifact_graph.expect("artifact_graph should be present");
+    let code = graph
+        .code_ownership
+        .get("code-checkout")
+        .expect("code ownership");
+    assert_eq!(code.paths, vec!["llm/src/**"]);
+    assert_eq!(
+        code.implements,
+        vec!["spec-checkout", "adr-checkout-consistency"]
+    );
+}
+
+#[test]
 fn features_security_markers_defaults_to_true() {
     let yaml = r#"
 schema_version: 1

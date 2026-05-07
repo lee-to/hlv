@@ -119,6 +119,8 @@ validation/
 7. Update stage status → `implementing` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
 8. Read `{MID}/stage_N.md` — load tasks for the current stage
 9. Read `project.yaml → stack.components` — understand target languages, frameworks
+10. Read `project.yaml → artifact_graph.code_ownership` when present. New or changed implementation/test/doc paths must preserve ownership mappings and relation fields (`implements`, `verifies`, `documents`, `requires`) so `hlv artifacts impact` can route downstream review.
+11. For every new or changed file under an artifact ownership path, add file-level evidence markers for the relevant relation, e.g. `@hlv:artifact code-auth implements spec-auth`, `@hlv:artifact tests-auth verifies spec-auth`, or `@hlv:artifact docs-auth documents spec-auth`. Use the native comment syntax for the file type.
 
 ### Step 2: Execute tasks
 
