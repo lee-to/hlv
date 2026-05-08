@@ -1,3 +1,4 @@
+pub mod artifacts;
 pub mod code_trace;
 pub mod constraints;
 pub mod contracts;

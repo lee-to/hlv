@@ -204,6 +204,7 @@ The LLM reads all your artifacts and generates:
 | Stages | `stage_1.md`, `stage_2.md`, ... | Tasks for each stage |
 | Open questions | `open-questions.md` | Questions the LLM could not answer |
 | Stack | `project.yaml -> stack` (global) | Components, languages, dependencies |
+| Artifact graph | artifact frontmatter + `project.yaml -> artifact_graph` | Dependencies, downstream impact, owners, code ownership |
 
 ### What you do after `/generate`
 
@@ -595,6 +596,12 @@ hlv constraints check --json             # JSON output
 # Artifacts and glossary
 hlv artifacts [--global|--milestone] [--json]
 hlv artifacts show <name> [--json]
+hlv artifacts graph [--json]
+hlv artifacts impact <id-or-path> [--json]
+hlv artifacts impact --changed [--json]
+hlv artifacts impact --changed --base <ref> [--json]
+hlv artifacts audit [--json]
+hlv artifacts sync [--check] [--json]
 hlv glossary [--json]
 
 # JSON output for automation
@@ -610,3 +617,19 @@ hlv workflow --json
 # Validation
 /validate                    # gates -> release decision
 ```
+
+### Upgrading existing projects
+
+New projects created by `hlv init` include an empty `project.yaml -> artifact_graph.code_ownership` map. Projects created before artifact impact analysis do not need immediate migration. `artifact_graph` in `project.yaml` and YAML frontmatter in Markdown artifacts are optional, so old projects continue to parse and pass graph checks. `hlv artifacts audit` prints a hint when no graph metadata exists and exits non-zero when ART errors are present.
+
+To adopt the feature gradually:
+
+1. Add HLV frontmatter to key specs, ADRs, and architecture docs. HLV frontmatter requires both `id` and `type`; legacy Markdown frontmatter without both keys is ignored.
+2. Run `hlv artifacts sync` to create missing `project.yaml -> artifact_graph.code_ownership` stubs for referenced `code-*`, `tests-*`, `docs-*`, and `clients-*` nodes.
+3. Fill concrete `paths` for important code/test/doc path groups.
+4. Add file-level markers such as `@hlv:artifact code-auth implements spec-auth` in owned code/test/doc files.
+5. Run `hlv artifacts audit`.
+6. Use `hlv artifacts graph` to inspect all artifact nodes and relations.
+7. Use `hlv artifacts impact <id-or-path>`, `hlv artifacts impact --changed` locally, or `hlv artifacts impact --changed --base <target-branch>` in PR review.
+
+For CI usage of `--base`, ensure the checkout has enough history to compute a merge base. With GitHub Actions, fetch the target branch explicitly or use `actions/checkout` with `fetch-depth: 0`.

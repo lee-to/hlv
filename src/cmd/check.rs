@@ -121,6 +121,8 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
         all_diags.extend(check::stack::check_stack(stack));
     }
 
+    all_diags.extend(check::artifacts::check_artifacts(root, &project));
+
     {
         let tests_path = project.paths.llm.tests.as_deref();
         all_diags.extend(check::code_trace::check_code_trace(
@@ -330,6 +332,11 @@ fn run_checks(root: &Path) -> Result<i32> {
         print_diags(&stack_diags);
         all_diags.extend(stack_diags);
     }
+
+    style::section("Artifacts");
+    let artifact_diags = check::artifacts::check_artifacts(root, &project);
+    print_diags(&artifact_diags);
+    all_diags.extend(artifact_diags);
 
     // 7. Code traceability (@hlv markers)
     {

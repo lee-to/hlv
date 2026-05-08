@@ -720,6 +720,9 @@ features:
   hlv_markers: {hlv_markers}
   security_markers: {security_markers}
 
+artifact_graph:
+  code_ownership: {{}}
+
 git:
   branch_per_milestone: false
   commit_convention: conventional

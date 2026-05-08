@@ -80,8 +80,9 @@ From all artifacts, extract:
 1. **Domain entities** — types, enums, relationships → update `glossary.yaml` (schema: `schema/glossary-schema.json`)
 2. **Capabilities** — what the system must do → future contracts
 3. **Tech stack** — languages, frameworks, databases, infra → `stack` section in project.yaml
-4. **Constraints** — NFR, security, compliance → constraints
-5. **Open questions** — information that cannot be derived from context → `open-questions.md`
+4. **Artifact graph metadata** — stable artifact IDs, owners, and relations (`requires`/`depends_on`, `implements`, `verifies`, `documents`, `supersedes`, `conflicts_with`, `affects`). Add YAML frontmatter to generated/updated Markdown artifacts when the relation is known.
+5. **Constraints** — NFR, security, compliance → constraints
+6. **Open questions** — information that cannot be derived from context → `open-questions.md`
 
 ### Step 3: Generate contracts
 
@@ -344,6 +345,10 @@ Update `project.yaml` (schema: `schema/project-schema.json`) with stack info if 
             type: framework
   ```
   Valid component types: `service`, `library`, `cli`, `worker`, `database`, `cache`, `queue`, `gateway`. Valid dependency types: `framework`, `library`, `runtime`, `tool`.
+
+Also update `project.yaml -> artifact_graph.code_ownership` when generated code/test/doc ownership can be inferred from contracts, plans, or explicit artifact text. Keep document-to-document relations in Markdown frontmatter; keep path-based code ownership in `project.yaml`.
+
+After adding or changing artifact frontmatter, run `hlv artifacts sync` to materialize missing `code-*`, `tests-*`, `docs-*`, and `clients-*` ownership stubs in `project.yaml`, then fill concrete paths when they are known.
 
 ### Step 9: Output summary
 

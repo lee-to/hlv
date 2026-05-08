@@ -74,11 +74,10 @@ pub fn extract_sections(md: &str) -> Vec<Section> {
                     current_body.push_str(&text);
                 }
             }
-            Event::SoftBreak | Event::HardBreak => {
-                if !in_heading {
-                    current_body.push('\n');
-                }
+            Event::SoftBreak | Event::HardBreak if !in_heading => {
+                current_body.push('\n');
             }
+            Event::SoftBreak | Event::HardBreak => {}
             Event::Start(Tag::CodeBlock(kind)) => {
                 let lang = match &kind {
                     pulldown_cmark::CodeBlockKind::Fenced(lang) => lang.to_string(),

@@ -1,5 +1,6 @@
 /target
 .idea
+.junie
 .claude
 .agents
 .codex
@@ -10,4 +11,3 @@ Cargo.lock
 .DS_Store
 /.github/skills
 !/.github
-

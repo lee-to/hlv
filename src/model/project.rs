@@ -29,6 +29,36 @@ pub struct ProjectMap {
     pub git: GitPolicy,
     #[serde(default)]
     pub features: Features,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_graph: Option<ArtifactGraphConfig>,
+}
+
+// ── Artifact Dependency Graph ─────────────────────────
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactGraphConfig {
+    #[serde(default)]
+    pub code_ownership: std::collections::BTreeMap<String, CodeOwnershipEntry>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct CodeOwnershipEntry {
+    #[serde(default)]
+    pub paths: Vec<String>,
+    #[serde(default)]
+    pub owners: Vec<String>,
+    #[serde(default)]
+    pub requires: Vec<String>,
+    #[serde(default)]
+    pub implements: Vec<String>,
+    #[serde(default)]
+    pub verifies: Vec<String>,
+    #[serde(default)]
+    pub documents: Vec<String>,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
 }
 
 // ── Features ────────────────────────────────────────────
@@ -549,6 +579,7 @@ type: some_new_type
             stack: None,
             git: GitPolicy::default(),
             features: Features::default(),
+            artifact_graph: None,
         };
 
         pm.save(&path).unwrap();
@@ -593,6 +624,7 @@ type: some_new_type
             stack: None,
             git: GitPolicy::default(),
             features: Features::default(),
+            artifact_graph: None,
         };
 
         pm.add_constraint(ConstraintEntry {
@@ -730,7 +762,7 @@ custom_field: hello
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("project.yaml");
 
-        let mut pm = ProjectMap {
+        let pm = ProjectMap {
             schema_version: 1,
             project: "test-features".to_string(),
             spec: None,
@@ -767,6 +799,7 @@ custom_field: hello
                 hlv_markers: false,
                 security_markers: true,
             },
+            artifact_graph: None,
         };
 
         pm.save(&path).unwrap();

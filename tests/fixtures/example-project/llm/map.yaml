@@ -16,6 +16,18 @@ entries:
     kind: dir
     layer: human
     description: "Global project context (domain, stack, arch decisions)"
+  - path: human/artifacts/spec-checkout.md
+    kind: file
+    layer: human
+    description: "Checkout specification artifact with dependency graph metadata"
+  - path: human/artifacts/adr-checkout-consistency.md
+    kind: file
+    layer: human
+    description: "Checkout consistency ADR with dependency graph metadata"
+  - path: human/artifacts/architecture-checkout.md
+    kind: file
+    layer: human
+    description: "Checkout architecture artifact linked from accepted ADR"
 
   # --- Human Layer: Glossary ---
   - path: human/glossary.yaml

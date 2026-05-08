@@ -299,6 +299,7 @@ Every LLM agent MUST start by reading `project.yaml` (global configuration), the
 **`project.yaml`** contains global data:
 - **paths** - where directories and files live; `paths.llm.map` points to `llm/map.yaml`
 - **stack** - technical stack: components with types, languages, and typed dependencies
+- **artifact_graph** - path-based ownership for code/test/doc nodes that participate in the artifact dependency graph
 
 **`milestones.yaml`** contains:
 - **current** - current milestone: id, branch, stage, stages with their statuses
@@ -307,6 +308,55 @@ Every LLM agent MUST start by reading `project.yaml` (global configuration), the
 Status, contracts, plan, and questions live inside `human/milestones/{id}/`.
 
 Updated automatically after every `/generate` and `/verify`.
+
+### 5.1a Artifact Dependency Graph
+
+Markdown artifacts MAY declare YAML frontmatter:
+
+```yaml
+---
+id: adr-auth-session
+type: adr
+status: accepted
+owners: [platform]
+depends_on: [spec-auth]
+affects: [architecture-auth, code-auth-session, tests-auth-session]
+---
+```
+
+Supported relations are `requires`/`depends_on`, `implements`, `verifies`, `documents`, `supersedes`, `conflicts_with`, and `affects`. Reverse traceability is first-class: if code ownership says `code-auth-session implements adr-auth-session`, changing `adr-auth-session` impacts `code-auth-session` even if the ADR forgot to list it in `affects`.
+
+Markdown frontmatter is treated as HLV artifact metadata only when both `id` and `type` are present. Legacy Markdown frontmatter such as `id` + `status`, `title`, `date`, or `tags` is ignored for artifact graph purposes.
+
+Code ownership lives in `project.yaml -> artifact_graph.code_ownership`:
+
+```yaml
+artifact_graph:
+  code_ownership:
+    code-auth-session:
+      paths: [src/auth/**]
+      owners: [platform]
+      implements: [spec-auth, adr-auth-session]
+```
+
+`hlv artifacts graph` prints all artifact graph nodes and relations, with `--json` returning `nodes` and `edges` for automation. `hlv artifacts impact <id-or-path>` prints downstream artifacts to review. `hlv artifacts impact --changed` derives changed artifacts from git worktree status, while `hlv artifacts impact --changed --base <ref>` compares committed PR changes from the merge-base of `<ref>` and `HEAD`. Both modes include Markdown artifact paths and `artifact_graph.code_ownership.paths`. `hlv artifacts sync` creates missing `project.yaml -> artifact_graph.code_ownership` stubs for referenced `code-*`, `tests-*`, `docs-*`, and `clients-*` nodes. `hlv artifacts audit` and `hlv check` validate owners, dangling references, accepted ADR architecture linkage, accepted conflicts, and duplicate artifact IDs; audit exits non-zero when ART errors are present.
+
+Files inside owned code/test/doc/client paths SHOULD include file-level evidence markers:
+
+```rust
+// @hlv:artifact code-auth implements spec-auth
+// @hlv:artifact tests-auth verifies spec-auth
+```
+
+Markdown/HTML comments are also valid:
+
+```md
+<!-- @hlv:artifact docs-auth documents spec-auth -->
+```
+
+The marker format is `@hlv:artifact <node-id> <relation> <artifact-id>`, where relation is `implements`, `verifies`, `documents`, or `requires`. `hlv check` emits `ART-050` warnings when `project.yaml` declares an ownership relation with concrete `paths`, but no matching file-level marker is found.
+
+New projects created by `hlv init` include an empty `project.yaml -> artifact_graph.code_ownership` map. Existing projects do not need a migration to keep working. `artifact_graph` and artifact frontmatter are optional; if neither exists, HLV treats the artifact graph as empty and `hlv artifacts audit` prints a migration hint instead of failing. Adopt impact analysis incrementally: add frontmatter to the highest-value specs/ADRs first, then add `artifact_graph.code_ownership` entries for code, tests, generated clients, and docs that need review routing.
 
 **Language selection policy.** HLV prefers strict, compile-time-safe languages where they naturally fit the task. For backend/service/CLI/system components, the default recommendation is to start with strict, compile-time-safe languages that have a strong ecosystem fit.
 This is not dogma: for UI/frontend, bot/automation tasks, glue code, ML/data/AI-chain workloads, and SDK-centric integrations, TypeScript, Python, or another language can and should be chosen if the ecosystem fit is clearly better. Python is not the architectural default, but it can be the best deliberate choice for ML and complex AI chains because of ecosystem maturity. If language choice affects architecture and does not follow from artifacts, the agent must raise it as an open question instead of forcing a language.

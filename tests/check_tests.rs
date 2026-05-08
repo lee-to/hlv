@@ -1867,6 +1867,11 @@ fn init_creates_scaffold() {
     .unwrap();
 
     assert!(tmp.path().join("project.yaml").exists());
+    let project = hlv::model::project::ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let artifact_graph = project
+        .artifact_graph
+        .expect("new projects should include artifact_graph");
+    assert!(artifact_graph.code_ownership.is_empty());
     assert!(tmp.path().join("milestones.yaml").exists());
     assert!(tmp.path().join("HLV.md").exists());
     assert!(tmp.path().join("AGENTS.md").exists());
@@ -3906,6 +3911,7 @@ fn minimal_project_with_constraints(
         stack: None,
         git: Default::default(),
         features: Default::default(),
+        artifact_graph: None,
     }
 }
 
@@ -4111,4 +4117,342 @@ fn sec_markers_disabled_returns_empty() {
 
     let diags = check_sec_markers(root, "llm/src", false);
     assert!(diags.is_empty(), "disabled = no diagnostics: {:?}", diags);
+}
+
+// ═══════════════════════════════════════════════════════
+// ART-010 / ART-020 / ART-030: artifact graph checks
+// ═══════════════════════════════════════════════════════
+
+#[test]
+fn artifact_graph_valid_passes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+affects: [code-auth]
+---
+# Spec
+"#,
+    )
+    .unwrap();
+
+    let mut project = minimal_project_with_constraints(vec![]);
+    project.artifact_graph = Some(hlv::model::project::ArtifactGraphConfig {
+        code_ownership: [(
+            "code-auth".to_string(),
+            hlv::model::project::CodeOwnershipEntry {
+                paths: vec!["llm/src/auth/**".to_string()],
+                owners: vec!["platform".to_string()],
+                implements: vec!["spec-auth".to_string()],
+                requires: vec![],
+                verifies: vec![],
+                documents: vec![],
+                depends_on: vec![],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    });
+
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(!has_any_error(&diags), "unexpected errors: {:?}", diags);
+    assert!(
+        !has_warning(&diags, "ART-010"),
+        "unexpected owner warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn artifact_graph_absent_legacy_project_passes() {
+    let tmp = TempDir::new().unwrap();
+    let project = minimal_project_with_constraints(vec![]);
+
+    let diags = hlv::check::artifacts::check_artifacts(tmp.path(), &project);
+    assert!(
+        diags.is_empty(),
+        "legacy project should not require graph metadata: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn artifact_graph_dangling_reference_errors() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+depends_on: [missing-adr]
+---
+# Spec
+"#,
+    )
+    .unwrap();
+
+    let project = minimal_project_with_constraints(vec![]);
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        has_error(&diags, "ART-020"),
+        "expected ART-020: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn accepted_adr_without_architecture_link_warns() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/adr.md"),
+        r#"---
+id: adr-auth
+type: adr
+status: accepted
+owners: [platform]
+---
+# ADR
+"#,
+    )
+    .unwrap();
+
+    let project = minimal_project_with_constraints(vec![]);
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        has_warning(&diags, "ART-030"),
+        "expected ART-030: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn accepted_adr_with_architecture_type_link_passes_for_non_prefixed_id() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/adr.md"),
+        r#"---
+id: adr-auth
+type: adr
+status: accepted
+owners: [platform]
+affects: [arch-auth]
+---
+# ADR
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("human/artifacts/arch.md"),
+        r#"---
+id: arch-auth
+type: architecture
+owners: [platform]
+---
+# Architecture
+"#,
+    )
+    .unwrap();
+
+    let project = minimal_project_with_constraints(vec![]);
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        !has_warning(&diags, "ART-030"),
+        "unexpected ART-030: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn duplicate_artifact_ids_error() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec-a.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+---
+# Spec A
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("human/artifacts/spec-b.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+---
+# Spec B
+"#,
+    )
+    .unwrap();
+
+    let project = minimal_project_with_constraints(vec![]);
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        has_error(&diags, "ART-001"),
+        "expected duplicate-id ART-001: {:?}",
+        diags
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.message.contains("Duplicate artifact id 'spec-auth'")),
+        "expected duplicate-id message: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn duplicate_artifact_id_between_markdown_and_code_ownership_errors() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec.md"),
+        r#"---
+id: code-auth
+type: spec
+owners: [product]
+---
+# Spec
+"#,
+    )
+    .unwrap();
+
+    let mut project = minimal_project_with_constraints(vec![]);
+    project.artifact_graph = Some(hlv::model::project::ArtifactGraphConfig {
+        code_ownership: [(
+            "code-auth".to_string(),
+            hlv::model::project::CodeOwnershipEntry {
+                paths: vec!["llm/src/auth/**".to_string()],
+                owners: vec!["platform".to_string()],
+                implements: vec![],
+                requires: vec![],
+                verifies: vec![],
+                documents: vec![],
+                depends_on: vec![],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    });
+
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        has_error(&diags, "ART-001"),
+        "expected duplicate-id ART-001: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn artifact_marker_missing_warns() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::create_dir_all(root.join("llm/src/auth")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+affects: [code-auth]
+---
+# Spec
+"#,
+    )
+    .unwrap();
+    fs::write(root.join("llm/src/auth/service.rs"), "pub struct Auth;\n").unwrap();
+
+    let mut project = minimal_project_with_constraints(vec![]);
+    project.artifact_graph = Some(hlv::model::project::ArtifactGraphConfig {
+        code_ownership: [(
+            "code-auth".to_string(),
+            hlv::model::project::CodeOwnershipEntry {
+                paths: vec!["llm/src/auth/**".to_string()],
+                owners: vec!["platform".to_string()],
+                implements: vec!["spec-auth".to_string()],
+                requires: vec![],
+                verifies: vec![],
+                documents: vec![],
+                depends_on: vec![],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    });
+
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        has_warning(&diags, "ART-050"),
+        "expected ART-050: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn artifact_marker_present_passes() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("human/artifacts")).unwrap();
+    fs::create_dir_all(root.join("llm/src/auth")).unwrap();
+    fs::write(
+        root.join("human/artifacts/spec.md"),
+        r#"---
+id: spec-auth
+type: spec
+owners: [product]
+affects: [code-auth]
+---
+# Spec
+"#,
+    )
+    .unwrap();
+    fs::write(
+        root.join("llm/src/auth/service.ts"),
+        "// @hlv:artifact code-auth implements spec-auth\nexport class Auth {}\n",
+    )
+    .unwrap();
+
+    let mut project = minimal_project_with_constraints(vec![]);
+    project.artifact_graph = Some(hlv::model::project::ArtifactGraphConfig {
+        code_ownership: [(
+            "code-auth".to_string(),
+            hlv::model::project::CodeOwnershipEntry {
+                paths: vec!["llm/src/auth/**".to_string()],
+                owners: vec!["platform".to_string()],
+                implements: vec!["spec-auth".to_string()],
+                requires: vec![],
+                verifies: vec![],
+                documents: vec![],
+                depends_on: vec![],
+            },
+        )]
+        .into_iter()
+        .collect(),
+    });
+
+    let diags = hlv::check::artifacts::check_artifacts(root, &project);
+    assert!(
+        !has_warning(&diags, "ART-050"),
+        "unexpected ART-050: {:?}",
+        diags
+    );
 }

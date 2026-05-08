@@ -66,6 +66,9 @@
     },
     "features": {
       "$ref": "#/$defs/Features"
+    },
+    "artifact_graph": {
+      "$ref": "#/$defs/ArtifactGraphConfig"
     }
   },
   "additionalProperties": false,
@@ -244,6 +247,60 @@
           "type": "boolean",
           "default": true,
           "description": "Enable @hlv:sec security attention markers and SEC-010 diagnostic"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ArtifactGraphConfig": {
+      "type": "object",
+      "description": "Artifact dependency graph configuration. Artifact-local links live in Markdown frontmatter; path-based code ownership lives here.",
+      "properties": {
+        "code_ownership": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": { "$ref": "#/$defs/CodeOwnershipEntry" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodeOwnershipEntry": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "owners": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "requires": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Alias for requires."
+        },
+        "implements": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "verifies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "documents": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         }
       },
       "additionalProperties": false
