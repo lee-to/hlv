@@ -404,7 +404,10 @@ fn changed_paths(root: &Path, base: Option<&str>) -> Result<std::collections::BT
             .with_context(|| format!("Cannot run git merge-base {base} HEAD"))?;
         if !merge_base.status.success() {
             let stderr = String::from_utf8_lossy(&merge_base.stderr);
-            anyhow::bail!("git merge-base failed: {}", stderr.trim());
+            anyhow::bail!(
+                "git merge-base failed: {}. If this is a shallow CI checkout, fetch the base ref first or use actions/checkout with fetch-depth: 0.",
+                stderr.trim()
+            );
         }
         let merge_base = String::from_utf8_lossy(&merge_base.stdout)
             .trim()

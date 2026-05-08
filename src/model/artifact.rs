@@ -311,23 +311,29 @@ fn scan_artifacts_dir(dir: &Path) -> Result<Vec<ArtifactMeta>> {
 }
 
 pub fn parse_frontmatter(content: &str) -> Result<Option<ArtifactFrontmatter>> {
-    let Some(rest) = content
-        .strip_prefix("---\n")
-        .or_else(|| content.strip_prefix("---\r\n"))
-    else {
+    let mut lines = content.lines();
+    let Some(first) = lines.next() else {
         return Ok(None);
     };
-    let Some((yaml, _body)) = rest
-        .split_once("\n---")
-        .or_else(|| rest.split_once("\r\n---"))
-    else {
-        return Ok(None);
-    };
-    if !looks_like_hlv_frontmatter(yaml)? {
+    if first.trim_end_matches('\r') != "---" {
         return Ok(None);
     }
-    let meta: ArtifactFrontmatter = serde_yaml::from_str(yaml)?;
-    Ok(Some(meta))
+
+    let mut yaml_lines = Vec::new();
+    for line in lines {
+        let line = line.trim_end_matches('\r');
+        if line == "---" {
+            let yaml = yaml_lines.join("\n");
+            if !looks_like_hlv_frontmatter(&yaml)? {
+                return Ok(None);
+            }
+            let meta: ArtifactFrontmatter = serde_yaml::from_str(&yaml)?;
+            return Ok(Some(meta));
+        }
+        yaml_lines.push(line);
+    }
+
+    Ok(None)
 }
 
 fn looks_like_hlv_frontmatter(yaml: &str) -> Result<bool> {

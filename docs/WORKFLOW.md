@@ -629,3 +629,5 @@ To adopt the feature gradually:
 4. Add file-level markers such as `@hlv:artifact code-auth implements spec-auth` in owned code/test/doc files.
 5. Run `hlv artifacts audit`.
 6. Use `hlv artifacts impact <id-or-path>`, `hlv artifacts impact --changed` locally, or `hlv artifacts impact --changed --base <target-branch>` in PR review.
+
+For CI usage of `--base`, ensure the checkout has enough history to compute a merge base. With GitHub Actions, fetch the target branch explicitly or use `actions/checkout` with `fetch-depth: 0`.

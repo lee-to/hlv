@@ -58,7 +58,7 @@ human/
 
 Note: `project.yaml → stack` provides tech stack context (languages, frameworks, databases) which can inform gate execution — e.g., choosing the correct test runner, SAST tool, or dependency scanner per component.
 
-Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-analysis context. Before validating a PR-like change, run `hlv artifacts impact --changed --base <target-branch>` (or `hlv artifacts impact --changed` for local worktree review) and ensure every downstream item has an explicit review disposition outside HLV (`updated`, `reviewed-ok`, `deferred`, `obsolete`, or `unknown`). Treat missing dispositions as a review blocker even when deterministic gates pass.
+Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-analysis context. Before validating a PR-like change, run `hlv artifacts impact --changed --base <target-branch>` (or `hlv artifacts impact --changed` for local worktree review) and ensure every downstream item has an explicit review disposition outside HLV (`updated`, `reviewed-ok`, `deferred`, `obsolete`, or `unknown`). In CI, make sure the checkout can compute a merge base by fetching the target branch or using sufficient history such as `actions/checkout` with `fetch-depth: 0`. Treat missing dispositions as a review blocker even when deterministic gates pass.
 
 ## Steps
 
