@@ -93,8 +93,10 @@ For the traceability file (`{MID}/traceability.yaml`):
 #### 1d. Artifact dependency graph
 
 - [ ] Markdown artifact frontmatter IDs are stable and unique
+- [ ] HLV artifact frontmatter includes both `id` and `type`; legacy non-HLV frontmatter without both keys is ignored
 - [ ] Every artifact graph node has `owners`
 - [ ] `depends_on`/`requires`, `implements`, `verifies`, `documents`, `supersedes`, `conflicts_with`, and `affects` point to existing IDs
+- [ ] Run `hlv artifacts graph` when reviewing impact metadata to inspect all nodes and relations together
 - [ ] Run `hlv artifacts sync --check`; if it reports missing ownership stubs, run `hlv artifacts sync` and fill paths where known
 - [ ] Owned code/test/doc paths with declared relations include `@hlv:artifact <node-id> <relation> <artifact-id>` markers, or `ART-050` is explicitly accepted as a warning during migration
 - [ ] Accepted ADRs affect an architecture node or have an explicit review note

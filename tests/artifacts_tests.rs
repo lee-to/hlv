@@ -81,6 +81,40 @@ fn artifacts_audit_json_legacy_project_smoke() {
 }
 
 #[test]
+fn artifacts_audit_ignores_legacy_id_status_frontmatter_smoke() {
+    let tmp = TempDir::new().unwrap();
+    setup_legacy_project(tmp.path());
+
+    std::fs::write(
+        tmp.path().join("human/artifacts/legacy-adr.md"),
+        r#"---
+id: adr-auth-session
+status: accepted
+---
+# ADR
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(hlv_bin())
+        .args(["--root", tmp.path().to_str().unwrap(), "artifacts", "audit"])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "legacy id/status frontmatter should be ignored: stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("ART-001"),
+        "legacy frontmatter should not emit ART-001: {stdout}"
+    );
+}
+
+#[test]
 fn artifacts_audit_errors_exit_nonzero_smoke() {
     let tmp = TempDir::new().unwrap();
     setup_legacy_project(tmp.path());
@@ -169,6 +203,91 @@ fn artifacts_impact_fixture_smoke() {
     assert!(stdout.contains("Expected to review"));
     assert!(stdout.contains("code-checkout"));
     assert!(stdout.contains("tests-checkout"));
+}
+
+#[test]
+fn artifacts_impact_json_reports_ownership_types_smoke() {
+    let output = Command::new(hlv_bin())
+        .args([
+            "--root",
+            "tests/fixtures/example-project",
+            "artifacts",
+            "impact",
+            "spec-checkout",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "impact --json should pass: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let affected = value["affected"].as_array().unwrap();
+    assert!(affected
+        .iter()
+        .any(|item| item["id"] == "code-checkout" && item["artifact_type"] == "code"));
+    assert!(affected
+        .iter()
+        .any(|item| item["id"] == "tests-checkout" && item["artifact_type"] == "tests"));
+}
+
+#[test]
+fn artifacts_graph_fixture_smoke() {
+    let output = Command::new(hlv_bin())
+        .args([
+            "--root",
+            "tests/fixtures/example-project",
+            "artifacts",
+            "graph",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "graph should pass: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("artifact graph"));
+    assert!(stdout.contains("spec-checkout (spec)"));
+    assert!(stdout.contains("spec-checkout --affects--> code-checkout"));
+    assert!(stdout.contains("code-checkout --implements--> spec-checkout"));
+    assert!(stdout.contains("tests-checkout --verifies--> spec-checkout"));
+}
+
+#[test]
+fn artifacts_graph_json_fixture_smoke() {
+    let output = Command::new(hlv_bin())
+        .args([
+            "--root",
+            "tests/fixtures/example-project",
+            "artifacts",
+            "graph",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "graph --json should pass: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert!(value["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|node| node["id"] == "spec-checkout"));
+    assert!(value["edges"].as_array().unwrap().iter().any(|edge| {
+        edge["source"] == "code-checkout"
+            && edge["relation"] == "implements"
+            && edge["target"] == "spec-checkout"
+    }));
 }
 
 #[test]

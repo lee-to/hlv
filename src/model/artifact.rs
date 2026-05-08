@@ -203,7 +203,7 @@ impl ArtifactGraph {
                     &source,
                     ArtifactNode {
                         id: id.clone(),
-                        artifact_type: "code".to_string(),
+                        artifact_type: ownership_artifact_type(id).to_string(),
                         path: None,
                         paths: entry.paths.clone(),
                         owners: entry.owners.clone(),
@@ -346,20 +346,19 @@ fn looks_like_hlv_frontmatter(yaml: &str) -> Result<bool> {
             .keys()
             .any(|k| k.as_str().map(|s| s == key).unwrap_or(false))
     };
-    let relation_keys = [
-        "depends_on",
-        "affects",
-        "requires",
-        "implements",
-        "verifies",
-        "documents",
-        "supersedes",
-        "conflicts_with",
-    ];
-    let has_relation = relation_keys.iter().any(|key| has_key(key));
-    let has_hlv_identity = has_key("id")
-        && (has_key("type") || has_key("owners") || has_key("owns") || has_key("status"));
-    Ok(has_hlv_identity || has_relation)
+    Ok(has_key("id") && has_key("type"))
+}
+
+fn ownership_artifact_type(id: &str) -> &str {
+    if id.starts_with("tests-") {
+        "tests"
+    } else if id.starts_with("docs-") {
+        "docs"
+    } else if id.starts_with("clients-") {
+        "clients"
+    } else {
+        "code"
+    }
 }
 
 fn relations_from_frontmatter(frontmatter: &ArtifactFrontmatter) -> Vec<ArtifactRelation> {
@@ -521,6 +520,26 @@ tags: [auth]
 # Notes
 "#;
         assert!(parse_frontmatter(content).unwrap().is_none());
+    }
+
+    #[test]
+    fn legacy_id_status_frontmatter_is_ignored() {
+        let content = r#"---
+id: adr-auth-session
+status: accepted
+---
+# ADR
+"#;
+        assert!(parse_frontmatter(content).unwrap().is_none());
+    }
+
+    #[test]
+    fn ownership_artifact_type_uses_id_prefix() {
+        assert_eq!(ownership_artifact_type("code-auth"), "code");
+        assert_eq!(ownership_artifact_type("tests-auth"), "tests");
+        assert_eq!(ownership_artifact_type("docs-auth"), "docs");
+        assert_eq!(ownership_artifact_type("clients-auth"), "clients");
+        assert_eq!(ownership_artifact_type("auth"), "code");
     }
 
     #[test]

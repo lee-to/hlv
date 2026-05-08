@@ -321,6 +321,12 @@ enum ArtifactsAction {
         #[arg(long)]
         json: bool,
     },
+    /// Show the full artifact dependency graph
+    Graph {
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Audit artifact graph metadata and references
     Audit {
         /// Output in JSON
@@ -847,6 +853,9 @@ fn run(cli: Cli) -> Result<()> {
                 base.as_deref(),
                 j || json,
             ),
+            Some(ArtifactsAction::Graph { json: j }) => {
+                hlv::cmd::artifacts::run_graph(&project_root, j || json)
+            }
             Some(ArtifactsAction::Audit { json: j }) => {
                 hlv::cmd::artifacts::run_audit(&project_root, j || json)
             }

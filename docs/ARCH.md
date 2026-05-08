@@ -326,6 +326,8 @@ affects: [architecture-auth, code-auth-session, tests-auth-session]
 
 Supported relations are `requires`/`depends_on`, `implements`, `verifies`, `documents`, `supersedes`, `conflicts_with`, and `affects`. Reverse traceability is first-class: if code ownership says `code-auth-session implements adr-auth-session`, changing `adr-auth-session` impacts `code-auth-session` even if the ADR forgot to list it in `affects`.
 
+Markdown frontmatter is treated as HLV artifact metadata only when both `id` and `type` are present. Legacy Markdown frontmatter such as `id` + `status`, `title`, `date`, or `tags` is ignored for artifact graph purposes.
+
 Code ownership lives in `project.yaml -> artifact_graph.code_ownership`:
 
 ```yaml
@@ -337,7 +339,7 @@ artifact_graph:
       implements: [spec-auth, adr-auth-session]
 ```
 
-`hlv artifacts impact <id-or-path>` prints downstream artifacts to review. `hlv artifacts impact --changed` derives changed artifacts from git worktree status, while `hlv artifacts impact --changed --base <ref>` compares committed PR changes from the merge-base of `<ref>` and `HEAD`. Both modes include Markdown artifact paths and `artifact_graph.code_ownership.paths`. `hlv artifacts sync` creates missing `project.yaml -> artifact_graph.code_ownership` stubs for referenced `code-*`, `tests-*`, `docs-*`, and `clients-*` nodes. `hlv artifacts audit` and `hlv check` validate owners, dangling references, accepted ADR architecture linkage, accepted conflicts, and duplicate artifact IDs; audit exits non-zero when ART errors are present.
+`hlv artifacts graph` prints all artifact graph nodes and relations, with `--json` returning `nodes` and `edges` for automation. `hlv artifacts impact <id-or-path>` prints downstream artifacts to review. `hlv artifacts impact --changed` derives changed artifacts from git worktree status, while `hlv artifacts impact --changed --base <ref>` compares committed PR changes from the merge-base of `<ref>` and `HEAD`. Both modes include Markdown artifact paths and `artifact_graph.code_ownership.paths`. `hlv artifacts sync` creates missing `project.yaml -> artifact_graph.code_ownership` stubs for referenced `code-*`, `tests-*`, `docs-*`, and `clients-*` nodes. `hlv artifacts audit` and `hlv check` validate owners, dangling references, accepted ADR architecture linkage, accepted conflicts, and duplicate artifact IDs; audit exits non-zero when ART errors are present.
 
 Files inside owned code/test/doc/client paths SHOULD include file-level evidence markers:
 

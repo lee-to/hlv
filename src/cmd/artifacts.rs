@@ -4,7 +4,7 @@ use std::path::Path;
 
 use super::style;
 use crate::check::{self, Severity};
-use crate::model::artifact::{ArtifactFull, ArtifactGraph, ArtifactIndex};
+use crate::model::artifact::{ArtifactFull, ArtifactGraph, ArtifactIndex, ArtifactNode};
 use crate::model::milestone::MilestoneMap;
 use crate::model::project::{ArtifactGraphConfig, CodeOwnershipEntry, ProjectMap};
 
@@ -195,6 +195,72 @@ pub fn run_impact(
             println!("    via: {}", item.via.join(", "));
         }
     }
+    Ok(())
+}
+
+/// `hlv artifacts graph [--json]`
+pub fn run_graph(root: &Path, json: bool) -> Result<()> {
+    let project = ProjectMap::load(&root.join("project.yaml"))?;
+    let milestone_id = current_milestone_id(root);
+    let graph = ArtifactGraph::load(root, &project, milestone_id.as_deref())?;
+    let report = ArtifactGraphReport::from_graph(&graph);
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    style::header("artifact graph");
+    if report.nodes.is_empty() {
+        style::hint("No artifact graph metadata found.");
+        return Ok(());
+    }
+
+    style::section("Nodes");
+    for node in &report.nodes {
+        let location = node
+            .path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .or_else(|| {
+                if node.paths.is_empty() {
+                    None
+                } else {
+                    Some(node.paths.join(", "))
+                }
+            })
+            .map(|location| format!(" {}", location.dimmed()))
+            .unwrap_or_default();
+        let owners = if node.owners.is_empty() {
+            "owners: unknown".to_string()
+        } else {
+            format!("owners: {}", node.owners.join(", "))
+        };
+        println!(
+            "  {} {} ({}){} — {}",
+            "·".dimmed(),
+            node.id.bold(),
+            node.artifact_type,
+            location,
+            owners
+        );
+    }
+
+    style::section("Relations");
+    if report.edges.is_empty() {
+        style::ok("no relations");
+    } else {
+        for edge in &report.edges {
+            println!(
+                "  {} {} --{}--> {}",
+                "·".dimmed(),
+                edge.source.bold(),
+                edge.relation,
+                edge.target.bold()
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -492,6 +558,40 @@ fn parse_git_status_path(line: &str) -> Option<&str> {
         return None;
     }
     Some(path.rsplit_once(" -> ").map(|(_, new)| new).unwrap_or(path))
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ArtifactGraphReport {
+    nodes: Vec<ArtifactNode>,
+    edges: Vec<ArtifactGraphEdge>,
+}
+
+impl ArtifactGraphReport {
+    fn from_graph(graph: &ArtifactGraph) -> Self {
+        let nodes: Vec<ArtifactNode> = graph.nodes.values().cloned().collect();
+        let edges = graph
+            .nodes
+            .values()
+            .flat_map(|node| {
+                node.relations
+                    .iter()
+                    .map(move |relation| ArtifactGraphEdge {
+                        source: node.id.clone(),
+                        relation: relation.kind.clone(),
+                        target: relation.target.clone(),
+                    })
+            })
+            .collect();
+
+        Self { nodes, edges }
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ArtifactGraphEdge {
+    source: String,
+    relation: String,
+    target: String,
 }
 
 #[derive(Debug, serde::Serialize)]
