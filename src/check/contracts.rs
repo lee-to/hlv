@@ -238,7 +238,8 @@ fn check_glossary_refs(
     file_label: &str,
     diags: &mut Vec<Diagnostic>,
 ) {
-    // Look for $ref: "glossary#TypeName" or $ref: "glossary.yaml#/types/TypeName"
+    // Look for $ref: "glossary#TypeName", "glossary.yaml#/types/TypeName",
+    // or "glossary.yaml#/enums/EnumName".
     for line in yaml.lines() {
         if !line.contains("$ref") {
             continue;
@@ -259,7 +260,8 @@ fn check_glossary_refs(
 }
 
 fn extract_glossary_type_ref(line: &str) -> Option<String> {
-    // Match "glossary#TypeName" or "glossary.yaml#/types/TypeName"
+    // Match "glossary#TypeName", "glossary.yaml#/types/TypeName",
+    // or "glossary.yaml#/enums/EnumName".
     if let Some(pos) = line.find("glossary") {
         let rest = &line[pos..];
         if let Some(hash) = rest.find('#') {
@@ -267,6 +269,7 @@ fn extract_glossary_type_ref(line: &str) -> Option<String> {
             let type_part = after
                 .trim_start_matches('/')
                 .trim_start_matches("types/")
+                .trim_start_matches("enums/")
                 .trim_end_matches('"')
                 .trim_end_matches('\'')
                 .trim();

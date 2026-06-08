@@ -274,11 +274,7 @@ fn print_visual_milestone(
                     _ => "○",
                 };
                 let line = format!("{} {} {}", task_icon, task.id, task.name);
-                let display = if line.len() > width - 2 {
-                    format!("{}…", &line[..width - 3])
-                } else {
-                    line
-                };
+                let display = truncate_chars(&line, width - 2);
                 println!("  │ {:<w$}│", display, w = width - 1);
             }
         }
@@ -290,4 +286,14 @@ fn print_visual_milestone(
         }
     }
     println!();
+}
+
+fn truncate_chars(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        return s.to_string();
+    }
+
+    let mut truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
+    truncated.push('…');
+    truncated
 }

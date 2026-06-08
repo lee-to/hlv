@@ -790,6 +790,76 @@ None
     );
 }
 
+#[test]
+fn contracts_known_glossary_enum_ref_passes() {
+    let tmp = TempDir::new().unwrap();
+    let contracts_dir = tmp.path().join("human/milestones/001/contracts");
+    fs::create_dir_all(&contracts_dir).unwrap();
+    let md = r#"# test v1.0.0
+owner: team
+
+## Sources
+None
+
+## Intent
+Test
+
+## Input
+```yaml
+type: object
+properties:
+  currency:
+    $ref: "glossary.yaml#/enums/Currency"
+```
+
+## Output
+```yaml
+type: object
+```
+
+## Errors
+| Code | HTTP | When |
+|------|------|------|
+| ERR | 500 | always |
+
+## Invariants
+1. Something
+
+## Examples
+### Happy path
+```json
+{"input": {}, "output": {}}
+```
+### Error case
+```json
+{"input": {}, "error": "ERR"}
+```
+
+## Edge Cases
+None
+
+## NFR
+None
+
+## Security
+None
+"#;
+    fs::write(contracts_dir.join("test.md"), md).unwrap();
+    let entry = make_entry("test", "human/milestones/001/contracts/test.md");
+    let mut glossary = empty_glossary();
+    glossary.enums.insert(
+        "Currency".to_string(),
+        vec!["USD".to_string(), "EUR".to_string()],
+    );
+
+    let diags = check_contracts(tmp.path(), &[entry], &glossary);
+    assert!(
+        !has_warning(&diags, "CTR-060"),
+        "expected known glossary enum ref to pass: {:?}",
+        diags
+    );
+}
+
 // ═══════════════════════════════════════════════════════
 // check::contracts — YAML contracts
 // ═══════════════════════════════════════════════════════
@@ -3503,6 +3573,42 @@ history: []
     .unwrap();
     let ms_dir = root.join("human/milestones/ms-001");
     fs::create_dir_all(&ms_dir).unwrap();
+    hlv::cmd::plan::run(root, true, false).unwrap();
+}
+
+#[test]
+fn plan_visual_mode_handles_multibyte_task_names() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    fs::write(
+        root.join("milestones.yaml"),
+        r#"project: test
+current:
+  id: ms-001
+  number: 1
+  stage: 1
+  stages:
+    - id: 1
+      scope: setup
+      status: implementing
+  gate_results: []
+history: []
+"#,
+    )
+    .unwrap();
+    let ms_dir = root.join("human/milestones/ms-001");
+    fs::create_dir_all(&ms_dir).unwrap();
+    fs::write(
+        ms_dir.join("stage_1.md"),
+        r#"# Stage 1: setup
+
+## Tasks
+
+TASK-0001 Проверка длинного имени задачи кириллицей
+"#,
+    )
+    .unwrap();
+
     hlv::cmd::plan::run(root, true, false).unwrap();
 }
 
