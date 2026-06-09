@@ -860,6 +860,92 @@ None
     );
 }
 
+#[test]
+fn contracts_inline_glossary_refs_pass() {
+    let tmp = TempDir::new().unwrap();
+    let contracts_dir = tmp.path().join("human/milestones/001/contracts");
+    fs::create_dir_all(&contracts_dir).unwrap();
+    let md = r#"# test v1.0.0
+owner: team
+
+## Sources
+None
+
+## Intent
+Test
+
+## Input
+```yaml
+type: object
+properties:
+  role: { $ref: glossary#/enums/UserRole }
+  items: { type: array, items: { $ref: glossary#/types/Listing } }
+```
+
+## Output
+```yaml
+type: object
+properties:
+  channel: { $ref: glossary.yaml#/enums/BroadcastChannel }
+```
+
+## Errors
+| Code | HTTP | When |
+|------|------|------|
+| ERR | 500 | always |
+
+## Invariants
+1. Something
+
+## Examples
+### Happy path
+```json
+{"input": {}, "output": {}}
+```
+### Error case
+```json
+{"input": {}, "error": "ERR"}
+```
+
+## Edge Cases
+None
+
+## NFR
+None
+
+## Security
+None
+"#;
+    fs::write(contracts_dir.join("test.md"), md).unwrap();
+    let entry = make_entry("test", "human/milestones/001/contracts/test.md");
+    let mut glossary = empty_glossary();
+    glossary.enums.insert(
+        "UserRole".to_string(),
+        vec!["admin".to_string(), "user".to_string()],
+    );
+    glossary.enums.insert(
+        "BroadcastChannel".to_string(),
+        vec!["email".to_string(), "push".to_string()],
+    );
+    glossary.types.insert(
+        "Listing".to_string(),
+        hlv::model::glossary::GlossaryType {
+            kind: "object".to_string(),
+            format: None,
+            example: None,
+            fields: None,
+            enum_values: None,
+        },
+    );
+
+    let diags = check_contracts(tmp.path(), &[entry], &glossary);
+    assert!(
+        !has_warning(&diags, "CTR-060"),
+        "expected inline glossary refs to pass: {:?}",
+        diags
+    );
+}
+
 // ═══════════════════════════════════════════════════════
 // check::contracts — YAML contracts
 // ═══════════════════════════════════════════════════════

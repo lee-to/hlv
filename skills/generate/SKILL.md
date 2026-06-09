@@ -148,6 +148,13 @@ Generation rules:
 - If information is not in artifacts — do NOT invent it; add to Open Questions
 - If contract already exists — update it, show diff
 - Examples are mandatory: minimum 1 happy path + 1 error case
+- When referencing glossary types or enums in contract YAML, prefer canonical multi-line `$ref` syntax:
+  ```yaml
+  role:
+    $ref: glossary#/enums/UserRole
+  listing:
+    $ref: glossary#/types/Listing
+  ```
 
 ### Step 4: Generate validation specs (PROOF)
 

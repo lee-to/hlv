@@ -270,6 +270,11 @@ fn extract_glossary_type_ref(line: &str) -> Option<String> {
                 .trim_start_matches('/')
                 .trim_start_matches("types/")
                 .trim_start_matches("enums/")
+                .trim();
+            let type_part = type_part
+                .split(|c: char| c.is_whitespace() || c == '}' || c == ',' || c == ']')
+                .next()
+                .unwrap_or("")
                 .trim_end_matches('"')
                 .trim_end_matches('\'')
                 .trim();
