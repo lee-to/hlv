@@ -6,6 +6,7 @@ use crate::check::{Diagnostic, Severity};
 use crate::model::policy::ConstraintFile;
 use crate::model::project::ProjectMap;
 use crate::util::command_parser::{parse_portable_command, CommandParseError};
+use crate::util::text::truncate_ellipsis;
 
 /// Default timeout for check_command execution (60 seconds).
 const CHECK_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
@@ -320,12 +321,7 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
                     } else {
                         format!("exit code {}", status.code().unwrap_or(-1))
                     };
-                    // Truncate long output
-                    let truncated = if output.len() > 200 {
-                        format!("{}...", &output[..200])
-                    } else {
-                        output
-                    };
+                    let truncated = truncate_check_output(&output);
                     return (false, truncated);
                 }
             }
@@ -341,6 +337,10 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
     }
 }
 
+fn truncate_check_output(output: &str) -> String {
+    truncate_ellipsis(output, 200)
+}
+
 fn check_command_failure_reason(err: &CommandParseError) -> String {
     match err {
         CommandParseError::EmptyCommand => "check_command is empty".to_string(),
@@ -352,5 +352,19 @@ fn check_command_failure_reason(err: &CommandParseError) -> String {
             "unsupported check_command syntax '{}' (use one executable per check_command; shell operators and shell variable expansion are not supported)",
             op
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_command_output_truncation_does_not_panic_on_multibyte_boundary() {
+        let output = format!("{}Жtail", "a".repeat(199));
+
+        let truncated = truncate_check_output(&output);
+
+        assert_eq!(truncated, format!("{}…", "a".repeat(199)));
     }
 }
