@@ -6,6 +6,7 @@ use crate::check::{Diagnostic, Severity};
 use crate::model::policy::ConstraintFile;
 use crate::model::project::ProjectMap;
 use crate::util::command_parser::{parse_portable_command, CommandParseError};
+use crate::util::text::truncate_ellipsis;
 
 /// Default timeout for check_command execution (60 seconds).
 const CHECK_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
@@ -315,12 +316,7 @@ fn execute_check_command_with_timeout(
                     } else {
                         format!("exit code {}", status.code().unwrap_or(-1))
                     };
-                    // Truncate long output
-                    let truncated = if output.len() > 200 {
-                        format!("{}...", &output[..200])
-                    } else {
-                        output
-                    };
+                    let truncated = truncate_check_output(&output);
                     return (false, truncated);
                 }
             }
@@ -353,6 +349,10 @@ fn join_pipe_reader(handle: Option<std::thread::JoinHandle<Vec<u8>>>) -> String 
         .and_then(|handle| handle.join().ok())
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
         .unwrap_or_default()
+}
+
+fn truncate_check_output(output: &str) -> String {
+    truncate_ellipsis(output, 200)
 }
 
 fn check_command_failure_reason(err: &CommandParseError) -> String {
@@ -460,5 +460,14 @@ fn main() {
             message.contains(STDERR_SENTINEL),
             "expected stderr sentinel, got: {message:?}"
         );
+    }
+
+    #[test]
+    fn check_command_output_truncation_does_not_panic_on_multibyte_boundary() {
+        let output = format!("{}Жtail", "a".repeat(199));
+
+        let truncated = truncate_check_output(&output);
+
+        assert_eq!(truncated, format!("{}…", "a".repeat(199)));
     }
 }

@@ -1,6 +1,7 @@
 use crate::model::policy::{ConstraintFile, PerformanceConstraints};
 use crate::model::project::ConstraintEntry;
 use crate::tui::app::App;
+use crate::util::text::truncate_display_ellipsis;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
@@ -58,7 +59,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
                     Span::styled(rule.severity.clone(), sev_style),
                     Span::raw("  "),
                     Span::styled(
-                        truncate(&rule.statement, 60),
+                        truncate_display_ellipsis(&rule.statement, 60),
                         Style::default().fg(Color::DarkGray),
                     ),
                 ]));
@@ -145,13 +146,5 @@ fn severity_style(severity: &str) -> Style {
         "medium" => Style::default().fg(Color::Blue),
         "low" => Style::default().fg(Color::DarkGray),
         _ => Style::default(),
-    }
-}
-
-fn truncate(s: &str, max: usize) -> String {
-    if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max - 3])
     }
 }
