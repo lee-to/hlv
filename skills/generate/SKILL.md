@@ -353,7 +353,7 @@ Update `project.yaml` (schema: `schema/project-schema.json`) with stack info if 
   ```
   Valid component types: `service`, `library`, `cli`, `worker`, `database`, `cache`, `queue`, `gateway`. Valid dependency types: `framework`, `library`, `runtime`, `tool`.
 
-Also update `project.yaml -> artifact_graph.code_ownership` when generated code/test/doc ownership can be inferred from contracts, plans, or explicit artifact text. Keep document-to-document relations in Markdown frontmatter; keep path-based code ownership in `project.yaml`.
+Also update `project.yaml -> artifact_graph.code_ownership` when generated code/test/doc ownership can be inferred from contracts, plans, or explicit artifact text. Keep document-to-document relations in Markdown frontmatter; keep path-based code ownership in `project.yaml`. Any `code-*` or `implements` ownership path must stay under `project.yaml -> paths.llm.src`; any `tests-*` or `verifies` ownership path must stay under `paths.llm.tests`, otherwise `hlv check` emits `MAP-080`/`MAP-081`.
 
 After adding or changing artifact frontmatter, run `hlv artifacts sync` to materialize missing `code-*`, `tests-*`, `docs-*`, and `clients-*` ownership stubs in `project.yaml`, then fill concrete paths when they are known.
 
@@ -398,5 +398,6 @@ If contracts already exist in `{MID}/contracts/`, switch to incremental mode aut
 ## Cleanup
 
 After the skill completes:
-1. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing.
-2. Suggest the user run `/clear` to free up context window before the next skill.
+1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
+2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If CI parity is needed, run `hlv check --strict`.
+3. Suggest the user run `/clear` to free up context window before the next skill.

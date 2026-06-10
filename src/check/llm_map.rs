@@ -8,7 +8,7 @@ use crate::model::project::LlmPaths;
 /// Validate llm/map.yaml:
 /// 1. Forward: every entry in map exists on disk (MAP-010)
 /// 2. Reverse: every file in tracked dirs exists in map (MAP-020)
-/// 3. Path isolation: llm-layer entries must be inside configured paths (MAP-030)
+/// 3. Path isolation: llm-layer entries must be inside configured paths (MAP-080/MAP-081)
 pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let full_path = root.join(map_rel);
@@ -71,7 +71,7 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
         format!("Forward: {}/{} entries exist on disk", found, total),
     ));
 
-    // --- Path isolation: llm-layer entries must be inside configured paths (MAP-030) ---
+    // --- Path isolation: llm-layer entries must be inside configured paths (MAP-080/MAP-081) ---
     let llm_src = normalize(&llm_paths.src);
     let llm_tests = llm_paths.tests.as_deref().map(normalize);
 
@@ -80,19 +80,27 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
             continue;
         }
         let norm_path = normalize(&entry.path);
-        let inside_src = norm_path.starts_with(&llm_src);
-        let inside_tests = llm_tests.as_ref().is_some_and(|t| norm_path.starts_with(t));
+        let inside_src = is_under(&norm_path, &llm_src);
+        let inside_tests = llm_tests.as_ref().is_some_and(|t| is_under(&norm_path, t));
 
         if !inside_src && !inside_tests {
-            let expected = match &llm_tests {
-                Some(t) => format!("{}, {}", llm_paths.src, t),
-                None => llm_paths.src.clone(),
+            let (code, expected, kind) = if looks_like_test_path(&norm_path) {
+                (
+                    "MAP-081",
+                    llm_paths
+                        .tests
+                        .as_deref()
+                        .unwrap_or("<paths.llm.tests is not configured>"),
+                    "test",
+                )
+            } else {
+                ("MAP-080", llm_paths.src.as_str(), "implementation")
             };
             diags.push(
                 Diagnostic::error(
-                    "MAP-030",
+                    code,
                     format!(
-                        "'{}' is layer:llm but outside configured paths (expected: {})",
+                        "generated {kind} path is outside configured paths.llm root: {} (expected prefix: {})",
                         entry.path, expected,
                     ),
                 )
@@ -244,7 +252,18 @@ fn scan_unlisted(
 }
 
 fn normalize(path: &str) -> String {
-    path.trim_end_matches('/').to_string()
+    path.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+fn is_under(path: &str, root: &str) -> bool {
+    path == root || path.starts_with(&format!("{root}/"))
+}
+
+fn looks_like_test_path(path: &str) -> bool {
+    path.split('/').any(|part| matches!(part, "test" | "tests"))
+        || path.contains(".test.")
+        || path.contains(".spec.")
+        || path.contains("_test.")
 }
 
 #[cfg(test)]
@@ -611,7 +630,7 @@ entries:
         };
 
         let diags = check_llm_map(root, "map.yaml", &paths);
-        let violations: Vec<_> = diags.iter().filter(|d| d.code == "MAP-030").collect();
+        let violations: Vec<_> = diags.iter().filter(|d| d.code == "MAP-080").collect();
         assert_eq!(violations.len(), 1);
         assert!(violations[0]
             .message
@@ -648,8 +667,10 @@ entries:
 
         let diags = check_llm_map(root, "map.yaml", &default_llm_paths());
         assert!(
-            !diags.iter().any(|d| d.code == "MAP-030"),
-            "files inside configured paths should not trigger MAP-030"
+            !diags
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "MAP-080" | "MAP-081")),
+            "files inside configured paths should not trigger MAP isolation diagnostics"
         );
     }
 
@@ -676,8 +697,10 @@ entries:
 
         let diags = check_llm_map(root, "map.yaml", &default_llm_paths());
         assert!(
-            !diags.iter().any(|d| d.code == "MAP-030"),
-            "human layer should not trigger MAP-030"
+            !diags
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "MAP-080" | "MAP-081")),
+            "human layer should not trigger MAP isolation diagnostics"
         );
     }
 
@@ -711,8 +734,10 @@ entries:
 
         let diags = check_llm_map(root, "map.yaml", &paths);
         assert!(
-            !diags.iter().any(|d| d.code == "MAP-030"),
-            "file inside custom configured path should not trigger MAP-030"
+            !diags
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "MAP-080" | "MAP-081")),
+            "file inside custom configured path should not trigger MAP isolation diagnostics"
         );
     }
 }

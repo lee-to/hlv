@@ -5,38 +5,79 @@ use anyhow::Result;
 use colored::Colorize;
 
 use super::style;
-use crate::check::{self, Diagnostic};
+use crate::check::{self, Diagnostic, Severity};
 use crate::model::contract_md::ContractMd;
 use crate::model::contract_yaml::ContractYaml;
 use crate::model::glossary::Glossary;
 use crate::model::milestone::MilestoneMap;
 use crate::model::policy::GatesPolicy;
-use crate::model::project::{ContractEntry, ContractStatus, ProjectMap};
+use crate::model::project::{ContractEntry, ContractStatus, ProjectMap, Strictness};
+use crate::model::waiver::{Waiver, WaiverFile};
 
-pub fn run(project_root: &Path, watch: bool, json: bool) -> Result<()> {
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CheckOptions {
+    pub strict: bool,
+    pub with_waivers: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CheckReport {
+    pub diagnostics: Vec<Diagnostic>,
+    pub waived: Vec<WaivedDiagnostic>,
+    pub errors: usize,
+    pub warnings: usize,
+    pub infos: usize,
+    pub exit_code: i32,
+    pub strictness: Strictness,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WaivedDiagnostic {
+    pub diagnostic: Diagnostic,
+    pub waiver: Waiver,
+}
+
+pub fn run(
+    project_root: &Path,
+    watch: bool,
+    json: bool,
+    strict: bool,
+    with_waivers: bool,
+) -> Result<()> {
+    let options = CheckOptions {
+        strict,
+        with_waivers,
+    };
     if json {
-        let (diags, code) = get_check_diagnostics(project_root)?;
+        let report = get_check_report(project_root, options)?;
         let output = serde_json::json!({
-            "diagnostics": diags.iter().map(|d| serde_json::json!({
-                "code": d.code,
-                "severity": format!("{:?}", d.severity).to_lowercase(),
-                "message": d.message,
-                "file": d.file,
-            })).collect::<Vec<_>>(),
-            "errors": diags.iter().filter(|d| matches!(d.severity, check::Severity::Error)).count(),
-            "warnings": diags.iter().filter(|d| matches!(d.severity, check::Severity::Warning)).count(),
-            "exit_code": code,
+            "diagnostics": report.diagnostics,
+            "waived": report.waived,
+            "errors": report.errors,
+            "warnings": report.warnings,
+            "infos": report.infos,
+            "strictness": report.strictness,
+            "exit_code": report.exit_code,
         });
         println!("{}", serde_json::to_string_pretty(&output)?);
-        std::process::exit(code);
+        std::process::exit(report.exit_code);
     }
 
-    let code = run_checks(project_root)?;
+    let report = get_check_report(project_root, options)?;
+    print_check_report(&report);
+    let mut code = report.exit_code;
+
+    if code == 0 && report.strictness != Strictness::Relaxed {
+        let (_, gate_failures, _) = super::gates::run_gate_commands(project_root, None)?;
+        if gate_failures > 0 {
+            code = 1;
+        }
+    }
 
     if watch {
         style::hint("Watching for changes... (Ctrl+C to stop)");
         println!();
-        watch_loop(project_root)?;
+        watch_loop(project_root, options)?;
     } else {
         std::process::exit(code);
     }
@@ -46,6 +87,53 @@ pub fn run(project_root: &Path, watch: bool, json: bool) -> Result<()> {
 
 /// Get all diagnostics without printing — for JSON output
 pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
+    let report = get_check_report(root, CheckOptions::default())?;
+    Ok((report.diagnostics, report.exit_code))
+}
+
+pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckReport> {
+    let strictness = effective_strictness(root, options.strict);
+    let mut all_diags = collect_diagnostics(root, &strictness)?;
+
+    if strictness == Strictness::Strict {
+        promote_warnings_to_errors(&mut all_diags);
+    }
+
+    let mut waived = Vec::new();
+    if options.with_waivers {
+        let mut waiver_diags = apply_waivers(root, &mut all_diags, &mut waived);
+        if strictness == Strictness::Strict {
+            promote_warnings_to_errors(&mut waiver_diags);
+        }
+        all_diags.extend(waiver_diags);
+    }
+
+    let errors = all_diags
+        .iter()
+        .filter(|d| matches!(d.severity, Severity::Error))
+        .count();
+    let warnings = all_diags
+        .iter()
+        .filter(|d| matches!(d.severity, Severity::Warning))
+        .count();
+    let infos = all_diags
+        .iter()
+        .filter(|d| matches!(d.severity, Severity::Info))
+        .count();
+    let exit_code = check::exit_code(&all_diags);
+
+    Ok(CheckReport {
+        diagnostics: all_diags,
+        waived,
+        errors,
+        warnings,
+        infos,
+        exit_code,
+        strictness,
+    })
+}
+
+fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagnostic>> {
     let mut all_diags: Vec<Diagnostic> = Vec::new();
 
     let project_diags = check::project_map::check_project_map(root);
@@ -53,20 +141,30 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
     all_diags.extend(project_diags);
 
     if has_prj_fatal {
-        let code = check::exit_code(&all_diags);
-        return Ok((all_diags, code));
+        return Ok(all_diags);
     }
 
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let glossary_path = root.join(&project.paths.human.glossary);
-    let glossary = Glossary::load(&glossary_path).unwrap_or_else(|_| Glossary {
-        schema_version: None,
-        domain: None,
-        types: Default::default(),
-        enums: Default::default(),
-        terms: Default::default(),
-        rules: Vec::new(),
-    });
+    let glossary = match Glossary::load(&glossary_path) {
+        Ok(glossary) => glossary,
+        Err(e) => {
+            if glossary_path.exists() {
+                all_diags.push(
+                    Diagnostic::error("GLO-001", format!("Cannot parse glossary: {e}"))
+                        .with_file(&project.paths.human.glossary),
+                );
+            }
+            Glossary {
+                schema_version: None,
+                domain: None,
+                types: Default::default(),
+                enums: Default::default(),
+                terms: Default::default(),
+                rules: Vec::new(),
+            }
+        }
+    };
 
     let (milestone_info, mst_diags) = load_milestone_info(root);
     all_diags.extend(mst_diags);
@@ -153,12 +251,14 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
 
     if !project.constraints.is_empty() {
         all_diags.extend(check::constraints::check_constraints(root, &project));
-        // CST-050: run rule-level check_commands
-        let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
-        all_diags.extend(cst050);
-        // CST-060: run file-level check_commands
-        let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
-        all_diags.extend(cst060);
+        if strictness != &Strictness::Relaxed {
+            // CST-050: run rule-level check_commands
+            let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
+            all_diags.extend(cst050);
+            // CST-060: run file-level check_commands
+            let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
+            all_diags.extend(cst060);
+        }
     }
 
     {
@@ -177,331 +277,178 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
     all_diags.extend(check::tasks::check_tasks(root));
 
     // Phase-aware downgrade
-    if let Some((milestones, _)) = &milestone_info {
-        if let Some(stage_status) = milestones
-            .current
-            .as_ref()
-            .and_then(|c| {
-                c.stage
-                    .and_then(|sid| c.stages.iter().find(|s| s.id == sid))
-            })
-            .map(|s| &s.status)
-        {
-            check::apply_phase_expectations_stage(&mut all_diags, stage_status);
-        } else {
-            check::apply_phase_expectations(&mut all_diags, &project.status);
-        }
-    } else {
-        check::apply_phase_expectations(&mut all_diags, &project.status);
-    }
-
-    let code = check::exit_code(&all_diags);
-    Ok((all_diags, code))
-}
-
-fn run_checks(root: &Path) -> Result<i32> {
-    style::header("check");
-
-    let mut all_diags: Vec<Diagnostic> = Vec::new();
-
-    // 1. Project map
-    style::section("Project map");
-    let project_diags = check::project_map::check_project_map(root);
-    print_diags(&project_diags);
-    let has_prj_fatal = project_diags.iter().any(|d| d.code == "PRJ-001");
-    all_diags.extend(project_diags);
-
-    // If project.yaml failed to parse, report diagnostics and exit without panic
-    if has_prj_fatal {
-        style::separator();
-        let errors = all_diags
-            .iter()
-            .filter(|d| matches!(d.severity, check::Severity::Error))
-            .count();
-        println!(
-            "\n  {} — {} error(s), 0 warning(s), 0 info",
-            "FAILED".red().bold(),
-            errors
-        );
-        println!();
-        return Ok(1);
-    }
-
-    // Load project for further checks (safe — parse already succeeded above)
-    let project = ProjectMap::load(&root.join("project.yaml"))?;
-    let glossary_path = root.join(&project.paths.human.glossary);
-    let glossary = match Glossary::load(&glossary_path) {
-        Ok(g) => g,
-        Err(e) => {
-            if glossary_path.exists() {
-                let diag = Diagnostic::error("GLO-001", format!("Cannot parse glossary: {}", e))
-                    .with_file(&project.paths.human.glossary);
-                style::section("Glossary");
-                diag.print();
-                all_diags.push(diag);
-            }
-            Glossary {
-                schema_version: None,
-                domain: None,
-                types: Default::default(),
-                enums: Default::default(),
-                terms: Default::default(),
-                rules: Vec::new(),
-            }
-        }
-    };
-
-    // Load milestone info
-    let (milestone_info, mst_diags) = load_milestone_info(root);
-    if !mst_diags.is_empty() {
-        style::section("Milestones");
-        print_diags(&mst_diags);
-    }
-    all_diags.extend(mst_diags);
-    let (contracts, trace_path_str, phase_label) = match &milestone_info {
-        Some((milestones, milestone_id)) => {
-            let ms_contracts = collect_milestone_contracts(root, milestone_id);
-            let ms_trace = format!("human/milestones/{}/traceability.yaml", milestone_id);
-            let stage_label = milestones
+    if strictness != &Strictness::Strict {
+        if let Some((milestones, _)) = &milestone_info {
+            if let Some(stage_status) = milestones
                 .current
                 .as_ref()
                 .and_then(|c| {
                     c.stage
                         .and_then(|sid| c.stages.iter().find(|s| s.id == sid))
                 })
-                .map(|s| format!("stage {} ({})", s.id, s.status))
-                .unwrap_or_else(|| "milestone active".to_string());
-            (ms_contracts, ms_trace, stage_label)
-        }
-        None => {
-            let trace = project
-                .paths
-                .validation
-                .traceability
-                .clone()
-                .unwrap_or_else(|| "validation/traceability.yaml".to_string());
-            (Vec::new(), trace, project.status.to_string())
-        }
-    };
-
-    if let Some((_, milestone_id)) = &milestone_info {
-        style::detail("Milestone", milestone_id);
-    }
-
-    // 2. Contracts
-    style::section("Contracts");
-    let contract_diags = check::contracts::check_contracts(root, &contracts, &glossary);
-    print_diags(&contract_diags);
-    all_diags.extend(contract_diags);
-
-    // 3. Test specs
-    style::section("Test specs");
-    let test_diags = check::validation::check_test_specs(root, &contracts);
-    print_diags(&test_diags);
-    all_diags.extend(test_diags);
-
-    // 4. Traceability
-    style::section("Traceability");
-    if root.join(&trace_path_str).exists() {
-        let trace_diags =
-            check::traceability::check_traceability(root, &trace_path_str, &contracts);
-        print_diags(&trace_diags);
-        all_diags.extend(trace_diags);
-    } else {
-        let diag = check::Diagnostic::info(
-            "TRC-001",
-            format!("Traceability file not found: {}", trace_path_str),
-        )
-        .with_file(&trace_path_str);
-        diag.print();
-        all_diags.push(diag);
-    }
-
-    // 5. Plan
-    style::section("Plan");
-    if let Some((_, milestone_id)) = &milestone_info {
-        let plan_diags = check::plan::check_stage_plans(root, milestone_id, &contracts);
-        print_diags(&plan_diags);
-        all_diags.extend(plan_diags);
-    } else {
-        style::ok("no plan to validate");
-    }
-
-    // 6. Stack
-    if let Some(ref stack) = project.stack {
-        style::section("Stack");
-        let stack_diags = check::stack::check_stack(stack);
-        print_diags(&stack_diags);
-        all_diags.extend(stack_diags);
-    }
-
-    style::section("Artifacts");
-    let artifact_diags = check::artifacts::check_artifacts(root, &project);
-    print_diags(&artifact_diags);
-    all_diags.extend(artifact_diags);
-
-    // 7. Code traceability (@hlv markers)
-    {
-        style::section("Code traceability");
-        let tests_path = project.paths.llm.tests.as_deref();
-        let code_diags = check::code_trace::check_code_trace(
-            root,
-            &contracts,
-            &project.constraints,
-            &project.paths.llm.src,
-            tests_path,
-            project.features.hlv_markers,
-        );
-        print_diags(&code_diags);
-        all_diags.extend(code_diags);
-    }
-
-    // 7b. Security attention markers (@hlv:sec)
-    {
-        let sec_diags = check::sec_markers::check_sec_markers(
-            root,
-            &project.paths.llm.src,
-            project.features.security_markers,
-        );
-        if !sec_diags.is_empty() {
-            style::section("Security markers");
-            print_diags(&sec_diags);
-        }
-        all_diags.extend(sec_diags);
-    }
-
-    // 8. LLM map (llm/map.yaml)
-    if let Some(ref map_path) = project.paths.llm.map {
-        style::section("LLM map");
-        let map_diags = check::llm_map::check_llm_map(root, map_path, &project.paths.llm);
-        print_diags(&map_diags);
-        all_diags.extend(map_diags);
-    }
-
-    // 9. Constraints validation
-    if !project.constraints.is_empty() {
-        style::section("Constraints");
-        let cst_diags = check::constraints::check_constraints(root, &project);
-        print_diags(&cst_diags);
-        all_diags.extend(cst_diags);
-
-        // 9b. Constraint check commands (CST-050/060)
-        let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
-        if !cst050.is_empty() {
-            print_diags(&cst050);
-        }
-        all_diags.extend(cst050);
-
-        let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
-        if !cst060.is_empty() {
-            print_diags(&cst060);
-        }
-        all_diags.extend(cst060);
-    }
-
-    // 10. Gates policy (parse validation)
-    {
-        let gates_path = root.join(&project.paths.validation.gates_policy);
-        if gates_path.exists() {
-            if let Err(e) = GatesPolicy::load(&gates_path) {
-                style::section("Gates policy");
-                let diag =
-                    Diagnostic::error("GAT-001", format!("Cannot parse gates-policy.yaml: {}", e))
-                        .with_file(&project.paths.validation.gates_policy);
-                diag.print();
-                all_diags.push(diag);
+                .map(|s| &s.status)
+            {
+                check::apply_phase_expectations_stage(&mut all_diags, stage_status);
+            } else {
+                check::apply_phase_expectations(&mut all_diags, &project.status);
             }
-        }
-    }
-
-    // 11. Task diagnostics (TSK-010..050)
-    {
-        let task_diags = check::tasks::check_tasks(root);
-        if !task_diags.is_empty() {
-            style::section("Tasks");
-            print_diags(&task_diags);
-        }
-        all_diags.extend(task_diags);
-    }
-
-    // Phase-aware downgrade
-    let downgraded = if let Some((milestones, _)) = &milestone_info {
-        // Use stage status for milestone mode
-        if let Some(stage_status) = milestones
-            .current
-            .as_ref()
-            .and_then(|c| {
-                c.stage
-                    .and_then(|sid| c.stages.iter().find(|s| s.id == sid))
-            })
-            .map(|s| &s.status)
-        {
-            check::apply_phase_expectations_stage(&mut all_diags, stage_status)
         } else {
-            check::apply_phase_expectations(&mut all_diags, &project.status)
+            check::apply_phase_expectations(&mut all_diags, &project.status);
         }
-    } else {
-        check::apply_phase_expectations(&mut all_diags, &project.status)
+    }
+
+    Ok(all_diags)
+}
+
+fn effective_strictness(root: &Path, strict: bool) -> Strictness {
+    if strict {
+        return Strictness::Strict;
+    }
+    ProjectMap::load(&root.join("project.yaml"))
+        .ok()
+        .and_then(|project| project.validation.map(|validation| validation.strictness))
+        .unwrap_or_default()
+}
+
+fn promote_warnings_to_errors(diags: &mut [Diagnostic]) {
+    for diag in diags {
+        if matches!(diag.severity, Severity::Warning) {
+            diag.severity = Severity::Error;
+            diag.message = format!("{} (strict mode)", diag.message);
+        }
+    }
+}
+
+fn apply_waivers(
+    root: &Path,
+    diags: &mut Vec<Diagnostic>,
+    waived: &mut Vec<WaivedDiagnostic>,
+) -> Vec<Diagnostic> {
+    let waiver_path = root.join("validation/waivers.yaml");
+    if !waiver_path.exists() {
+        return Vec::new();
+    }
+
+    let file = match WaiverFile::load(&waiver_path) {
+        Ok(file) => file,
+        Err(e) => {
+            return vec![Diagnostic::error(
+                "WVR-001",
+                format!("Cannot parse validation/waivers.yaml: {e}"),
+            )
+            .with_file("validation/waivers.yaml")];
+        }
     };
 
-    // Summary
+    let mut waiver_diags = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let today = chrono::Local::now().date_naive();
+
+    for waiver in file.waivers {
+        let key = (waiver.code.to_ascii_uppercase(), waiver.file.clone());
+        if !seen.insert(key) {
+            waiver_diags.push(
+                Diagnostic::warning(
+                    "WVR-010",
+                    format!("Duplicate waiver for {} in {}", waiver.code, waiver.file),
+                )
+                .with_file("validation/waivers.yaml"),
+            );
+            continue;
+        }
+
+        if waiver.reason.trim().is_empty() {
+            waiver_diags.push(
+                Diagnostic::error(
+                    "WVR-011",
+                    format!(
+                        "Waiver for {} in {} has empty reason",
+                        waiver.code, waiver.file
+                    ),
+                )
+                .with_file("validation/waivers.yaml"),
+            );
+            continue;
+        }
+
+        if waiver.expires < today {
+            waiver_diags.push(
+                Diagnostic::warning(
+                    "WVR-020",
+                    format!(
+                        "Expired waiver for {} in {} expired on {}",
+                        waiver.code, waiver.file, waiver.expires
+                    ),
+                )
+                .with_file("validation/waivers.yaml"),
+            );
+            continue;
+        }
+
+        if let Some(pos) = diags.iter().position(|diag| {
+            diag.code.eq_ignore_ascii_case(&waiver.code)
+                && diag.file.as_deref() == Some(waiver.file.as_str())
+        }) {
+            let diagnostic = diags.remove(pos);
+            waived.push(WaivedDiagnostic { diagnostic, waiver });
+        } else {
+            waiver_diags.push(
+                Diagnostic::warning(
+                    "WVR-030",
+                    format!(
+                        "Waiver for {} in {} did not match any diagnostic",
+                        waiver.code, waiver.file
+                    ),
+                )
+                .with_file("validation/waivers.yaml"),
+            );
+        }
+    }
+
+    waiver_diags
+}
+
+fn print_check_report(report: &CheckReport) {
+    style::header("check");
+    style::detail("strictness", &report.strictness.to_string());
+    style::section("Diagnostics");
+    if report.diagnostics.is_empty() {
+        style::ok("all checks passed");
+    } else {
+        for diag in &report.diagnostics {
+            diag.print();
+        }
+    }
+
+    if !report.waived.is_empty() {
+        style::section("Waived diagnostics");
+        for item in &report.waived {
+            let file = item.diagnostic.file.as_deref().unwrap_or("-");
+            println!(
+                "    {} [{}] {} {} ({}, expires {})",
+                "·".dimmed(),
+                item.diagnostic.code.dimmed(),
+                item.diagnostic.message,
+                file.dimmed(),
+                item.waiver.reason.dimmed(),
+                item.waiver.expires
+            );
+        }
+    }
+
     style::separator();
-
-    println!("  phase: {}", phase_label.bold());
-
-    let errors = all_diags
-        .iter()
-        .filter(|d| matches!(d.severity, check::Severity::Error))
-        .count();
-    let warnings = all_diags
-        .iter()
-        .filter(|d| matches!(d.severity, check::Severity::Warning))
-        .count();
-    let infos = all_diags
-        .iter()
-        .filter(|d| matches!(d.severity, check::Severity::Info))
-        .count();
-
-    let code = check::exit_code(&all_diags);
-    let status = if code == 0 && warnings > 0 {
+    let status = if report.exit_code == 0 && report.warnings > 0 {
         "PASSED".yellow().bold()
-    } else if code == 0 {
+    } else if report.exit_code == 0 {
         "PASSED".green().bold()
     } else {
         "FAILED".red().bold()
     };
-
     println!(
         "\n  {} — {} error(s), {} warning(s), {} info",
-        status, errors, warnings, infos
+        status, report.errors, report.warnings, report.infos
     );
-    if downgraded > 0 {
-        style::hint(&format!(
-            "{} warning(s) downgraded to info (expected at {} phase)",
-            downgraded, project.status
-        ));
-    }
     println!();
-
-    // Run gate commands if any are configured
-    if code == 0 {
-        let (_, gate_failures, _) = super::gates::run_gate_commands(root, None)?;
-        if gate_failures > 0 {
-            return Ok(1);
-        }
-    }
-
-    Ok(code)
-}
-
-fn print_diags(diags: &[Diagnostic]) {
-    if diags.is_empty() {
-        style::ok("all checks passed");
-    } else {
-        for d in diags {
-            d.print();
-        }
-    }
 }
 
 /// Load milestone info if milestones.yaml exists with a current milestone.
@@ -652,7 +599,7 @@ mod tests {
     }
 }
 
-fn watch_loop(root: &Path) -> Result<()> {
+fn watch_loop(root: &Path, options: CheckOptions) -> Result<()> {
     use notify::{RecursiveMode, Watcher};
 
     let (tx, rx) = mpsc::channel();
@@ -691,7 +638,7 @@ fn watch_loop(root: &Path) -> Result<()> {
             "↻".blue(),
             now
         );
-        if let Err(e) = run_checks(root) {
+        if let Err(e) = get_check_report(root, options).map(|report| print_check_report(&report)) {
             style::fatal(&style::format_error(&e));
         }
     }

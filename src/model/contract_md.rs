@@ -300,7 +300,7 @@ mod tests {
         .unwrap();
         let c = ContractMd::from_markdown(&text);
         assert_eq!(c.id, "order.create");
-        assert_eq!(c.version, "1.2.0");
+        assert_eq!(c.version, "1.0.0");
         assert_eq!(c.owner.as_deref(), Some("commerce"));
         assert!(!c.sources.is_empty());
         assert!(!c.intent.is_empty());

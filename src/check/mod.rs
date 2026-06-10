@@ -15,6 +15,7 @@ use colored::Colorize;
 
 use crate::model::milestone::StageStatus;
 use crate::model::project::ProjectStatus;
+use crate::util::display_width::truncate_display_width;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -68,15 +69,16 @@ impl Diagnostic {
             Severity::Info => ("·".dimmed(), "INF".dimmed()),
         };
         let loc = match &self.file {
-            Some(f) => format!(" {}", f.dimmed()),
+            Some(f) => format!(" {}", truncate_display_width(f, 80).dimmed()),
             None => String::new(),
         };
+        let message = truncate_display_width(&self.message, 120);
         println!(
             "    {} {} [{}] {}{}",
             icon,
             label,
             self.code.dimmed(),
-            self.message,
+            message,
             loc
         );
     }

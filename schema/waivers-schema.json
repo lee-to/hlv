@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-waivers-schema",
+  "title": "HLV validation/waivers.yaml",
+  "description": "Schema for explicit, expiring diagnostic waivers. hlv check applies this file only with --with-waivers.",
+  "type": "object",
+  "required": ["waivers"],
+  "properties": {
+    "waivers": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["code", "file", "reason", "expires"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z]+-[0-9]{3}$"
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expires": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

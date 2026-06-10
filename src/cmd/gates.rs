@@ -12,6 +12,7 @@ use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
 use crate::util::command_parser::{gate_command_failure_reason, parse_portable_command};
 use crate::util::cwd::ensure_existing_cwd;
+use crate::util::display_width::{pad_display_width, truncate_display_width};
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct GateCommandRunSummary {
@@ -71,40 +72,44 @@ pub fn run_show(project_root: &Path) -> Result<()> {
 
     // Gate definitions
     println!(
-        "  {:<25} {:<22} {:<10} {:<8} {:<10} {}",
-        "Gate".bold(),
-        "Type".bold(),
-        "Mandatory".bold(),
-        "Enabled".bold(),
-        "Cwd".bold(),
+        "  {} {} {} {} {} {}",
+        table_cell("Gate", 25).bold(),
+        table_cell("Type", 22).bold(),
+        table_cell("Mandatory", 10).bold(),
+        table_cell("Enabled", 8).bold(),
+        table_cell("Cwd", 10).bold(),
         "Command".bold()
     );
     println!("  {}", "─".repeat(100));
 
     for gate in &policy.gates {
-        let mandatory = if gate.mandatory {
-            "yes".green()
-        } else {
-            "no".dimmed()
-        };
-        let enabled = if gate.enabled {
-            "yes".green()
-        } else {
-            "off".dimmed()
-        };
         let cwd = gate.cwd.as_deref().unwrap_or(".");
         let command = gate.command.as_deref().unwrap_or("—");
 
+        let gate_id = table_cell(&gate.id, 25);
+        let gate_type = table_cell(&gate.gate_type, 22);
+        let cwd = table_cell(cwd, 10);
+        let mandatory = table_cell(if gate.mandatory { "yes" } else { "no" }, 10);
+        let enabled = table_cell(if gate.enabled { "yes" } else { "off" }, 8);
+
         println!(
-            "  {:<25} {:<22} {:<10} {:<8} {:<10} {}",
+            "  {} {} {} {} {} {}",
             if gate.enabled {
-                gate.id.normal()
+                gate_id.normal()
             } else {
-                gate.id.dimmed()
+                gate_id.dimmed()
             },
-            gate.gate_type.normal(),
-            mandatory,
-            enabled,
+            gate_type.normal(),
+            if gate.mandatory {
+                mandatory.green()
+            } else {
+                mandatory.dimmed()
+            },
+            if gate.enabled {
+                enabled.green()
+            } else {
+                enabled.dimmed()
+            },
             cwd.dimmed(),
             if gate.command.is_some() {
                 command.cyan()
@@ -126,6 +131,10 @@ pub fn run_show(project_root: &Path) -> Result<()> {
     );
 
     Ok(())
+}
+
+fn table_cell(s: &str, width: usize) -> String {
+    pad_display_width(&truncate_display_width(s, width), width)
 }
 
 pub fn run_enable(project_root: &Path, gate_id: &str) -> Result<()> {

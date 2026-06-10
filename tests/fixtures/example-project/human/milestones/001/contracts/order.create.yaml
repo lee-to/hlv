@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../../../../schema/contract-schema.json
 id: order.create
-version: 1.2.0
+version: 1.0.0
 owner: commerce
 intent: "Create an order atomically from user basket items."
 

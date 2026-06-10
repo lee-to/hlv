@@ -119,6 +119,7 @@ artifact_graph:
 # --- Validation State ---
 
 validation:
+  strictness: standard
   verify_status: passed     # not_run | passed | failed
   verify_date: "2026-03-05"
   issues:

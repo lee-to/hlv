@@ -96,6 +96,67 @@ pub fn check_artifacts(root: &Path, project: &ProjectMap) -> Vec<Diagnostic> {
     }
 
     diags.extend(check_artifact_markers(root, project));
+    diags.extend(check_artifact_path_isolation(project));
+
+    diags
+}
+
+fn check_artifact_path_isolation(project: &ProjectMap) -> Vec<Diagnostic> {
+    let mut diags = Vec::new();
+    let Some(config) = &project.artifact_graph else {
+        return diags;
+    };
+
+    let llm_src = normalize_path_root(&project.paths.llm.src);
+    let llm_tests = project.paths.llm.tests.as_deref().map(normalize_path_root);
+
+    for (node_id, entry) in &config.code_ownership {
+        let source_owned = node_id.starts_with("code-") || !entry.implements.is_empty();
+        let test_owned = node_id.starts_with("tests-") || !entry.verifies.is_empty();
+
+        for path in &entry.paths {
+            let normalized = normalize_ownership_path(path);
+            if source_owned && !is_under_path(&normalized, &llm_src) {
+                diags.push(
+                    Diagnostic::error(
+                        "MAP-080",
+                        format!(
+                            "generated implementation path is outside paths.llm.src: {} (expected prefix: {})",
+                            path, project.paths.llm.src
+                        ),
+                    )
+                    .with_file("project.yaml"),
+                );
+            }
+
+            if test_owned {
+                match &llm_tests {
+                    Some(prefix) if is_under_path(&normalized, prefix) => {}
+                    Some(_) => diags.push(
+                        Diagnostic::error(
+                            "MAP-081",
+                            format!(
+                                "generated test path is outside paths.llm.tests: {} (expected prefix: {})",
+                                path,
+                                project.paths.llm.tests.as_deref().unwrap_or("")
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                    None => diags.push(
+                        Diagnostic::error(
+                            "MAP-081",
+                            format!(
+                                "generated test path is configured but paths.llm.tests is missing: {}",
+                                path
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                }
+            }
+        }
+    }
 
     diags
 }
@@ -235,6 +296,25 @@ fn collect_files_recursive(dir: &Path, files: &mut BTreeSet<PathBuf>) {
             files.insert(path);
         }
     }
+}
+
+fn normalize_ownership_path(path: &str) -> String {
+    let mut normalized = path.replace('\\', "/");
+    for suffix in ["/**", "/*", "/"] {
+        if let Some(stripped) = normalized.strip_suffix(suffix) {
+            normalized = stripped.to_string();
+            break;
+        }
+    }
+    normalized
+}
+
+fn normalize_path_root(path: &str) -> String {
+    path.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
+fn is_under_path(path: &str, root: &str) -> bool {
+    path == root || path.starts_with(&format!("{root}/"))
 }
 
 fn current_milestone_id(root: &Path) -> Option<String> {

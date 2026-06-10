@@ -71,17 +71,20 @@ $ hlv check
 | **Plan** | DAG without cycles, contract coverage |
 | **Code traceability** | `@hlv` markers in code match contract rules (skipped when `features.hlv_markers: false`) |
 | **Security markers** | `@hlv:sec` attention markers by category (skipped when `features.security_markers: false`) |
-| **LLM map** | every `map.yaml` entry exists on disk |
+| **LLM map** | every `map.yaml` entry exists on disk; generated source/tests stay inside `paths.llm` |
 | **Constraints** | rule IDs, severity validation |
 
-Phase-aware: checks expected at the current phase are automatically downgraded to info.
+Phase-aware: checks expected at the current phase are automatically downgraded to info. Use `hlv check --strict` in CI to promote warnings to errors.
 
 ### Key commands
 
 | Command | What it does |
 |---------|-------------|
 | `hlv init` | Scaffold the full HLV directory structure (asks for feature flags) |
+| `hlv doctor` | Preflight paths, schema compatibility, command portability, cwd values, and rendering |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
+| `hlv explain <CODE>` | Explain a diagnostic and common fixes |
+| `hlv waivers` | List and audit explicit expiring diagnostic waivers |
 | `hlv milestone` | Track progress across milestones |
 | `hlv workflow` | See where you are and what the next step is |
 | `hlv gates` | Enforce quality gates before milestone transitions |

@@ -47,7 +47,7 @@ If no `current` in `milestones.yaml` → tell the user to run `hlv milestone new
 
 Checks that can be performed without LLM — by script or parsing.
 
-Run `hlv check` for automated structural checks. Then verify each area:
+Run `hlv doctor` first for environment/config preflight. Then run `hlv check` for automated structural checks. Do not use `--with-waivers` unless the user explicitly asks to apply existing waivers; waiver files must remain visible and auditable. Then verify each area:
 
 #### 1a. Contract structure
 
@@ -120,12 +120,17 @@ For `project.yaml`:
 
 - [ ] `schema_version` present
 - [ ] All paths in `paths` point to existing directories/files
+- [ ] `validation.strictness`, when present, is one of `relaxed`, `standard`, `strict`
+- [ ] `validation.verify_status` may be omitted; omitted means `not_run`
+- [ ] `validation/waivers.yaml`, when present, uses required `code`, `file`, `reason`, `expires` fields and passes `hlv waivers audit`
 - [ ] Each contract from `contracts` has corresponding file at `path`
 - [ ] Each contract has `test_spec` and file exists
 - [ ] `plan.groups` has no cyclic `depends_on_groups`
 - [ ] Each task in plan references existing contracts
 - [ ] `stack` (if present) passes STK-* checks: no empty ids, no duplicates, languages present
 - [ ] `glossary_types` match keys in `human/glossary.yaml`
+- [ ] Generated implementation paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.src` (`MAP-080`)
+- [ ] Generated test paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.tests` (`MAP-081`)
 
 #### 1f. Stack consistency
 
@@ -280,6 +285,8 @@ Typical cycle:
 ## Cleanup
 
 After the skill completes:
-1. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing.
-2. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
-3. Suggest the user run `/clear` to free up context window before the next skill.
+1. Run `hlv doctor` to validate the environment and configuration.
+2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
+3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
+4. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
+5. Suggest the user run `/clear` to free up context window before the next skill.

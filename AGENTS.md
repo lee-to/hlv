@@ -77,12 +77,20 @@ No partial changes. If you add a field to `project.yaml`, all five layers must r
 |--------|--------|-------------|
 | PRJ | project_map | Project map (project.yaml) |
 | CTR | contracts, code_trace | Contract markdown + YAML; `@hlv` code traceability markers |
+| CST | constraints | Constraint files and constraint check commands |
 | TST | validation | Test specifications |
 | TRC | traceability | Traceability mappings |
 | PLN | plan | Implementation plan |
 | STK | stack | Tech stack components |
 | ART | artifacts | Artifact dependency graph, impact, owners, references |
+| MAP | llm_map, artifacts | `llm/map.yaml` consistency and `paths.llm` isolation |
 | MST | milestone | Milestone tracking (milestones.yaml) |
+| TSK | tasks | Stage task tracking diagnostics |
+| SEC | sec_markers | `@hlv:sec` security attention markers |
+| GAT | gates | Gates policy parse/execution diagnostics |
+| GLO | glossary | Glossary parse diagnostics |
+| DOC | doctor | Preflight environment and configuration diagnostics |
+| WVR | waivers | Diagnostic waiver parse/audit/application diagnostics |
 
 When adding a new validation domain, register a new prefix here.
 

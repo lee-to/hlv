@@ -1,7 +1,7 @@
 use crate::model::policy::{ConstraintFile, PerformanceConstraints};
 use crate::model::project::ConstraintEntry;
 use crate::tui::app::App;
-use crate::util::text::truncate_display_ellipsis;
+use crate::util::display_width::truncate_display_width;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
@@ -59,7 +59,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
                     Span::styled(rule.severity.clone(), sev_style),
                     Span::raw("  "),
                     Span::styled(
-                        truncate_display_ellipsis(&rule.statement, 60),
+                        truncate_display_width(&rule.statement, 60),
                         Style::default().fg(Color::DarkGray),
                     ),
                 ]));
