@@ -43,6 +43,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 flate2 = "1"
 tar = "0.4"
 zip = "2"
+unicode-width = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
