@@ -8,6 +8,8 @@ use super::style;
 use crate::model::llm_map::{LlmMap, MapEntry, MapEntryKind};
 use crate::model::policy::{ConstraintFile, ConstraintRule, PerformanceConstraints};
 use crate::model::project::{ConstraintEntry, ProjectMap};
+use crate::util::command_parser::{check_command_failure_reason, parse_portable_command};
+use crate::util::cwd::ensure_existing_cwd;
 
 pub fn run_list(project_root: &Path, severity: Option<&str>, json: bool) -> Result<()> {
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
@@ -387,6 +389,15 @@ pub fn run_add_rule(
                 el
             );
         }
+    }
+
+    if let Some(cmd) = check_command {
+        parse_portable_command(cmd)
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!(check_command_failure_reason(&e)))?;
+    }
+    if let Some(cwd) = check_cwd {
+        ensure_existing_cwd(project_root, Some(cwd), "check_cwd")?;
     }
 
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;

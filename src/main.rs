@@ -662,9 +662,22 @@ fn run(cli: Cli) -> Result<()> {
                 hlv::cmd::gates::run_clear_cwd(&project_root, &id)
             }
             Some(GatesAction::Run { id }) => {
-                let (_, failed, _) =
-                    hlv::cmd::gates::run_gate_commands(&project_root, id.as_deref())?;
-                if failed > 0 {
+                let summary = if json {
+                    let summary = hlv::cmd::gates::run_gate_commands_with_results(
+                        &project_root,
+                        id.as_deref(),
+                        false,
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&summary)?);
+                    summary
+                } else {
+                    hlv::cmd::gates::run_gate_commands_with_results(
+                        &project_root,
+                        id.as_deref(),
+                        true,
+                    )?
+                };
+                if summary.failed > 0 {
                     std::process::exit(1);
                 }
                 Ok(())

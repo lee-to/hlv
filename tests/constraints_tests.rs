@@ -307,6 +307,64 @@ fn constraints_add_rule_with_check_fields() {
 }
 
 #[test]
+fn constraints_add_rule_rejects_invalid_check_command_and_does_not_save() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    hlv::cmd::constraints::run_add(root, "badcmd", None, None, "global").unwrap();
+
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "badcmd",
+        "bad_check",
+        "low",
+        "Invalid shell syntax must be rejected",
+        Some("cargo test && cargo clippy"),
+        None,
+        None,
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("unsupported check_command syntax '&&'"),
+        "{err}"
+    );
+
+    let cf = hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/badcmd.yaml"))
+        .unwrap();
+    assert!(cf.rules.is_empty());
+}
+
+#[test]
+fn constraints_add_rule_rejects_missing_check_cwd_and_does_not_save() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let pass_cmd = passing_command();
+
+    hlv::cmd::constraints::run_add(root, "badcwd", None, None, "global").unwrap();
+
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "badcwd",
+        "missing_cwd",
+        "low",
+        "Missing check_cwd must be rejected",
+        Some(&pass_cmd),
+        Some("apps/backend"),
+        None,
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert_eq!(err, "check_cwd does not exist: apps/backend");
+
+    let cf = hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/badcwd.yaml"))
+        .unwrap();
+    assert!(cf.rules.is_empty());
+}
+
+#[test]
 fn cst050_check_command_success() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
@@ -333,6 +391,45 @@ fn cst050_check_command_success() {
     assert!(diags.is_empty(), "expected no diags: {:?}", diags);
     assert_eq!(results.len(), 1);
     assert!(results[0].passed);
+}
+
+#[test]
+fn cst050_missing_check_cwd_reports_clear_failure() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let pass_cmd = passing_command();
+
+    hlv::cmd::constraints::run_add(root, "runtimecwd", None, None, "global").unwrap();
+    hlv::cmd::constraints::run_add_rule(
+        root,
+        "runtimecwd",
+        "missing_runtime_cwd",
+        "high",
+        "Runtime check_cwd diagnostics should be explicit",
+        Some(&pass_cmd),
+        None,
+        None,
+    )
+    .unwrap();
+
+    let cf_path = root.join("human/constraints/runtimecwd.yaml");
+    let mut cf = hlv::model::policy::ConstraintFile::load(&cf_path).unwrap();
+    cf.rules[0].check_cwd = Some("apps/backend".to_string());
+    cf.save(&cf_path).unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) =
+        hlv::check::constraints::run_constraint_checks(root, &project, None, None);
+
+    assert_eq!(results.len(), 1);
+    assert!(!results[0].passed);
+    assert_eq!(results[0].message, "check_cwd does not exist: apps/backend");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].code, "CST-050");
+    assert!(diags[0]
+        .message
+        .contains("check_cwd does not exist: apps/backend"));
 }
 
 #[test]
@@ -1038,6 +1135,35 @@ fn cst060_file_level_check_cwd() {
     let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
     assert!(diags.is_empty(), "expected pass: {:?}", diags);
     assert!(results[0].passed);
+}
+
+#[test]
+fn cst060_missing_file_level_check_cwd_reports_clear_failure() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let pass_cmd = passing_command();
+
+    hlv::cmd::constraints::run_add(root, "filebadcwd", None, None, "global").unwrap();
+
+    let cf_path = root.join("human/constraints/filebadcwd.yaml");
+    let content = format!(
+        "id: constraints.filebadcwd.global\nversion: \"1.0.0\"\ncheck_command: {}\ncheck_cwd: apps/backend\nrules: []\n",
+        yaml_double_quoted(&pass_cmd)
+    );
+    std::fs::write(&cf_path, content).unwrap();
+
+    let project = hlv::model::project::ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let (diags, results) = hlv::check::constraints::run_file_level_checks(root, &project, None);
+
+    assert_eq!(results.len(), 1);
+    assert!(!results[0].passed);
+    assert_eq!(results[0].message, "check_cwd does not exist: apps/backend");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].code, "CST-060");
+    assert!(diags[0]
+        .message
+        .contains("check_cwd does not exist: apps/backend"));
 }
 
 #[test]

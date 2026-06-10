@@ -5,7 +5,8 @@ use std::time::Duration;
 use crate::check::{Diagnostic, Severity};
 use crate::model::policy::ConstraintFile;
 use crate::model::project::ProjectMap;
-use crate::util::command_parser::{parse_portable_command, CommandParseError};
+use crate::util::command_parser::{check_command_failure_reason, parse_portable_command};
+use crate::util::cwd::ensure_existing_cwd;
 
 /// Default timeout for check_command execution (60 seconds).
 const CHECK_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
@@ -169,12 +170,8 @@ pub fn run_constraint_checks(
                 None => continue,
             };
 
-            let work_dir = match &rule.check_cwd {
-                Some(rel) => root.join(rel),
-                None => root.to_path_buf(),
-            };
-
-            let (passed, message) = execute_check_command(check_cmd, &work_dir);
+            let (passed, message) =
+                execute_check_command(check_cmd, root, rule.check_cwd.as_deref());
 
             if !passed {
                 let sev = check_failure_severity(&rule.severity, rule.error_level.as_deref());
@@ -234,12 +231,7 @@ pub fn run_file_level_checks(
             None => continue,
         };
 
-        let work_dir = match &cf.check_cwd {
-            Some(rel) => root.join(rel),
-            None => root.to_path_buf(),
-        };
-
-        let (passed, message) = execute_check_command(check_cmd, &work_dir);
+        let (passed, message) = execute_check_command(check_cmd, root, cf.check_cwd.as_deref());
 
         if !passed {
             let diag_msg = format!(
@@ -268,10 +260,15 @@ pub fn run_file_level_checks(
 }
 
 /// Execute a check command and return (passed, message).
-fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
+fn execute_check_command(cmd: &str, root: &Path, check_cwd: Option<&str>) -> (bool, String) {
     let parsed = match parse_portable_command(cmd) {
         Ok(parsed) => parsed,
         Err(e) => return (false, check_command_failure_reason(&e)),
+    };
+
+    let work_dir = match ensure_existing_cwd(root, check_cwd, "check_cwd") {
+        Ok((path, _)) => path,
+        Err(e) => return (false, e.to_string()),
     };
 
     let child = Command::new(&parsed.program)
@@ -338,19 +335,5 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
             }
             Err(e) => return (false, format!("wait error: {}", e)),
         }
-    }
-}
-
-fn check_command_failure_reason(err: &CommandParseError) -> String {
-    match err {
-        CommandParseError::EmptyCommand => "check_command is empty".to_string(),
-        CommandParseError::MissingProgram => "check_command is missing executable".to_string(),
-        CommandParseError::UnmatchedQuote => {
-            "invalid check_command format (unmatched quote)".to_string()
-        }
-        CommandParseError::UnsupportedSyntax(op) => format!(
-            "unsupported check_command syntax '{}' (use one executable per check_command; shell operators and shell variable expansion are not supported)",
-            op
-        ),
     }
 }

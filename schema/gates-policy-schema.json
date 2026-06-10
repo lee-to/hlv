@@ -76,11 +76,11 @@
         },
         "command": {
           "type": "string",
-          "description": "Portable executable + arguments string to execute this gate (no shell operators, pipelines, or shell variable expansion)"
+          "description": "Portable executable + arguments string to execute this gate (no shell operators, pipelines, or shell variable expansion); CLI set/add commands parse this before saving"
         },
         "cwd": {
           "type": "string",
-          "description": "Working directory for command, relative to project root"
+          "description": "Existing working directory for command, relative to project root; CLI set/add commands verify this before saving"
         },
         "tools": {
           "type": "array",

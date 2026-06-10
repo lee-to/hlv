@@ -28,7 +28,7 @@
     },
     "check_cwd": {
       "type": "string",
-      "description": "Working directory for check_command, relative to project root"
+      "description": "Existing working directory for check_command, relative to project root"
     },
     "rules": {
       "type": "array",
@@ -65,11 +65,11 @@
         },
         "check_command": {
           "type": "string",
-          "description": "Executable command to check this rule (program + args; shell operators and shell variable expansion are not supported)"
+          "description": "Executable command to check this rule (program + args; shell operators and shell variable expansion are not supported); CLI add-rule parses this before saving"
         },
         "check_cwd": {
           "type": "string",
-          "description": "Working directory for check_command, relative to project root"
+          "description": "Existing working directory for check_command, relative to project root; CLI add-rule verifies this before saving"
         },
         "error_level": {
           "type": "string",

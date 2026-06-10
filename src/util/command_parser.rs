@@ -37,6 +37,32 @@ pub fn parse_portable_command(
     Ok(ParsedCommand { program, args })
 }
 
+pub fn gate_command_failure_reason(err: &CommandParseError) -> String {
+    match err {
+        CommandParseError::EmptyCommand => "command is empty".to_string(),
+        CommandParseError::MissingProgram => "missing executable in command".to_string(),
+        CommandParseError::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
+        CommandParseError::UnsupportedSyntax(op) => format!(
+            "unsupported command syntax '{}' (use one executable per gate; shell operators and shell variable expansion are not supported)",
+            op
+        ),
+    }
+}
+
+pub fn check_command_failure_reason(err: &CommandParseError) -> String {
+    match err {
+        CommandParseError::EmptyCommand => "check_command is empty".to_string(),
+        CommandParseError::MissingProgram => "check_command is missing executable".to_string(),
+        CommandParseError::UnmatchedQuote => {
+            "invalid check_command format (unmatched quote)".to_string()
+        }
+        CommandParseError::UnsupportedSyntax(op) => format!(
+            "unsupported check_command syntax '{}' (use one executable per check_command; shell operators and shell variable expansion are not supported)",
+            op
+        ),
+    }
+}
+
 fn split_command_line(command: &str) -> std::result::Result<Vec<String>, CommandParseError> {
     let mut tokens = Vec::new();
     let mut current = String::new();
