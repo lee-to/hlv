@@ -92,6 +92,11 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
         promote_warnings_to_errors(&mut all_diags);
     }
 
+    if check::exit_code(&all_diags) == 0 && strictness != Strictness::Relaxed {
+        let gate_report = super::gates::run_gate_command_report(root, None, false)?;
+        all_diags.extend(gate_report.diagnostics);
+    }
+
     let mut waived = Vec::new();
     if options.with_waivers {
         let mut waiver_diags = apply_waivers(root, &mut all_diags, &mut waived);
@@ -99,11 +104,6 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
             promote_warnings_to_errors(&mut waiver_diags);
         }
         all_diags.extend(waiver_diags);
-    }
-
-    if check::exit_code(&all_diags) == 0 && strictness != Strictness::Relaxed {
-        let gate_report = super::gates::run_gate_command_report(root, None, false)?;
-        all_diags.extend(gate_report.diagnostics);
     }
 
     let errors = all_diags

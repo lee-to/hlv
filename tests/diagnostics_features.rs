@@ -194,6 +194,51 @@ gates:
 }
 
 #[test]
+fn check_with_waivers_can_suppress_gate_command_failures() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    fs::write(
+        tmp.path().join("validation/gates-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: TEST
+gates:
+  - id: GATE-FAIL-001
+    type: test
+    mandatory: true
+    command: definitely-not-a-real-hlv-gate-binary
+"#,
+    )
+    .unwrap();
+    fs::write(
+        tmp.path().join("validation/waivers.yaml"),
+        r#"waivers:
+  - code: GAT-050
+    file: validation/gates-policy.yaml
+    reason: temporary failing gate for migration
+    expires: 2099-01-01
+"#,
+    )
+    .unwrap();
+
+    let report = get_check_report(
+        tmp.path(),
+        CheckOptions {
+            strict: false,
+            with_waivers: true,
+        },
+    )
+    .unwrap();
+
+    assert!(!report.diagnostics.iter().any(|d| d.code == "GAT-050"));
+    assert!(!report.diagnostics.iter().any(|d| d.code == "WVR-030"));
+    assert!(report
+        .waived
+        .iter()
+        .any(|item| item.diagnostic.code == "GAT-050"));
+    assert_eq!(report.exit_code, 0);
+}
+
+#[test]
 fn relaxed_check_report_skips_gate_commands() {
     let tmp = TempDir::new().unwrap();
     write_minimal_project(tmp.path(), Some("relaxed"));
