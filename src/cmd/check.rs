@@ -65,14 +65,7 @@ pub fn run(
 
     let report = get_check_report(project_root, options)?;
     print_check_report(&report);
-    let mut code = report.exit_code;
-
-    if code == 0 && report.strictness != Strictness::Relaxed {
-        let (_, gate_failures, _) = super::gates::run_gate_commands(project_root, None)?;
-        if gate_failures > 0 {
-            code = 1;
-        }
-    }
+    let code = report.exit_code;
 
     if watch {
         style::hint("Watching for changes... (Ctrl+C to stop)");
@@ -106,6 +99,11 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
             promote_warnings_to_errors(&mut waiver_diags);
         }
         all_diags.extend(waiver_diags);
+    }
+
+    if check::exit_code(&all_diags) == 0 && strictness != Strictness::Relaxed {
+        let gate_report = super::gates::run_gate_command_report(root, None, false)?;
+        all_diags.extend(gate_report.diagnostics);
     }
 
     let errors = all_diags

@@ -777,6 +777,7 @@ Important notes:
 | Code | Default Severity | What it checks |
 |-----|---------|--------------|
 | `GAT-001` | error | Cannot parse `validation/gates-policy.yaml` |
+| `GAT-050` | error | Enabled gate command failed during `hlv check` |
 | `GLO-001` | error | Cannot parse `human/glossary.yaml` |
 | `MST-001` | error | Cannot parse `milestones.yaml` |
 

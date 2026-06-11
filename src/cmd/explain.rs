@@ -97,6 +97,13 @@ fn registry() -> &'static [DiagnosticExplanation] {
             fixes: &["fix the implementation", "fix the command or cwd", "split shell pipelines into portable commands"],
         },
         DiagnosticExplanation {
+            code: "GAT-050",
+            title: "Gate command failed",
+            meaning: "An enabled gate command ran during hlv check and returned a failure.",
+            common_causes: &["the implementation failed the gate", "the command cannot start", "the command uses unsupported shell syntax"],
+            fixes: &["fix the failing implementation or test", "fix the gate command or cwd", "use validation.strictness: relaxed only when gate execution should be skipped"],
+        },
+        DiagnosticExplanation {
             code: "MAP-080",
             title: "Generated source outside paths.llm.src",
             meaning: "Generated implementation ownership points outside the configured LLM source directory.",

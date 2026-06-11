@@ -7,6 +7,7 @@ use colored::Colorize;
 use serde_json;
 
 use super::style;
+use crate::check::Diagnostic;
 use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
@@ -252,6 +253,14 @@ pub fn run_show_json(project_root: &Path) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct GateCommandReport {
+    pub passed: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 pub fn run_add(
     project_root: &Path,
     id: &str,
@@ -361,6 +370,37 @@ pub fn run_edit(
 pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result<(u32, u32, u32)> {
     let summary = run_gate_commands_with_results(project_root, filter_id, !style::is_quiet())?;
     Ok((summary.passed, summary.failed, summary.skipped))
+}
+
+/// Run enabled gate commands and return machine-readable diagnostics for failures.
+/// If `emit_output` is false, no progress output is printed.
+pub fn run_gate_command_report(
+    project_root: &Path,
+    filter_id: Option<&str>,
+    emit_output: bool,
+) -> Result<GateCommandReport> {
+    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+    let gates_policy_path = project.paths.validation.gates_policy.clone();
+    let summary = run_gate_commands_with_results(project_root, filter_id, emit_output)?;
+    let diagnostics = summary
+        .results
+        .iter()
+        .filter(|result| matches!(result.status, GateRunStatus::Failed))
+        .map(|result| {
+            Diagnostic::error(
+                "GAT-050",
+                format!("Gate '{}' command failed: {}", result.id, result.reason),
+            )
+            .with_file(&gates_policy_path)
+        })
+        .collect();
+
+    Ok(GateCommandReport {
+        passed: summary.passed,
+        failed: summary.failed,
+        skipped: summary.skipped,
+        diagnostics,
+    })
 }
 
 /// Run gates and return structured per-gate results.
@@ -509,7 +549,6 @@ pub fn run_gate_commands_with_results(
                             command,
                         });
                         if emit_human {
-                            // Show last lines of stderr/stdout for diagnostics
                             let stderr = String::from_utf8_lossy(&output.stderr);
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
                             let output_text = if !stderr.is_empty() {
@@ -573,7 +612,6 @@ pub fn run_gate_commands_with_results(
         );
     }
 
-    // Save gate results to milestones.yaml
     let gate_results: Vec<GateResult> = results
         .iter()
         .map(|result| GateResult {
@@ -599,7 +637,7 @@ fn validate_gate_command(command: &str) -> Result<()> {
 }
 
 fn print_gate_start(gate: &Gate, command: Option<&str>, cwd_label: &str) -> Result<()> {
-    let command_label = command.unwrap_or("—");
+    let command_label = command.unwrap_or("-");
     print!(
         "  {} {} {}",
         gate.id.bold(),

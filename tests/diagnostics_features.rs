@@ -161,6 +161,69 @@ fn check_report_preserves_glossary_parse_errors() {
 }
 
 #[test]
+fn check_report_runs_gate_commands_for_json_and_watch_paths() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    fs::write(
+        tmp.path().join("validation/gates-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: TEST
+gates:
+  - id: GATE-FAIL-001
+    type: test
+    mandatory: true
+    command: definitely-not-a-real-hlv-gate-binary
+"#,
+    )
+    .unwrap();
+
+    let report = get_check_report(
+        tmp.path(),
+        CheckOptions {
+            strict: false,
+            with_waivers: false,
+        },
+    )
+    .unwrap();
+
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == "GAT-050" && matches!(d.severity, Severity::Error)));
+    assert_eq!(report.exit_code, 1);
+}
+
+#[test]
+fn relaxed_check_report_skips_gate_commands() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), Some("relaxed"));
+    fs::write(
+        tmp.path().join("validation/gates-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: TEST
+gates:
+  - id: GATE-FAIL-001
+    type: test
+    mandatory: true
+    command: definitely-not-a-real-hlv-gate-binary
+"#,
+    )
+    .unwrap();
+
+    let report = get_check_report(
+        tmp.path(),
+        CheckOptions {
+            strict: false,
+            with_waivers: false,
+        },
+    )
+    .unwrap();
+
+    assert!(!report.diagnostics.iter().any(|d| d.code == "GAT-050"));
+    assert_eq!(report.strictness, Strictness::Relaxed);
+}
+
+#[test]
 fn check_with_waivers_suppresses_exact_code_and_file_only() {
     let tmp = TempDir::new().unwrap();
     write_minimal_project(tmp.path(), None);
@@ -282,6 +345,14 @@ fn explain_registry_finds_known_code_case_insensitively() {
     assert!(explanation.title.contains("Glossary"));
     assert!(!explanation.common_causes.is_empty());
     assert!(!explanation.fixes.is_empty());
+}
+
+#[test]
+fn explain_registry_finds_gate_command_failure() {
+    let explanation = lookup_diagnostic("gat-050").expect("GAT-050 explanation");
+
+    assert_eq!(explanation.code, "GAT-050");
+    assert!(explanation.title.contains("Gate"));
 }
 
 #[test]
