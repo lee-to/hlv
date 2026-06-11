@@ -27,7 +27,7 @@
     },
     "check_cwd": {
       "type": "string",
-      "description": "Existing working directory for check_command, relative to project root"
+      "description": "Existing working directory for check_command, relative to project root (not absolute; no '..' components)"
     },
     "rules": {
       "type": "array",
@@ -71,7 +71,7 @@
         },
         "check_cwd": {
           "type": "string",
-          "description": "Existing working directory for check_command, relative to project root; CLI add-rule verifies this before saving"
+          "description": "Existing working directory for check_command, relative to project root (not absolute; no '..' components); CLI add-rule verifies this before saving"
         },
         "error_level": {
           "type": "string",

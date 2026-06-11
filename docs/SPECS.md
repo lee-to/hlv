@@ -304,7 +304,7 @@ Each gate has these fields:
 - `mandatory` - whether it blocks the release
 - `enabled` - on/off (default: `true`)
 - `command` - portable executable + arguments string (filled by `/implement`)
-- `cwd` - working directory relative to the project root (for example `llm`)
+- `cwd` - working directory relative to the project root (for example `llm`; absolute paths and `..` components are rejected)
 - `pass_criteria` - pass thresholds
 
 Schema: `schema/gates-policy-schema.json`.
@@ -552,7 +552,7 @@ exceptions:
 | `rules[].statement` | string | Rule wording |
 | `rules[].enforcement[]` | array | Verification methods (`sast`, `integration_test`, `runtime_scan`, etc.) |
 | `rules[].check_command` | string (optional) | Executable command to verify the rule (`program + args`; shell operators like `&&`, `\|`, `;` and shell variable expansion like `$VAR` are not supported) |
-| `rules[].check_cwd` | string (optional) | Working directory for `check_command` (relative to project root; defaults to project root) |
+| `rules[].check_cwd` | string (optional) | Working directory for `check_command` (relative to project root; absolute paths and `..` components are rejected; defaults to project root) |
 | `rules[].error_level` | enum (optional) | Override diagnostic severity: `error`, `warning`, `info`. If unset, mapped from `severity` (`critical`/`high` -> error, `medium`/`low` -> warning) |
 | `exceptions` | object | Exception process (`process`, `max_duration_days`) |
 

@@ -130,6 +130,31 @@ fn gates_set_cwd_rejects_missing_directory_and_does_not_save() {
 }
 
 #[test]
+fn gates_set_cwd_rejects_absolute_directory_and_does_not_save() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let absolute_cwd = root.to_string_lossy();
+
+    let result = hlv::cmd::gates::run_set_cwd(root, "GATE-CONTRACT-001", &absolute_cwd);
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("Gate 'GATE-CONTRACT-001' cwd must be relative to project root"),
+        "{err}"
+    );
+
+    let policy =
+        hlv::model::policy::GatesPolicy::load(&root.join("validation/gates-policy.yaml")).unwrap();
+    let gate = policy
+        .gates
+        .iter()
+        .find(|g| g.id == "GATE-CONTRACT-001")
+        .unwrap();
+    assert!(gate.cwd.is_none());
+}
+
+#[test]
 fn gates_add_rejects_missing_cwd() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
@@ -147,6 +172,33 @@ fn gates_add_rejects_missing_cwd() {
 
     let err = result.unwrap_err().to_string();
     assert_eq!(err, "Gate 'GATE-BAD-CWD' cwd does not exist: apps/backend");
+
+    let policy =
+        hlv::model::policy::GatesPolicy::load(&root.join("validation/gates-policy.yaml")).unwrap();
+    assert!(policy.gates.iter().all(|g| g.id != "GATE-BAD-CWD"));
+}
+
+#[test]
+fn gates_add_rejects_traversal_cwd() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+
+    let result = hlv::cmd::gates::run_add(
+        root,
+        "GATE-BAD-CWD",
+        "custom",
+        false,
+        None,
+        Some("llm/.."),
+        true,
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("Gate 'GATE-BAD-CWD' cwd must be relative to project root"),
+        "{err}"
+    );
 
     let policy =
         hlv::model::policy::GatesPolicy::load(&root.join("validation/gates-policy.yaml")).unwrap();

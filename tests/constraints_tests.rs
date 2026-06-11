@@ -365,6 +365,69 @@ fn constraints_add_rule_rejects_missing_check_cwd_and_does_not_save() {
 }
 
 #[test]
+fn constraints_add_rule_rejects_absolute_check_cwd_and_does_not_save() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let pass_cmd = passing_command();
+    let absolute_cwd = root.to_string_lossy();
+
+    hlv::cmd::constraints::run_add(root, "badcwd", None, None, "global").unwrap();
+
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "badcwd",
+        "absolute_cwd",
+        "low",
+        "Absolute check_cwd must be rejected",
+        Some(&pass_cmd),
+        Some(&absolute_cwd),
+        None,
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("check_cwd must be relative to project root"),
+        "{err}"
+    );
+
+    let cf = hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/badcwd.yaml"))
+        .unwrap();
+    assert!(cf.rules.is_empty());
+}
+
+#[test]
+fn constraints_add_rule_rejects_traversal_check_cwd_and_does_not_save() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    setup_project(root);
+    let pass_cmd = passing_command();
+
+    hlv::cmd::constraints::run_add(root, "badcwd", None, None, "global").unwrap();
+
+    let result = hlv::cmd::constraints::run_add_rule(
+        root,
+        "badcwd",
+        "traversal_cwd",
+        "low",
+        "Traversal check_cwd must be rejected",
+        Some(&pass_cmd),
+        Some("llm/.."),
+        None,
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert!(
+        err.contains("check_cwd must be relative to project root"),
+        "{err}"
+    );
+
+    let cf = hlv::model::policy::ConstraintFile::load(&root.join("human/constraints/badcwd.yaml"))
+        .unwrap();
+    assert!(cf.rules.is_empty());
+}
+
+#[test]
 fn cst050_check_command_success() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
