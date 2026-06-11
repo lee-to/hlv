@@ -270,6 +270,14 @@ pub fn run_file_level_checks(
 
 /// Execute a check command and return (passed, message).
 fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
+    execute_check_command_with_timeout(cmd, work_dir, CHECK_COMMAND_TIMEOUT)
+}
+
+fn execute_check_command_with_timeout(
+    cmd: &str,
+    work_dir: &Path,
+    timeout: Duration,
+) -> (bool, String) {
     let parsed = match parse_portable_command(cmd) {
         Ok(parsed) => parsed,
         Err(e) => return (false, check_command_failure_reason(&e)),
@@ -287,29 +295,16 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
         Err(e) => return (false, format!("spawn error: {}", e)),
     };
 
+    let stdout_handle = child.stdout.take().map(read_pipe_in_thread);
+    let stderr_handle = child.stderr.take().map(read_pipe_in_thread);
+
     // Wait with timeout
     let start = std::time::Instant::now();
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let stdout = child
-                    .stdout
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
-                let stderr = child
-                    .stderr
-                    .take()
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
+                let stdout = join_pipe_reader(stdout_handle);
+                let stderr = join_pipe_reader(stderr_handle);
 
                 if status.success() {
                     return (true, "ok".to_string());
@@ -326,8 +321,9 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
                 }
             }
             Ok(None) => {
-                if start.elapsed() > CHECK_COMMAND_TIMEOUT {
+                if start.elapsed() > timeout {
                     let _ = child.kill();
+                    let _ = child.wait();
                     return (false, "timeout".to_string());
                 }
                 std::thread::sleep(Duration::from_millis(50));
@@ -335,6 +331,24 @@ fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
             Err(e) => return (false, format!("wait error: {}", e)),
         }
     }
+}
+
+fn read_pipe_in_thread<R>(mut reader: R) -> std::thread::JoinHandle<Vec<u8>>
+where
+    R: std::io::Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = reader.read_to_end(&mut buf);
+        buf
+    })
+}
+
+fn join_pipe_reader(handle: Option<std::thread::JoinHandle<Vec<u8>>>) -> String {
+    handle
+        .and_then(|handle| handle.join().ok())
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        .unwrap_or_default()
 }
 
 fn truncate_check_output(output: &str) -> String {
@@ -358,6 +372,95 @@ fn check_command_failure_reason(err: &CommandParseError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command as StdCommand;
+
+    const STDERR_SENTINEL: &str = "stderr sentinel from check_command helper";
+
+    fn quote_command_arg(path: &Path) -> String {
+        let value = path.to_string_lossy();
+        if value.contains([' ', '\t', '"']) {
+            format!("\"{}\"", value.replace('"', "\\\""))
+        } else {
+            value.into_owned()
+        }
+    }
+
+    fn build_large_output_helper(dir: &Path) -> PathBuf {
+        let src = dir.join("large_output_helper.rs");
+        let exe = dir.join(if cfg!(windows) {
+            "large_output_helper.exe"
+        } else {
+            "large_output_helper"
+        });
+
+        fs::write(
+            &src,
+            r#"
+use std::io::{self, Write};
+
+fn main() {
+    let chunk = vec![b'x'; 8192];
+
+    let mut stdout = io::stdout().lock();
+    for _ in 0..256 {
+        stdout.write_all(&chunk).unwrap();
+    }
+    stdout.flush().unwrap();
+
+    let mut stderr = io::stderr().lock();
+    stderr
+        .write_all(b"stderr sentinel from check_command helper\n")
+        .unwrap();
+    for _ in 0..256 {
+        stderr.write_all(&chunk).unwrap();
+    }
+    stderr.flush().unwrap();
+
+    std::process::exit(17);
+}
+"#,
+        )
+        .unwrap();
+
+        let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+        let output = StdCommand::new(rustc)
+            .arg(&src)
+            .arg("-o")
+            .arg(&exe)
+            .output()
+            .unwrap();
+
+        assert!(
+            output.status.success(),
+            "rustc failed\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        exe
+    }
+
+    #[test]
+    fn check_command_drains_large_stdout_and_stderr_without_timeout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let helper = build_large_output_helper(tmp.path());
+        let command = quote_command_arg(&helper);
+
+        let (passed, message) = execute_check_command_with_timeout(
+            &command,
+            tmp.path(),
+            std::time::Duration::from_secs(5),
+        );
+
+        assert!(!passed);
+        assert_ne!(message, "timeout");
+        assert!(
+            message.contains(STDERR_SENTINEL),
+            "expected stderr sentinel, got: {message:?}"
+        );
+    }
 
     #[test]
     fn check_command_output_truncation_does_not_panic_on_multibyte_boundary() {
