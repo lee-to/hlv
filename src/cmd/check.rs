@@ -6,6 +6,8 @@ use colored::Colorize;
 
 use super::style;
 use crate::check::{self, Diagnostic};
+use crate::model::contract_md::ContractMd;
+use crate::model::contract_yaml::ContractYaml;
 use crate::model::glossary::Glossary;
 use crate::model::milestone::MilestoneMap;
 use crate::model::policy::GatesPolicy;
@@ -559,10 +561,11 @@ fn collect_milestone_contracts(root: &Path, milestone_id: &str) -> Vec<ContractE
             let md_path = format!("{}/{}.md", contracts_rel, contract_id);
             let yaml_path = format!("{}/{}.yaml", contracts_rel, contract_id);
             let test_spec = format!("{}/{}.md", test_specs_dir, contract_id);
+            let version = collect_contract_version(root, &md_path, &yaml_path);
 
             entries.push(ContractEntry {
                 id: contract_id,
-                version: "1.0.0".to_string(),
+                version,
                 path: md_path,
                 yaml_path: if root.join(&yaml_path).exists() {
                     Some(yaml_path)
@@ -583,6 +586,70 @@ fn collect_milestone_contracts(root: &Path, milestone_id: &str) -> Vec<ContractE
     }
 
     entries
+}
+
+fn collect_contract_version(root: &Path, md_path: &str, yaml_path: &str) -> String {
+    let yaml_full_path = root.join(yaml_path);
+    if let Ok(contract) = ContractYaml::load(&yaml_full_path) {
+        return contract.version;
+    }
+
+    let md_full_path = root.join(md_path);
+    if let Ok(text) = std::fs::read_to_string(md_full_path) {
+        let contract = ContractMd::from_markdown(&text);
+        if !contract.version.is_empty() {
+            return contract.version;
+        }
+    }
+
+    "1.0.0".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collect_contract_version_prefers_yaml_then_md_then_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        let contracts_dir = tmp.path().join("human/milestones/001/contracts");
+        std::fs::create_dir_all(&contracts_dir).unwrap();
+
+        std::fs::write(
+            contracts_dir.join("order.create.md"),
+            "# order.create v2.0.0\n",
+        )
+        .unwrap();
+        std::fs::write(
+            contracts_dir.join("order.create.yaml"),
+            "id: order.create\nversion: 2.1.0\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            collect_contract_version(
+                tmp.path(),
+                "human/milestones/001/contracts/order.create.md",
+                "human/milestones/001/contracts/order.create.yaml",
+            ),
+            "2.1.0"
+        );
+
+        std::fs::remove_file(contracts_dir.join("order.create.yaml")).unwrap();
+        assert_eq!(
+            collect_contract_version(
+                tmp.path(),
+                "human/milestones/001/contracts/order.create.md",
+                "human/milestones/001/contracts/order.create.yaml",
+            ),
+            "2.0.0"
+        );
+
+        assert_eq!(
+            collect_contract_version(tmp.path(), "missing.md", "missing.yaml"),
+            "1.0.0"
+        );
+    }
 }
 
 fn watch_loop(root: &Path) -> Result<()> {

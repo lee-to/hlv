@@ -19,6 +19,7 @@ const SCHEMA_DIR: &str = "schema";
 const FIXTURE_CASES: &[(&str, &str, &str)] = &[
     // --- example-project ---
     (FIXTURE, "project-schema.json", "project.yaml"),
+    (FIXTURE, "milestones-schema.json", "milestones.yaml"),
     (FIXTURE, "glossary-schema.json", "human/glossary.yaml"),
     (
         FIXTURE,
@@ -435,6 +436,12 @@ fn load_llm_map(path: &Path) -> String {
 /// Roundtrip cases: (fixture_root, schema, yaml_rel, loader)
 const ROUNDTRIP_CASES: &[(&str, &str, &str, fn(&Path) -> String)] = &[
     (FIXTURE, "project-schema.json", "project.yaml", load_project),
+    (
+        FIXTURE,
+        "milestones-schema.json",
+        "milestones.yaml",
+        load_milestones,
+    ),
     (
         FIXTURE,
         "glossary-schema.json",

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../schema/milestones-schema.json
+project: commerce-checkout
+
+current:
+  id: "001"
+  number: 1
+  stage: 1
+  stages:
+    - id: 1
+      scope: "Order create and cancel contracts"
+      status: implementing
+
+history: []
