@@ -119,13 +119,9 @@ pub fn hlv_gate_disable(root: &Path, id: &str) -> Result<CallToolResult, McpErro
 }
 
 pub fn hlv_gate_run(root: &Path, id: Option<&str>) -> Result<CallToolResult, McpError> {
-    let (passed, failed, skipped) = quiet(|| crate::cmd::gates::run_gate_commands(root, id))
+    let summary = quiet(|| crate::cmd::gates::run_gate_commands_with_results(root, id, false))
         .map_err(|e| mcp_err("gate run failed", e))?;
-    json_ok(&serde_json::json!({
-        "passed": passed,
-        "failed": failed,
-        "skipped": skipped,
-    }))
+    json_ok(&summary)
 }
 
 // ── Constraint tools ──────────────────────────────────────────────────

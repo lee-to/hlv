@@ -3269,6 +3269,7 @@ fn gates_set_clear_cwd() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
     setup_gates_project(root);
+    fs::create_dir_all(root.join("llm/src")).unwrap();
 
     hlv::cmd::gates::run_set_cwd(root, "GATE-002", "llm/src").unwrap();
     let policy =
@@ -3298,9 +3299,9 @@ fn gates_run_commands_no_commands() {
     let root = tmp.path();
     setup_gates_project(root);
 
-    // No commands set → (0, 0, 0)
+    // No commands set → both configured gates are skipped.
     let (passed, failed, skipped) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
-    assert_eq!((passed, failed, skipped), (0, 0, 0));
+    assert_eq!((passed, failed, skipped), (0, 0, 2));
 }
 
 #[test]
@@ -3323,10 +3324,14 @@ fn gates_run_commands_passing() {
     // Verify results persisted
     let ms = hlv::model::milestone::MilestoneMap::load(&root.join("milestones.yaml")).unwrap();
     let current = ms.current.unwrap();
-    assert_eq!(current.gate_results.len(), 1);
+    assert_eq!(current.gate_results.len(), 2);
     assert_eq!(
         current.gate_results[0].status,
         hlv::model::milestone::GateRunStatus::Passed
+    );
+    assert_eq!(
+        current.gate_results[1].status,
+        hlv::model::milestone::GateRunStatus::Skipped
     );
 }
 
@@ -3365,10 +3370,14 @@ fn gates_run_commands_with_quoted_args_and_cwd() {
 
     let ms = hlv::model::milestone::MilestoneMap::load(&root.join("milestones.yaml")).unwrap();
     let current = ms.current.unwrap();
-    assert_eq!(current.gate_results.len(), 1);
+    assert_eq!(current.gate_results.len(), 2);
     assert_eq!(
         current.gate_results[0].status,
         hlv::model::milestone::GateRunStatus::Passed
+    );
+    assert_eq!(
+        current.gate_results[1].status,
+        hlv::model::milestone::GateRunStatus::Skipped
     );
 }
 
@@ -3390,7 +3399,11 @@ fn gates_run_commands_reject_shell_syntax_without_sh_lookup() {
     let root = tmp.path();
     setup_gates_project(root);
 
-    hlv::cmd::gates::run_set_command(root, "GATE-001", "tool-a && tool-b").unwrap();
+    let policy_path = root.join("validation/gates-policy.yaml");
+    let mut policy = hlv::model::policy::GatesPolicy::load(&policy_path).unwrap();
+    policy.find_gate_mut("GATE-001").unwrap().command = Some("tool-a && tool-b".to_string());
+    policy.save(&policy_path).unwrap();
+
     let (passed, failed, _) = hlv::cmd::gates::run_gate_commands(root, None).unwrap();
     assert_eq!(passed, 0);
     assert_eq!(failed, 1);

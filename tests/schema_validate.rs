@@ -19,6 +19,7 @@ const SCHEMA_DIR: &str = "schema";
 const FIXTURE_CASES: &[(&str, &str, &str)] = &[
     // --- example-project ---
     (FIXTURE, "project-schema.json", "project.yaml"),
+    (FIXTURE, "milestones-schema.json", "milestones.yaml"),
     (FIXTURE, "glossary-schema.json", "human/glossary.yaml"),
     (
         FIXTURE,
@@ -270,6 +271,16 @@ fn assert_generated_yaml_is_schema_valid(profile: &str) {
     hlv::cmd::gates::run_set_cwd(tmp.path(), "GATE-CONTRACT-001", "llm").unwrap();
     hlv::cmd::gates::run_disable(tmp.path(), "GATE-CONTRACT-001").unwrap();
     hlv::cmd::gates::run_enable(tmp.path(), "GATE-CONTRACT-001").unwrap();
+    hlv::cmd::gates::run_add(
+        tmp.path(),
+        "GATE-SKIP-SCHEMA",
+        "custom",
+        false,
+        None,
+        None,
+        true,
+    )
+    .unwrap();
     validate_in(
         tmp.path(),
         "gates-policy-schema.json",
@@ -278,7 +289,9 @@ fn assert_generated_yaml_is_schema_valid(profile: &str) {
 
     // Exercise milestones writer path with non-empty gate_results.
     let (passed, failed, skipped) = hlv::cmd::gates::run_gate_commands(tmp.path(), None).unwrap();
-    assert_eq!((passed, failed, skipped), (1, 0, 0));
+    assert_eq!(passed, 1);
+    assert_eq!(failed, 0);
+    assert!(skipped > 0);
     validate_in(tmp.path(), "milestones-schema.json", "milestones.yaml");
 
     // Exercise milestones writer path when current milestone is removed.
@@ -423,6 +436,12 @@ fn load_llm_map(path: &Path) -> String {
 /// Roundtrip cases: (fixture_root, schema, yaml_rel, loader)
 const ROUNDTRIP_CASES: &[(&str, &str, &str, fn(&Path) -> String)] = &[
     (FIXTURE, "project-schema.json", "project.yaml", load_project),
+    (
+        FIXTURE,
+        "milestones-schema.json",
+        "milestones.yaml",
+        load_milestones,
+    ),
     (
         FIXTURE,
         "glossary-schema.json",

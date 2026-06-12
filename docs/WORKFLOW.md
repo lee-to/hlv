@@ -565,8 +565,9 @@ hlv dashboard                # interactive TUI (Gates tab = management)
 hlv gates enable <ID>        # enable gate
 hlv gates disable <ID>       # disable gate
 hlv gates set-cmd <ID> "cmd" # set executable + args (no shell operators/pipelines/variable expansion)
-hlv gates set-cwd <ID> "dir" # set working directory
-hlv gates run                # run all gates (reports syntax/parse/spawn/exit failures)
+hlv gates set-cwd <ID> "dir" # set existing project-relative working directory (not absolute, no ..)
+hlv gates run                # run all gates (reports cwd/syntax/parse/spawn/exit failures)
+hlv gates --json run [ID]    # structured {passed, failed, skipped, results}
 
 # Task management (task-level tracking)
 hlv task list [--stage N] [--status S] [--label L] [--json]
@@ -592,6 +593,7 @@ hlv constraints check                    # run check_command for all rules
 hlv constraints check observability      # filter by constraint
 hlv constraints check --rule my_rule     # filter by rule
 hlv constraints check --json             # JSON output
+hlv constraints add-rule ... --check-command "cmd" --check-cwd "dir"  # validates command syntax and project-relative cwd before save
 
 # Artifacts and glossary
 hlv artifacts [--global|--milestone] [--json]

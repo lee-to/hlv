@@ -925,6 +925,7 @@ fn tool_gate_run() {
     assert!(json["passed"].is_number());
     assert!(json["failed"].is_number());
     assert!(json["skipped"].is_number());
+    assert!(json["results"].is_array());
 }
 
 #[test]

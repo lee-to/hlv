@@ -10,7 +10,25 @@ use super::style;
 use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
-use crate::util::command_parser::{parse_portable_command, CommandParseError};
+use crate::util::command_parser::{gate_command_failure_reason, parse_portable_command};
+use crate::util::cwd::ensure_existing_cwd;
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GateCommandRunSummary {
+    pub passed: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub results: Vec<GateCommandRunResult>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GateCommandRunResult {
+    pub id: String,
+    pub status: GateRunStatus,
+    pub reason: String,
+    pub cwd: String,
+    pub command: Option<String>,
+}
 
 pub fn run(project_root: &Path) -> Result<()> {
     run_show(project_root)
@@ -148,6 +166,7 @@ pub fn run_set_command(project_root: &Path, gate_id: &str, command: &str) -> Res
     let gate = policy
         .find_gate_mut(gate_id)
         .context(format!("Gate '{}' not found", gate_id))?;
+    validate_gate_command(command)?;
     gate.command = Some(command.to_string());
     policy.save(&policy_path)?;
 
@@ -178,6 +197,7 @@ pub fn run_set_cwd(project_root: &Path, gate_id: &str, cwd: &str) -> Result<()> 
     let gate = policy
         .find_gate_mut(gate_id)
         .context(format!("Gate '{}' not found", gate_id))?;
+    ensure_existing_cwd(project_root, Some(cwd), &format!("Gate '{}' cwd", gate_id))?;
     gate.cwd = Some(cwd.to_string());
     policy.save(&policy_path)?;
 
@@ -235,6 +255,13 @@ pub fn run_add(
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
+
+    if let Some(cmd) = command {
+        validate_gate_command(cmd)?;
+    }
+    if let Some(rel) = cwd {
+        ensure_existing_cwd(project_root, Some(rel), &format!("Gate '{}' cwd", id))?;
+    }
 
     let gate = Gate {
         id: id.to_string(),
@@ -320,56 +347,121 @@ pub fn run_edit(
     Ok(())
 }
 
-/// Run all enabled gates that have commands. Returns (passed, failed, skipped).
-/// If `filter_id` is Some, only run the specified gate.
+/// Run gates and return only aggregate counters.
+/// If `filter_id` is Some, only process the specified gate.
 pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result<(u32, u32, u32)> {
+    let summary = run_gate_commands_with_results(project_root, filter_id, !style::is_quiet())?;
+    Ok((summary.passed, summary.failed, summary.skipped))
+}
+
+/// Run gates and return structured per-gate results.
+/// If `filter_id` is Some, only process the specified gate.
+pub fn run_gate_commands_with_results(
+    project_root: &Path,
+    filter_id: Option<&str>,
+    emit_human: bool,
+) -> Result<GateCommandRunSummary> {
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy = GatesPolicy::load(&project_root.join(&project.paths.validation.gates_policy))?;
 
-    let runnable: Vec<_> = policy
+    let selected: Vec<_> = policy
         .gates
         .iter()
-        .filter(|g| g.enabled && g.command.is_some())
         .filter(|g| match filter_id {
             Some(fid) => g.id == fid,
             None => true,
         })
         .collect();
 
-    if runnable.is_empty() {
-        return Ok((0, 0, 0));
+    if selected.is_empty() {
+        return Ok(GateCommandRunSummary {
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+            results: vec![],
+        });
     }
 
-    style::section("Gates");
+    if emit_human {
+        style::section("Gates");
+    }
 
-    let quiet = style::is_quiet();
     let mut passed = 0u32;
     let mut failed = 0u32;
-    let skipped = 0u32;
-    let mut gate_results: Vec<GateResult> = Vec::new();
+    let mut skipped = 0u32;
+    let mut results: Vec<GateCommandRunResult> = Vec::new();
     let now = chrono::Local::now().to_rfc3339();
 
-    for gate in &runnable {
-        let cmd = gate.command.as_deref().unwrap();
-        let work_dir = match &gate.cwd {
-            Some(rel) => project_root.join(rel),
-            None => project_root.to_path_buf(),
+    for gate in &selected {
+        let command = gate.command.clone();
+        let cwd_label = gate.cwd.as_deref().unwrap_or(".").to_string();
+
+        if !gate.enabled {
+            if emit_human {
+                print_gate_start(gate, command.as_deref(), &cwd_label)?;
+                println!("{}", "SKIPPED".yellow());
+                println!("    {}", "reason: disabled".dimmed());
+            }
+            skipped += 1;
+            results.push(GateCommandRunResult {
+                id: gate.id.clone(),
+                status: GateRunStatus::Skipped,
+                reason: "disabled".to_string(),
+                cwd: cwd_label,
+                command,
+            });
+            continue;
+        }
+
+        let Some(cmd) = command.as_deref() else {
+            if emit_human {
+                print_gate_start(gate, None, &cwd_label)?;
+                println!("{}", "SKIPPED".yellow());
+                println!("    {}", "reason: no command".dimmed());
+            }
+            skipped += 1;
+            results.push(GateCommandRunResult {
+                id: gate.id.clone(),
+                status: GateRunStatus::Skipped,
+                reason: "no command".to_string(),
+                cwd: cwd_label,
+                command: None,
+            });
+            continue;
         };
-        if !quiet {
-            let cwd_label = gate.cwd.as_deref().unwrap_or(".");
-            print!(
-                "  {} {} {}",
-                gate.id.bold(),
-                cmd.dimmed(),
-                format!("({})", cwd_label).dimmed()
-            );
-            std::io::Write::flush(&mut std::io::stdout())?;
+
+        if emit_human {
+            print_gate_start(gate, Some(cmd), &cwd_label)?;
         }
 
         let parsed = parse_portable_command(cmd);
 
         match parsed {
             Ok(parsed_cmd) => {
+                let work_dir = match ensure_existing_cwd(
+                    project_root,
+                    gate.cwd.as_deref(),
+                    &format!("Gate '{}' cwd", gate.id),
+                ) {
+                    Ok((work_dir, _)) => work_dir,
+                    Err(e) => {
+                        let reason = e.to_string();
+                        if emit_human {
+                            println!("{}", "FAILED".red());
+                            println!("    {}", format!("reason: {}", reason).dimmed());
+                        }
+                        failed += 1;
+                        results.push(GateCommandRunResult {
+                            id: gate.id.clone(),
+                            status: GateRunStatus::Failed,
+                            reason,
+                            cwd: cwd_label,
+                            command,
+                        });
+                        continue;
+                    }
+                };
+
                 let result = Command::new(&parsed_cmd.program)
                     .args(&parsed_cmd.args)
                     .current_dir(&work_dir)
@@ -377,33 +469,37 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
 
                 match result {
                     Ok(output) if output.status.success() => {
-                        if !quiet {
+                        if emit_human {
                             println!("{}", "PASSED".green());
                         }
                         passed += 1;
-                        gate_results.push(GateResult {
+                        results.push(GateCommandRunResult {
                             id: gate.id.clone(),
                             status: GateRunStatus::Passed,
-                            run_at: Some(now.clone()),
+                            reason: "ok".to_string(),
+                            cwd: cwd_label,
+                            command,
                         });
                     }
                     Ok(output) => {
-                        if !quiet {
+                        let status_text = output
+                            .status
+                            .code()
+                            .map(|code| format!("exit code {}", code))
+                            .unwrap_or_else(|| "terminated by signal".to_string());
+                        if emit_human {
                             println!("{}", "FAILED".red());
-                            let status_text = output
-                                .status
-                                .code()
-                                .map(|code| format!("exit code {}", code))
-                                .unwrap_or_else(|| "terminated by signal".to_string());
                             println!("    {}", format!("reason: {}", status_text).dimmed());
                         }
                         failed += 1;
-                        gate_results.push(GateResult {
+                        results.push(GateCommandRunResult {
                             id: gate.id.clone(),
                             status: GateRunStatus::Failed,
-                            run_at: Some(now.clone()),
+                            reason: status_text,
+                            cwd: cwd_label,
+                            command,
                         });
-                        if !quiet {
+                        if emit_human {
                             // Show last lines of stderr/stdout for diagnostics
                             let stderr = String::from_utf8_lossy(&output.stderr);
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -425,41 +521,41 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
                         }
                     }
                     Err(e) => {
-                        if !quiet {
+                        let reason = format!("failed to start executable: {}", e);
+                        if emit_human {
                             println!("{}", "FAILED".red());
-                            println!(
-                                "    {}",
-                                format!("reason: failed to start executable: {}", e).dimmed()
-                            );
+                            println!("    {}", format!("reason: {}", reason).dimmed());
                         }
                         failed += 1;
-                        gate_results.push(GateResult {
+                        results.push(GateCommandRunResult {
                             id: gate.id.clone(),
                             status: GateRunStatus::Failed,
-                            run_at: Some(now.clone()),
+                            reason,
+                            cwd: cwd_label,
+                            command,
                         });
                     }
                 }
             }
             Err(e) => {
-                if !quiet {
+                let reason = gate_command_failure_reason(&e);
+                if emit_human {
                     println!("{}", "FAILED".red());
-                    println!(
-                        "    {}",
-                        format!("reason: {}", gate_command_failure_reason(&e)).dimmed()
-                    );
+                    println!("    {}", format!("reason: {}", reason).dimmed());
                 }
                 failed += 1;
-                gate_results.push(GateResult {
+                results.push(GateCommandRunResult {
                     id: gate.id.clone(),
                     status: GateRunStatus::Failed,
-                    run_at: Some(now.clone()),
+                    reason,
+                    cwd: cwd_label,
+                    command,
                 });
             }
         }
     }
 
-    if !quiet {
+    if emit_human {
         println!(
             "\n  Gates: {} passed, {} failed, {} skipped",
             passed.to_string().green(),
@@ -469,9 +565,40 @@ pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result
     }
 
     // Save gate results to milestones.yaml
+    let gate_results: Vec<GateResult> = results
+        .iter()
+        .map(|result| GateResult {
+            id: result.id.clone(),
+            status: result.status.clone(),
+            run_at: Some(now.clone()),
+        })
+        .collect();
     save_gate_results(project_root, &gate_results);
 
-    Ok((passed, failed, skipped))
+    Ok(GateCommandRunSummary {
+        passed,
+        failed,
+        skipped,
+        results,
+    })
+}
+
+fn validate_gate_command(command: &str) -> Result<()> {
+    parse_portable_command(command)
+        .map(|_| ())
+        .map_err(|e| anyhow::anyhow!(gate_command_failure_reason(&e)))
+}
+
+fn print_gate_start(gate: &Gate, command: Option<&str>, cwd_label: &str) -> Result<()> {
+    let command_label = command.unwrap_or("—");
+    print!(
+        "  {} {} {}",
+        gate.id.bold(),
+        command_label.dimmed(),
+        format!("({})", cwd_label).dimmed()
+    );
+    std::io::Write::flush(&mut std::io::stdout())?;
+    Ok(())
 }
 
 /// Persist gate run results into milestones.yaml (current milestone).
@@ -488,16 +615,4 @@ fn save_gate_results(project_root: &Path, results: &[GateResult]) {
     };
     current.gate_results = results.to_vec();
     let _ = milestones.save(&ms_path);
-}
-
-fn gate_command_failure_reason(err: &CommandParseError) -> String {
-    match err {
-        CommandParseError::EmptyCommand => "command is empty".to_string(),
-        CommandParseError::MissingProgram => "missing executable in command".to_string(),
-        CommandParseError::UnmatchedQuote => "invalid command format (unmatched quote)".to_string(),
-        CommandParseError::UnsupportedSyntax(op) => format!(
-            "unsupported command syntax '{}' (use one executable per gate; shell operators and shell variable expansion are not supported)",
-            op
-        ),
-    }
 }

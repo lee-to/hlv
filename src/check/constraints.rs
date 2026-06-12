@@ -5,7 +5,8 @@ use std::time::Duration;
 use crate::check::{Diagnostic, Severity};
 use crate::model::policy::ConstraintFile;
 use crate::model::project::ProjectMap;
-use crate::util::command_parser::{parse_portable_command, CommandParseError};
+use crate::util::command_parser::{check_command_failure_reason, parse_portable_command};
+use crate::util::cwd::ensure_existing_cwd;
 use crate::util::text::truncate_ellipsis;
 
 /// Default timeout for check_command execution (60 seconds).
@@ -170,12 +171,8 @@ pub fn run_constraint_checks(
                 None => continue,
             };
 
-            let work_dir = match &rule.check_cwd {
-                Some(rel) => root.join(rel),
-                None => root.to_path_buf(),
-            };
-
-            let (passed, message) = execute_check_command(check_cmd, &work_dir);
+            let (passed, message) =
+                execute_check_command(check_cmd, root, rule.check_cwd.as_deref());
 
             if !passed {
                 let sev = check_failure_severity(&rule.severity, rule.error_level.as_deref());
@@ -235,12 +232,7 @@ pub fn run_file_level_checks(
             None => continue,
         };
 
-        let work_dir = match &cf.check_cwd {
-            Some(rel) => root.join(rel),
-            None => root.to_path_buf(),
-        };
-
-        let (passed, message) = execute_check_command(check_cmd, &work_dir);
+        let (passed, message) = execute_check_command(check_cmd, root, cf.check_cwd.as_deref());
 
         if !passed {
             let diag_msg = format!(
@@ -269,18 +261,24 @@ pub fn run_file_level_checks(
 }
 
 /// Execute a check command and return (passed, message).
-fn execute_check_command(cmd: &str, work_dir: &Path) -> (bool, String) {
-    execute_check_command_with_timeout(cmd, work_dir, CHECK_COMMAND_TIMEOUT)
+fn execute_check_command(cmd: &str, root: &Path, check_cwd: Option<&str>) -> (bool, String) {
+    execute_check_command_with_timeout(cmd, root, check_cwd, CHECK_COMMAND_TIMEOUT)
 }
 
 fn execute_check_command_with_timeout(
     cmd: &str,
-    work_dir: &Path,
+    root: &Path,
+    check_cwd: Option<&str>,
     timeout: Duration,
 ) -> (bool, String) {
     let parsed = match parse_portable_command(cmd) {
         Ok(parsed) => parsed,
         Err(e) => return (false, check_command_failure_reason(&e)),
+    };
+
+    let work_dir = match ensure_existing_cwd(root, check_cwd, "check_cwd") {
+        Ok((path, _)) => path,
+        Err(e) => return (false, e.to_string()),
     };
 
     let child = Command::new(&parsed.program)
@@ -295,16 +293,16 @@ fn execute_check_command_with_timeout(
         Err(e) => return (false, format!("spawn error: {}", e)),
     };
 
-    let stdout_handle = child.stdout.take().map(read_pipe_in_thread);
-    let stderr_handle = child.stderr.take().map(read_pipe_in_thread);
+    let mut stdout_handle = child.stdout.take().map(read_pipe_in_thread);
+    let mut stderr_handle = child.stderr.take().map(read_pipe_in_thread);
 
     // Wait with timeout
     let start = std::time::Instant::now();
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let stdout = join_pipe_reader(stdout_handle);
-                let stderr = join_pipe_reader(stderr_handle);
+                let stdout = join_pipe_reader(stdout_handle.take());
+                let stderr = join_pipe_reader(stderr_handle.take());
 
                 if status.success() {
                     return (true, "ok".to_string());
@@ -324,11 +322,19 @@ fn execute_check_command_with_timeout(
                 if start.elapsed() > timeout {
                     let _ = child.kill();
                     let _ = child.wait();
+                    let _ = join_pipe_reader(stdout_handle.take());
+                    let _ = join_pipe_reader(stderr_handle.take());
                     return (false, "timeout".to_string());
                 }
                 std::thread::sleep(Duration::from_millis(50));
             }
-            Err(e) => return (false, format!("wait error: {}", e)),
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = join_pipe_reader(stdout_handle.take());
+                let _ = join_pipe_reader(stderr_handle.take());
+                return (false, format!("wait error: {}", e));
+            }
         }
     }
 }
@@ -353,20 +359,6 @@ fn join_pipe_reader(handle: Option<std::thread::JoinHandle<Vec<u8>>>) -> String 
 
 fn truncate_check_output(output: &str) -> String {
     truncate_ellipsis(output, 200)
-}
-
-fn check_command_failure_reason(err: &CommandParseError) -> String {
-    match err {
-        CommandParseError::EmptyCommand => "check_command is empty".to_string(),
-        CommandParseError::MissingProgram => "check_command is missing executable".to_string(),
-        CommandParseError::UnmatchedQuote => {
-            "invalid check_command format (unmatched quote)".to_string()
-        }
-        CommandParseError::UnsupportedSyntax(op) => format!(
-            "unsupported check_command syntax '{}' (use one executable per check_command; shell operators and shell variable expansion are not supported)",
-            op
-        ),
-    }
 }
 
 #[cfg(test)]
@@ -443,6 +435,15 @@ fn main() {
     }
 
     #[test]
+    fn check_command_output_truncation_does_not_panic_on_multibyte_boundary() {
+        let output = format!("{}Жtail", "a".repeat(199));
+
+        let truncated = truncate_check_output(&output);
+
+        assert_eq!(truncated, format!("{}…", "a".repeat(199)));
+    }
+
+    #[test]
     fn check_command_drains_large_stdout_and_stderr_without_timeout() {
         let tmp = tempfile::tempdir().unwrap();
         let helper = build_large_output_helper(tmp.path());
@@ -451,6 +452,7 @@ fn main() {
         let (passed, message) = execute_check_command_with_timeout(
             &command,
             tmp.path(),
+            None,
             std::time::Duration::from_secs(5),
         );
 
@@ -460,14 +462,5 @@ fn main() {
             message.contains(STDERR_SENTINEL),
             "expected stderr sentinel, got: {message:?}"
         );
-    }
-
-    #[test]
-    fn check_command_output_truncation_does_not_panic_on_multibyte_boundary() {
-        let output = format!("{}Жtail", "a".repeat(199));
-
-        let truncated = truncate_check_output(&output);
-
-        assert_eq!(truncated, format!("{}…", "a".repeat(199)));
     }
 }
