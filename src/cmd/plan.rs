@@ -7,6 +7,7 @@ use super::style;
 use crate::model::milestone::{MilestoneMap, StageEntry, StageStatus};
 use crate::model::stage::{StagePlan, StageTask};
 use crate::model::task::TaskStatus;
+use crate::util::display_width::{pad_display_width, truncate_display_width};
 
 /// Resolve task status: prefer milestones.yaml tracker, fallback to stage_N.md `status:` field.
 pub fn resolve_task_status(task: &StageTask, stage_entry: &StageEntry) -> Option<TaskStatus> {
@@ -259,8 +260,8 @@ fn print_visual_milestone(
         let width = 44;
 
         println!("  ┌{}┐", "─".repeat(width));
-        println!("  │ {:<w$}│", header, w = width - 1);
-        println!("  │ {:<w$}│", status_str, w = width - 1);
+        println!("  │{}│", visual_cell(&header, width));
+        println!("  │{}│", visual_cell(&status_str, width));
         println!("  ├{}┤", "─".repeat(width));
 
         let stage_file = milestone_dir.join(format!("stage_{}.md", stage_entry.id));
@@ -274,8 +275,7 @@ fn print_visual_milestone(
                     _ => "○",
                 };
                 let line = format!("{} {} {}", task_icon, task.id, task.name);
-                let display = truncate_chars(&line, width - 2);
-                println!("  │ {:<w$}│", display, w = width - 1);
+                println!("  │{}│", visual_cell(&line, width));
             }
         }
         println!("  └{}┘", "─".repeat(width));
@@ -288,12 +288,8 @@ fn print_visual_milestone(
     println!();
 }
 
-fn truncate_chars(s: &str, max_chars: usize) -> String {
-    if s.chars().count() <= max_chars {
-        return s.to_string();
-    }
-
-    let mut truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
-    truncated.push('…');
-    truncated
+fn visual_cell(s: &str, width: usize) -> String {
+    let content_width = width.saturating_sub(1);
+    let truncated = truncate_display_width(s, content_width);
+    format!(" {}", pad_display_width(&truncated, content_width))
 }

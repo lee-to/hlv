@@ -40,6 +40,31 @@ enum Commands {
         /// Output in JSON format
         #[arg(long)]
         json: bool,
+        /// Treat warnings as errors and disable phase-aware warning downgrades
+        #[arg(long)]
+        strict: bool,
+        /// Apply validation/waivers.yaml to matching diagnostics
+        #[arg(long)]
+        with_waivers: bool,
+    },
+    /// Check local environment and HLV project configuration
+    Doctor {
+        /// Output in JSON format
+        #[arg(long)]
+        json: bool,
+        /// Create missing directories only
+        #[arg(long)]
+        fix: bool,
+    },
+    /// Explain a diagnostic code and common fixes
+    Explain {
+        /// Diagnostic code, e.g. CTR-060
+        code: String,
+    },
+    /// Manage diagnostic waivers
+    Waivers {
+        #[command(subcommand)]
+        action: WaiversAction,
     },
     /// Show project status
     Status {
@@ -562,6 +587,14 @@ enum ConstraintsAction {
     },
 }
 
+#[derive(Subcommand)]
+enum WaiversAction {
+    /// List declared waivers
+    List,
+    /// Audit waiver expiry, duplicates, and stale entries
+    Audit,
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -595,6 +628,21 @@ fn run(cli: Cli) -> Result<()> {
     // Update doesn't need a project root
     if let Commands::Update { check } = cli.command {
         return hlv::cmd::update::run(check);
+    }
+
+    // Explain doesn't need a project root
+    if let Commands::Explain { code } = &cli.command {
+        return hlv::cmd::explain::run(code);
+    }
+
+    // Doctor must report missing project.yaml instead of failing root discovery.
+    if let Commands::Doctor { json, fix } = cli.command {
+        let root = cli
+            .root
+            .as_deref()
+            .map(std::path::PathBuf::from)
+            .unwrap_or(std::env::current_dir()?);
+        return hlv::cmd::doctor::run(&root, json, fix);
     }
 
     // Workspace commands don't need a project root
@@ -635,7 +683,12 @@ fn run(cli: Cli) -> Result<()> {
 
     match cli.command {
         Commands::Init { .. } => unreachable!(),
-        Commands::Check { watch, json } => hlv::cmd::check::run(&project_root, watch, json),
+        Commands::Check {
+            watch,
+            json,
+            strict,
+            with_waivers,
+        } => hlv::cmd::check::run(&project_root, watch, json, strict, with_waivers),
         Commands::Status { json } => hlv::cmd::status::run(&project_root, json),
         Commands::Plan { visual, json } => hlv::cmd::plan::run(&project_root, visual, json),
         Commands::Trace { visual, json } => hlv::cmd::trace::run(&project_root, visual, json),
@@ -879,6 +932,12 @@ fn run(cli: Cli) -> Result<()> {
         Commands::Mcp { .. } => unreachable!(),
         Commands::Update { .. } => unreachable!(),
         Commands::Workspace { .. } => unreachable!(),
+        Commands::Doctor { .. } => unreachable!(),
+        Commands::Explain { .. } => unreachable!(),
+        Commands::Waivers { action } => match action {
+            WaiversAction::List => hlv::cmd::waivers::run_list(&project_root),
+            WaiversAction::Audit => hlv::cmd::waivers::run_audit(&project_root),
+        },
         Commands::Stage { action } => match action {
             StageAction::Reopen { id } => hlv::cmd::stage::run_reopen(&project_root, id),
             StageAction::Label { id, action, label } => {

@@ -206,8 +206,11 @@
     },
     "ValidationState": {
       "type": "object",
-      "required": ["verify_status"],
       "properties": {
+        "strictness": {
+          "$ref": "#/$defs/Strictness",
+          "default": "standard"
+        },
         "verify_status": { "$ref": "#/$defs/VerifyStatus" },
         "verify_date": { "type": "string" },
         "issues": {
@@ -332,6 +335,10 @@
     "VerifyStatus": {
       "type": "string",
       "enum": ["not_run", "passed", "failed"]
+    },
+    "Strictness": {
+      "type": "string",
+      "enum": ["relaxed", "standard", "strict"]
     },
     "GateStatus": {
       "type": "object",

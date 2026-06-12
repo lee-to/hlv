@@ -3936,7 +3936,7 @@ history: []
 }
 
 // ═══════════════════════════════════════════════════════
-// cmd/check integration (run_checks via check::run)
+// cmd/check integration (shared report pipeline via check::run)
 // ═══════════════════════════════════════════════════════
 
 #[test]

@@ -5,6 +5,7 @@ use colored::Colorize;
 
 use super::style;
 use crate::model::traceability::TraceabilityMap;
+use crate::util::display_width::{pad_display_width, truncate_display_width};
 
 pub fn run(project_root: &Path, visual: bool, json: bool) -> Result<()> {
     if json {
@@ -94,10 +95,10 @@ fn print_table_trace(trace: &TraceabilityMap) {
 fn print_visual_trace(trace: &TraceabilityMap) {
     println!();
     println!(
-        "  {:<20} {:<20} {:<30} {}",
-        "REQUIREMENT".cyan().bold(),
-        "CONTRACT".green().bold(),
-        "TEST".yellow().bold(),
+        "  {} {} {} {}",
+        table_cell("REQUIREMENT", 20).cyan().bold(),
+        table_cell("CONTRACT", 20).green().bold(),
+        table_cell("TEST", 30).yellow().bold(),
         "GATE".magenta().bold()
     );
     println!("  {}", "─".repeat(90));
@@ -111,16 +112,21 @@ fn print_visual_trace(trace: &TraceabilityMap) {
         // First test line
         if let Some(first_test) = tests.first() {
             println!(
-                "  {:<20} {:<20} {:<30} {}",
-                req.cyan(),
-                contracts_str.green(),
-                first_test.yellow(),
+                "  {} {} {} {}",
+                table_cell(req, 20).cyan(),
+                table_cell(&contracts_str, 20).green(),
+                table_cell(first_test, 30).yellow(),
                 gates_str.magenta()
             );
         }
         // Remaining tests
         for test in tests.iter().skip(1) {
-            println!("  {:<20} {:<20} {:<30}", "", "", test.yellow());
+            println!(
+                "  {} {} {}",
+                table_cell("", 20),
+                table_cell("", 20),
+                table_cell(test, 30).yellow()
+            );
         }
 
         // ASCII arrow chain
@@ -133,4 +139,8 @@ fn print_visual_trace(trace: &TraceabilityMap) {
         );
         println!();
     }
+}
+
+fn table_cell(s: &str, width: usize) -> String {
+    pad_display_width(&truncate_display_width(s, width), width)
 }

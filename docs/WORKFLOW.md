@@ -497,6 +497,8 @@ hlv check          # quick check
 /verify            # full verification
 ```
 
+Run `hlv doctor` first if the project was moved, generated files are missing, or commands fail before validation starts. It checks configured paths, command portability, cwd values, schema compatibility, and non-ASCII rendering.
+
 ### What if implemented code needs to change?
 
 1. Update the contract
@@ -508,6 +510,12 @@ hlv check          # quick check
 
 Warnings do not block. Errors do block. But warnings are still worth fixing.
 
+Use `hlv explain <CODE>` to see what a diagnostic means and common fixes:
+
+```bash
+hlv explain CTR-060
+```
+
 ### Can I write code manually instead of using `/implement`?
 
 Yes. HLV does not force code generation. Contracts + validation specs are useful on their own as a specification and test plan. Write the code manually, then `/validate` will check it through the same gates.
@@ -515,6 +523,21 @@ Yes. HLV does not force code generation. Contracts + validation specs are useful
 ### What if `hlv check` shows warnings that are too early to fix?
 
 `hlv check` takes the current phase into account (stage status in `milestones.yaml`). Warnings expected at the current phase are automatically downgraded to info. For example, "no gates mapped" is normal before the `validating` phase.
+
+For CI, use strict mode:
+
+```bash
+hlv check --strict
+```
+
+Strict mode disables phase-aware downgrades and promotes warnings to errors. For known temporary issues, create an explicit expiring waiver in `validation/waivers.yaml`, then run:
+
+```bash
+hlv check --with-waivers
+hlv waivers audit
+```
+
+Waived diagnostics remain visible; expired and unmatched waivers fail audit.
 
 ### What should I do with open questions I do not know how to answer?
 
@@ -549,8 +572,11 @@ hlv milestone abort          # abort milestone
 /generate                    # artifacts -> contracts + validation + stages
 
 # Verification
+hlv doctor                   # environment and config preflight
 hlv check                    # structural validation + run gate commands + constraint checks (CST-050)
 hlv check --watch            # same + watch
+hlv check --strict           # CI mode: warnings become errors
+hlv explain <CODE>           # explain a diagnostic and suggested fixes
 /verify                      # full verification (structure + semantics)
 
 # Overview
@@ -605,11 +631,14 @@ hlv artifacts impact --changed --base <ref> [--json]
 hlv artifacts audit [--json]
 hlv artifacts sync [--check] [--json]
 hlv glossary [--json]
+hlv waivers list
+hlv waivers audit
 
 # JSON output for automation
 hlv status --json
 hlv plan --json
 hlv check --json
+hlv doctor --json
 hlv trace --json
 hlv workflow --json
 

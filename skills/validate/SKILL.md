@@ -64,14 +64,17 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
 
 ### Step 1: Pre-flight and gate status
 
-1. Read `project.yaml` (global config: stack, paths)
-2. **Bind LLM paths from `project.yaml → paths.llm`**:
+1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues before executing gates.
+2. Read `project.yaml` (global config: stack, paths)
+   - Note `validation.strictness` when present (`relaxed`, `standard`, `strict`). Default is `standard`.
+3. **Bind LLM paths from `project.yaml → paths.llm`**:
    - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
    - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
    - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
    All gate execution, code scanning, and marker checks MUST target these directories — not hardcoded paths.
-3. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
-4. **STATUS GATE (hard stop)**:
+4. Run `hlv check --strict` before release validation. Fix `MAP-080`/`MAP-081` path isolation errors and other strict diagnostics before executing gates.
+5. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
+6. **STATUS GATE (hard stop)**:
    - Allowed stage statuses to proceed: `implemented`, `validating`
    - `implemented` — normal validation after /implement
    - `validating` — re-run, execute failed/skipped gates
@@ -85,11 +88,11 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
      Finish /implement for this stage first.
      ```
    - `validated` — this stage already passed, inform user
-5. Read `validation/gates-policy.yaml`
-6. **Install required tooling**: read `project.yaml → stack` to determine the language/ecosystem, then for each gate that will run, ensure required tools are available. Install missing ones silently:
+7. Read `validation/gates-policy.yaml`
+8. **Install required tooling**: read `project.yaml → stack` to determine the language/ecosystem, then for each gate that will run, ensure required tools are available. Install missing ones silently:
    - Do NOT ask the human to install tools. The human writes artifacts, not `pip install`.
-7. Verify code compiles (`cargo build` / `npm run build` / language-appropriate check)
-8. Update stage status → `validating` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
+9. Verify code compiles (`cargo build` / `npm run build` / language-appropriate check)
+10. Update stage status → `validating` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
 
 ### Step 2: Execute gates
 
@@ -155,7 +158,7 @@ gate_results:
 
 Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `paths.llm.src` or `paths.llm.tests` (from `project.yaml`). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
 
-`hlv check` also executes `check_command` for rules that define one (CST-050/CST-060). Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
+`hlv check` also executes `check_command` for rules that define one (CST-050/CST-060), unless the project is explicitly checked in `relaxed` mode. Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
 
 For each critical rule without coverage, add it to the remediation plan (Step 4a).
 
@@ -347,5 +350,7 @@ milestones.yaml               # updated stage status
 ## Cleanup
 
 After the skill completes:
-1. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing.
-2. Suggest the user run `/clear` to free up context window before the next skill.
+1. Run `hlv doctor` to validate environment and configuration.
+2. Run `hlv check --strict` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
+3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
+4. Suggest the user run `/clear` to free up context window before the next skill.

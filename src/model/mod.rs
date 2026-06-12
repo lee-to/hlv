@@ -11,3 +11,4 @@ pub mod stage;
 pub mod task;
 pub mod test_spec;
 pub mod traceability;
+pub mod waiver;

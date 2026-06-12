@@ -370,7 +370,7 @@ Schema: `schema/adversarial-guardrails-schema.json`.
 
 Authoritative index of all project files and directories. **The single source of truth for file purpose.** File names are arbitrary (`01.rs`, `handler.rs`, `f3a.rs` are all acceptable), so the LLM finds code strictly by descriptions in `map.yaml`, not by file names. Descriptions MUST be sufficient to choose a file without opening it.
 
-`hlv check` validates that every entry from the map exists on disk. If the LLM creates a file but does not add it to the map, `hlv check` will not catch it because the file is outside the index. If the LLM adds an entry but does not create the file, `hlv check` emits `MAP-010`.
+`hlv check` validates that every entry from the map exists on disk. If the LLM adds an entry but does not create the file, `hlv check` emits `MAP-010`. It also checks that `layer: llm` implementation entries stay under `project.yaml -> paths.llm.src` (`MAP-080`) and test entries stay under `paths.llm.tests` (`MAP-081`).
 
 | Field | Purpose |
 |------|-----------|
@@ -394,6 +394,7 @@ Format: YAML. Schema: `schema/llm-map-schema.json`. Path is defined in `project.
 
 1. **Forward** (MAP-010): every map entry exists on disk
 2. **Reverse** (MAP-020): every file/directory on disk inside tracked directories is present in the map
+3. **Isolation** (MAP-080/MAP-081): generated source and test entries are inside the configured `paths.llm` roots
 
 Reverse check scans all directories declared as `kind: dir` in the map recursively. Hidden files (`.gitkeep`, `.DS_Store`) are ignored. Files and directories matching `ignore` patterns are ignored (matched both by full path and path components). The `map.yaml` file does not check itself.
 
@@ -406,6 +407,8 @@ Diagnostic codes:
 | `MAP-003` | info | Map is empty (no entries) |
 | `MAP-010` | error | A map entry does not exist on disk |
 | `MAP-020` | warning | A file on disk is not listed in the map |
+| `MAP-080` | error | A generated implementation path is outside `paths.llm.src` |
+| `MAP-081` | error | A generated test path is outside `paths.llm.tests` |
 | `MAP-100` | info | Forward: N/M entries exist on disk |
 | `MAP-101` | info | Reverse: summary result (all ok or N files missing from the map) |
 
@@ -576,6 +579,66 @@ These checks run automatically as part of `hlv check` and block `/verify` when r
 
 ---
 
+### `hlv check` - Strictness and Waivers
+
+`project.yaml` may include:
+
+```yaml
+validation:
+  strictness: relaxed | standard | strict
+```
+
+Default is `standard`. `hlv check --strict` overrides the project setting for that run.
+
+| Mode | Behavior |
+|------|----------|
+| `relaxed` | Keeps structural checks, but skips gate execution and constraint `check_command` execution |
+| `standard` | Current behavior, including phase-aware warning downgrades and command execution |
+| `strict` | Disables phase-aware downgrades and promotes all warnings to errors |
+
+Waivers are opt-in. `hlv check` ignores `validation/waivers.yaml` unless `--with-waivers` is passed.
+
+```yaml
+# validation/waivers.yaml
+waivers:
+  - code: CTR-060
+    file: human/milestones/001-init/contracts/admin.md
+    reason: migrated legacy contract, glossary cleanup scheduled
+    expires: 2026-07-01
+```
+
+Waivers match only exact `code + file`. Expired waivers never suppress diagnostics. Applied waivers remain visible in a separate output section and in the JSON `waived` field.
+
+Commands:
+
+```bash
+hlv check --strict
+hlv check --strict --json
+hlv check --with-waivers
+hlv waivers list
+hlv waivers audit
+```
+
+`hlv waivers audit` exits non-zero for malformed, duplicate, expired, or unmatched waivers.
+
+---
+
+### `hlv doctor` and `hlv explain`
+
+`hlv doctor` validates the local project environment before `/generate`, `/implement`, or `/validate`. It is special-cased before normal project-root discovery, so it can report missing `project.yaml` as `DOC-001` instead of failing early.
+
+```bash
+hlv doctor
+hlv doctor --json
+hlv doctor --fix
+```
+
+`--fix` creates only missing directories and missing parent directories for configured file paths. It never creates or edits config files, command strings, waivers, or docs.
+
+`hlv explain <DIAG_CODE>` prints the central registry entry for a diagnostic code, including meaning, common causes, and fixes. Lookup is case-insensitive; unknown codes show nearby codes with the same prefix.
+
+---
+
 ### `hlv check` - Full Diagnostic Code Registry
 
 Full list of diagnostics currently emitted by `hlv check`.
@@ -583,7 +646,7 @@ Full list of diagnostics currently emitted by `hlv check`.
 Important notes:
 
 - Some codes are reused in multiple contexts (for example `CTR-001`, `CTR-010`, `TRC-001`), so severity may differ by check stage.
-- Phase-aware expectations can downgrade some warnings to info before later phases (`TRC-020`, `TRC-021`, `TRC-030`, `PLN-040`, `CTR-010`, `TSK-010`, `TSK-030`, `TSK-050`).
+- Phase-aware expectations can downgrade some warnings to info before later phases (`TRC-020`, `TRC-021`, `TRC-030`, `PLN-040`, `CTR-010`, `TSK-010`, `TSK-030`, `TSK-050`) unless strict mode is active.
 
 #### Project (`PRJ-*`)
 
@@ -692,8 +755,12 @@ Important notes:
 | `MAP-003` | info | Map has no entries |
 | `MAP-010` | error | Map entry does not exist on disk |
 | `MAP-020` | warning | File on disk is missing from map |
+| `MAP-080` | error | Generated implementation path is outside `paths.llm.src` |
+| `MAP-081` | error | Generated test path is outside `paths.llm.tests` |
 | `MAP-100` | info | Forward-check summary (`found/total`) |
 | `MAP-101` | info | Reverse-check summary |
+
+`MAP-080`/`MAP-081` are emitted for both `llm/map.yaml` entries and `project.yaml -> artifact_graph.code_ownership` paths.
 
 #### Tasks (`TSK-*`)
 
@@ -710,5 +777,36 @@ Important notes:
 | Code | Default Severity | What it checks |
 |-----|---------|--------------|
 | `GAT-001` | error | Cannot parse `validation/gates-policy.yaml` |
+| `GAT-050` | error | Enabled gate command failed during `hlv check` |
 | `GLO-001` | error | Cannot parse `human/glossary.yaml` |
 | `MST-001` | error | Cannot parse `milestones.yaml` |
+
+#### Waivers (`WVR-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `WVR-000` | info | No `validation/waivers.yaml` exists during `hlv waivers audit` |
+| `WVR-001` | error | Cannot parse `validation/waivers.yaml` |
+| `WVR-010` | error / warning | Duplicate waiver for the same `code + file` |
+| `WVR-011` | error | Waiver has an empty reason |
+| `WVR-020` | warning | Waiver has expired |
+| `WVR-030` | warning | Waiver does not match any active diagnostic |
+
+#### Doctor (`DOC-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `DOC-001` | error | `project.yaml` is missing |
+| `DOC-002` | error | `project.yaml` cannot be parsed |
+| `DOC-020` | error | Configured path is not project-relative |
+| `DOC-021` | error | Configured directory is missing |
+| `DOC-022` | error | Parent directory for a configured file path is missing |
+| `DOC-030` | error | `paths.llm.src` shape is invalid |
+| `DOC-031` | error | `paths.llm.tests` shape is invalid |
+| `DOC-032` | error | `paths.llm.map` is empty |
+| `DOC-040` | error | Gate or constraint command fails portable parser validation |
+| `DOC-041` | error | Gate or constraint command `cwd` is missing |
+| `DOC-070` | error | Non-ASCII visual smoke test failed |
+| `DOC-080` | error | Unsupported `schema_version` |
+| `DOC-081` | warning | `schema/project-schema.json` is missing |
+| `DOC-082` | warning | `project.spec` points to a missing schema file |

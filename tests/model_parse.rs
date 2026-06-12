@@ -2,7 +2,7 @@ use hlv::model::contract_yaml::ContractYaml;
 use hlv::model::glossary::Glossary;
 use hlv::model::milestone::{ContractChangeAction, MilestoneMap, MilestoneStatus, StageStatus};
 use hlv::model::policy::*;
-use hlv::model::project::{ComponentType, DependencyType, ProjectMap};
+use hlv::model::project::{ComponentType, DependencyType, ProjectMap, Strictness};
 use hlv::model::stage::StagePlan;
 use hlv::model::traceability::TraceabilityMap;
 use std::path::Path;
@@ -19,6 +19,10 @@ fn parse_project_yaml() {
         Some("human/traceability.yaml")
     );
     assert_eq!(p.constraints.len(), 2);
+    assert_eq!(
+        p.validation.as_ref().map(|v| &v.strictness),
+        Some(&Strictness::Standard)
+    );
 }
 
 #[test]

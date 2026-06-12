@@ -93,6 +93,7 @@ validation/
 ### Step 1: Read project map and load milestone context
 
 1. Read `project.yaml` (global config: stack, paths)
+   - Note `validation.strictness` when present (`relaxed`, `standard`, `strict`). Default is `standard`.
 2. **Bind LLM paths from `project.yaml → paths.llm`** — these are the ONLY directories where generated code may be placed:
    - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
    - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
@@ -104,6 +105,7 @@ validation/
    > Even if the project has existing code elsewhere (e.g., `apps/backend/src/`, `src/`, `packages/`),
    > you MUST NOT write there. The existing project structure outside LLM paths is READ-ONLY context.
    > Violation of this rule means generated code is invisible to `hlv check`, `map.yaml`, and `/validate`.
+   > `hlv check` enforces this mechanically with `MAP-080` for implementation paths outside `LLM_SRC` and `MAP-081` for test paths outside `LLM_TESTS`.
 
 3. Read `milestones.yaml` → get `current.id` and `current.stage` (current stage number)
 4. Set `MID = human/milestones/{current.id}`
@@ -120,6 +122,8 @@ validation/
 8. Read `{MID}/stage_N.md` — load tasks for the current stage
 9. Read `project.yaml → stack.components` — understand target languages, frameworks
 10. Read `project.yaml → artifact_graph.code_ownership` when present. New or changed implementation/test/doc paths must preserve ownership mappings and relation fields (`implements`, `verifies`, `documents`, `requires`) so `hlv artifacts impact` can route downstream review.
+    - `code-*` ownership and `implements` paths must remain under `LLM_SRC`.
+    - `tests-*` ownership and `verifies` paths must remain under `LLM_TESTS`.
 11. For every new or changed file under an artifact ownership path, add file-level evidence markers for the relevant relation, e.g. `@hlv:artifact code-auth implements spec-auth`, `@hlv:artifact tests-auth verifies spec-auth`, or `@hlv:artifact docs-auth documents spec-auth`. Use the native comment syntax for the file type.
 
 ### Step 2: Execute tasks
@@ -178,7 +182,7 @@ Each agent when executing a task:
    - Each entry: `path`, `kind` (file/dir), `layer: llm`, `description` (what the file does)
    - Do NOT add build artifacts, caches, or generated files — they should be covered by `ignore` patterns
    - If your stack produces new artifact types not yet ignored, add a pattern to the `ignore` list (e.g., `__pycache__`, `*.pyc`, `node_modules`, `target/`)
-   - `hlv check` validates all map entries exist — missing entries are errors
+   - `hlv check` validates all map entries exist — missing entries are errors; LLM implementation/test entries outside `LLM_SRC`/`LLM_TESTS` are `MAP-080`/`MAP-081` errors
 7. **Update** `stage_N.md`:
    - `task.status → completed`
    - `task.agent → <agent_id>`
@@ -494,5 +498,6 @@ Or show the hint text and let the user decide.
 ## Cleanup
 
 After the skill completes:
-1. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing.
-2. Suggest the user run `/clear` to free up context window before the next skill.
+1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
+2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If `validation.strictness: strict` or CI parity is required, run `hlv check --strict`.
+3. Suggest the user run `/clear` to free up context window before the next skill.

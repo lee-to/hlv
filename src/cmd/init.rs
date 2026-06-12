@@ -123,6 +123,10 @@ pub fn run_with_milestone(
             "schema/milestones-schema.json",
             include_str!("../../schema/milestones-schema.json"),
         ),
+        (
+            "schema/waivers-schema.json",
+            include_str!("../../schema/waivers-schema.json"),
+        ),
     ];
 
     if is_reinit {
@@ -289,6 +293,7 @@ pub fn run_with_milestone(
         "validation/adversarial-guardrails.yaml",
         ADV_GUARDRAILS_TEMPLATE,
     )?;
+    write_template(root, "validation/waivers.yaml", WAIVERS_TEMPLATE)?;
     write_template(root, "llm/map.yaml", &llm_map_template())?;
     write_template(
         root,
@@ -506,6 +511,7 @@ fn ensure_yaml_schemas(root: &Path) -> Result<()> {
             "validation/adversarial-guardrails.yaml",
             "../schema/adversarial-guardrails-schema.json",
         ),
+        ("validation/waivers.yaml", "../schema/waivers-schema.json"),
         (
             "human/traceability.yaml",
             "../schema/traceability-schema.json",
@@ -722,6 +728,9 @@ features:
 
 artifact_graph:
   code_ownership: {{}}
+
+validation:
+  strictness: standard
 
 git:
   branch_per_milestone: false
@@ -1289,6 +1298,10 @@ requirements:
   - id: ADV-004
     must: true
     rule: "No finding is accepted without a reproducible test or enforceable policy rule."
+"#;
+
+static WAIVERS_TEMPLATE: &str = r#"# yaml-language-server: $schema=../schema/waivers-schema.json
+waivers: []
 "#;
 
 #[cfg(test)]

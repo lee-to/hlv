@@ -7,11 +7,13 @@ use colored::Colorize;
 use serde_json;
 
 use super::style;
+use crate::check::Diagnostic;
 use crate::model::milestone::{GateResult, GateRunStatus, MilestoneMap};
 use crate::model::policy::{Gate, GatesPolicy};
 use crate::model::project::ProjectMap;
 use crate::util::command_parser::{gate_command_failure_reason, parse_portable_command};
 use crate::util::cwd::ensure_existing_cwd;
+use crate::util::display_width::{pad_display_width, truncate_display_width};
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct GateCommandRunSummary {
@@ -71,40 +73,44 @@ pub fn run_show(project_root: &Path) -> Result<()> {
 
     // Gate definitions
     println!(
-        "  {:<25} {:<22} {:<10} {:<8} {:<10} {}",
-        "Gate".bold(),
-        "Type".bold(),
-        "Mandatory".bold(),
-        "Enabled".bold(),
-        "Cwd".bold(),
+        "  {} {} {} {} {} {}",
+        table_cell("Gate", 25).bold(),
+        table_cell("Type", 22).bold(),
+        table_cell("Mandatory", 10).bold(),
+        table_cell("Enabled", 8).bold(),
+        table_cell("Cwd", 10).bold(),
         "Command".bold()
     );
     println!("  {}", "─".repeat(100));
 
     for gate in &policy.gates {
-        let mandatory = if gate.mandatory {
-            "yes".green()
-        } else {
-            "no".dimmed()
-        };
-        let enabled = if gate.enabled {
-            "yes".green()
-        } else {
-            "off".dimmed()
-        };
         let cwd = gate.cwd.as_deref().unwrap_or(".");
         let command = gate.command.as_deref().unwrap_or("—");
 
+        let gate_id = table_cell(&gate.id, 25);
+        let gate_type = table_cell(&gate.gate_type, 22);
+        let cwd = table_cell(cwd, 10);
+        let mandatory = table_cell(if gate.mandatory { "yes" } else { "no" }, 10);
+        let enabled = table_cell(if gate.enabled { "yes" } else { "off" }, 8);
+
         println!(
-            "  {:<25} {:<22} {:<10} {:<8} {:<10} {}",
+            "  {} {} {} {} {} {}",
             if gate.enabled {
-                gate.id.normal()
+                gate_id.normal()
             } else {
-                gate.id.dimmed()
+                gate_id.dimmed()
             },
-            gate.gate_type.normal(),
-            mandatory,
-            enabled,
+            gate_type.normal(),
+            if gate.mandatory {
+                mandatory.green()
+            } else {
+                mandatory.dimmed()
+            },
+            if gate.enabled {
+                enabled.green()
+            } else {
+                enabled.dimmed()
+            },
             cwd.dimmed(),
             if gate.command.is_some() {
                 command.cyan()
@@ -126,6 +132,10 @@ pub fn run_show(project_root: &Path) -> Result<()> {
     );
 
     Ok(())
+}
+
+fn table_cell(s: &str, width: usize) -> String {
+    pad_display_width(&truncate_display_width(s, width), width)
 }
 
 pub fn run_enable(project_root: &Path, gate_id: &str) -> Result<()> {
@@ -243,6 +253,14 @@ pub fn run_show_json(project_root: &Path) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct GateCommandReport {
+    pub passed: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
 pub fn run_add(
     project_root: &Path,
     id: &str,
@@ -352,6 +370,37 @@ pub fn run_edit(
 pub fn run_gate_commands(project_root: &Path, filter_id: Option<&str>) -> Result<(u32, u32, u32)> {
     let summary = run_gate_commands_with_results(project_root, filter_id, !style::is_quiet())?;
     Ok((summary.passed, summary.failed, summary.skipped))
+}
+
+/// Run enabled gate commands and return machine-readable diagnostics for failures.
+/// If `emit_output` is false, no progress output is printed.
+pub fn run_gate_command_report(
+    project_root: &Path,
+    filter_id: Option<&str>,
+    emit_output: bool,
+) -> Result<GateCommandReport> {
+    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+    let gates_policy_path = project.paths.validation.gates_policy.clone();
+    let summary = run_gate_commands_with_results(project_root, filter_id, emit_output)?;
+    let diagnostics = summary
+        .results
+        .iter()
+        .filter(|result| matches!(result.status, GateRunStatus::Failed))
+        .map(|result| {
+            Diagnostic::error(
+                "GAT-050",
+                format!("Gate '{}' command failed: {}", result.id, result.reason),
+            )
+            .with_file(&gates_policy_path)
+        })
+        .collect();
+
+    Ok(GateCommandReport {
+        passed: summary.passed,
+        failed: summary.failed,
+        skipped: summary.skipped,
+        diagnostics,
+    })
 }
 
 /// Run gates and return structured per-gate results.
@@ -500,7 +549,6 @@ pub fn run_gate_commands_with_results(
                             command,
                         });
                         if emit_human {
-                            // Show last lines of stderr/stdout for diagnostics
                             let stderr = String::from_utf8_lossy(&output.stderr);
                             let stdout_str = String::from_utf8_lossy(&output.stdout);
                             let output_text = if !stderr.is_empty() {
@@ -564,7 +612,6 @@ pub fn run_gate_commands_with_results(
         );
     }
 
-    // Save gate results to milestones.yaml
     let gate_results: Vec<GateResult> = results
         .iter()
         .map(|result| GateResult {
@@ -590,7 +637,7 @@ fn validate_gate_command(command: &str) -> Result<()> {
 }
 
 fn print_gate_start(gate: &Gate, command: Option<&str>, cwd_label: &str) -> Result<()> {
-    let command_label = command.unwrap_or("—");
+    let command_label = command.unwrap_or("-");
     print!(
         "  {} {} {}",
         gate.id.bold(),

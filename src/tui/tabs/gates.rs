@@ -1,4 +1,5 @@
 use crate::tui::app::{App, InputMode};
+use crate::util::display_width::display_width;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph, Row, Table, TableState};
 
@@ -136,7 +137,8 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
         f.render_widget(input, chunks[1]);
 
         // Position cursor
-        let x = chunks[1].x + app.input_buffer.len() as u16 + 1;
+        let input_width = display_width(&app.input_buffer).min(u16::MAX as usize) as u16;
+        let x = chunks[1].x + input_width + 1;
         let y = chunks[1].y + 1;
         f.set_cursor_position((x.min(chunks[1].right() - 2), y));
     }

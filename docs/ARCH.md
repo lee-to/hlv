@@ -493,6 +493,7 @@ human/
 
 validation/
   gates-policy.yaml             # <- static
+  waivers.yaml                  # <- explicit expiring diagnostic waivers
   scenarios/*.md                # <- cross-milestone integration tests
   verify-report.md              # <- result of /verify
 
@@ -503,6 +504,20 @@ llm/
 
 .{agent}/skills/                # <- skills for a specific agent
 ```
+
+---
+
+## 8a. Diagnostics UX and Preflight
+
+`hlv check` has one shared report pipeline for text and JSON: collect diagnostics once, apply configured strictness, optionally apply waivers, then compute counts and exit code from active diagnostics. `validation.strictness` defaults to `standard`; `--strict` forces strict mode for a run. `relaxed` mode keeps structural checks but skips gate execution and constraint `check_command` execution.
+
+`validation/waivers.yaml` is never a silent ignore file. Waivers match exact `code + file`, require a non-empty `reason` and an `expires` date, and are applied only with `hlv check --with-waivers`. `hlv waivers audit` reports expired, duplicate, malformed, and unmatched waivers.
+
+`hlv doctor` runs before normal project-root discovery so it can diagnose a missing `project.yaml`. `doctor --fix` is directory-only: it creates missing directories or missing parent directories for configured file paths, but never creates or edits config files, command strings, waivers, or docs.
+
+`hlv explain <DIAG_CODE>` reads a central diagnostic registry instead of scraping docs. Unknown codes show nearby registered codes from the same prefix.
+
+`hlv check` also enforces generated path isolation: `llm/map.yaml` and `project.yaml -> artifact_graph.code_ownership` implementation paths must stay under `paths.llm.src` (`MAP-080`), and test paths must stay under `paths.llm.tests` (`MAP-081`).
 
 ---
 

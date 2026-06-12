@@ -11,6 +11,7 @@ use hlv::model::policy::{
 };
 use hlv::model::project::ProjectMap;
 use hlv::model::traceability::TraceabilityMap;
+use hlv::model::waiver::WaiverFile;
 
 const FIXTURE: &str = "tests/fixtures/example-project";
 const MS_FIXTURE: &str = "tests/fixtures/milestone-project";
@@ -72,6 +73,7 @@ const FIXTURE_CASES: &[(&str, &str, &str)] = &[
         "adversarial-guardrails-schema.json",
         "validation/adversarial-guardrails.yaml",
     ),
+    (FIXTURE, "waivers-schema.json", "validation/waivers.yaml"),
     // --- constraint-schema (generic, same fixture as security) ---
     (
         FIXTURE,
@@ -162,6 +164,7 @@ const INIT_GENERATED_CASES: &[(&str, &str)] = &[
         "adversarial-guardrails-schema.json",
         "validation/adversarial-guardrails.yaml",
     ),
+    ("waivers-schema.json", "validation/waivers.yaml"),
 ];
 
 fn quote_gate_arg(arg: &str) -> String {
@@ -433,6 +436,11 @@ fn load_llm_map(path: &Path) -> String {
     serde_yaml::to_string(&m).unwrap()
 }
 
+fn load_waivers(path: &Path) -> String {
+    let m = WaiverFile::load(path).unwrap();
+    serde_yaml::to_string(&m).unwrap()
+}
+
 /// Roundtrip cases: (fixture_root, schema, yaml_rel, loader)
 const ROUNDTRIP_CASES: &[(&str, &str, &str, fn(&Path) -> String)] = &[
     (FIXTURE, "project-schema.json", "project.yaml", load_project),
@@ -503,6 +511,12 @@ const ROUNDTRIP_CASES: &[(&str, &str, &str, fn(&Path) -> String)] = &[
         load_contract_yaml,
     ),
     (FIXTURE, "llm-map-schema.json", "llm/map.yaml", load_llm_map),
+    (
+        FIXTURE,
+        "waivers-schema.json",
+        "validation/waivers.yaml",
+        load_waivers,
+    ),
     (
         FIXTURE,
         "constraint-schema.json",
