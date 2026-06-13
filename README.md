@@ -193,11 +193,13 @@ HLV includes a built-in [MCP](https://modelcontextprotocol.io/) server. Claude C
   "mcpServers": {
     "hlv": {
       "command": "hlv",
-      "args": ["mcp"]
+      "args": ["mcp", "--root", "/path/to/your/hlv-project"]
     }
   }
 }
 ```
+
+Alternatively, set the MCP server `cwd` to the HLV project root and use `args: ["mcp"]`.
 
 ```bash
 # Or start SSE server for web clients

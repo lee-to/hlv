@@ -5,8 +5,11 @@ MCP (Model Context Protocol) server for HLV. Provides programmatic access to HLV
 ## Launch
 
 ```bash
-# stdio transport (for Claude Code and CLI clients)
+# stdio transport from inside an HLV project
 hlv mcp
+
+# stdio transport from outside the project root
+hlv mcp --root /path/to/project
 
 # SSE/HTTP transport (for web clients)
 hlv mcp --transport sse --port 3000

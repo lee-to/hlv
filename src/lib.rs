@@ -36,7 +36,7 @@ pub fn find_project_root_from(start: &Path) -> Result<PathBuf> {
         if !dir.pop() {
             anyhow::bail!(
                 "No project.yaml found in any parent directory. \
-                 Use --project or run from inside an HLV project."
+                 Use --root or run from inside an HLV project."
             );
         }
     }
@@ -99,6 +99,8 @@ mod tests {
 
         let result = find_project_root_from(&subdir);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No project.yaml"));
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("No project.yaml"));
+        assert!(err.contains("--root"));
     }
 }
