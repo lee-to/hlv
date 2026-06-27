@@ -248,6 +248,7 @@ For each contract, a complete set of tests mapped to gates.
 | **Gate Mappings** | Mapping every test to a gate | - |
 
 Each test includes: Input, Expected, Assertions, Gate.
+`hlv check` recognizes test IDs declared as `### CT-*:` headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell.
 
 Files: `order.create.md`, `order.cancel.md`
 

@@ -75,6 +75,7 @@ For each test spec file (`{MID}/test-specs/*.md`):
 
 - [ ] `derived_from` points to existing contract
 - [ ] Each test case has unique ID format `TST-<suite>-<nnnn>` or `CT-*`, `PBT-*`, `EC-*`, `PERF-*`, `SEC-*`
+- [ ] IDs are declared in a parser-supported layout: heading (`### CT-*:`), bullet starting with the ID, or Markdown table row with the ID in the first cell
 - [ ] Each test case linked to a gate (`GATE-*`)
 - [ ] For each invariant in contract, there is a property-based test
 - [ ] For each error in contract, there is a contract test

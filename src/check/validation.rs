@@ -69,26 +69,17 @@ pub fn check_test_specs(root: &Path, entries: &[ContractEntry]) -> Vec<Diagnosti
             }
         }
 
-        // Extract test IDs (### ID-PATTERN: Title)
-        let sections = markdown::extract_sections(&text);
+        // Extract declared test IDs from headings, bullets, and table rows.
         let mut has_pbt = false;
         let mut has_contract_test = false;
 
-        for section in &sections {
-            for line in section.body.lines() {
-                let trimmed = line.trim();
-                if let Some(rest) = trimmed.strip_prefix("### ") {
-                    if let Some(colon) = rest.find(':') {
-                        let test_id = rest[..colon].trim().to_string();
-                        all_test_ids.push((test_id.clone(), spec_path.clone()));
+        for test_id in markdown::extract_test_ids(&text) {
+            all_test_ids.push((test_id.clone(), spec_path.clone()));
 
-                        if test_id.starts_with("CT-") {
-                            has_contract_test = true;
-                        } else if test_id.starts_with("PBT-") {
-                            has_pbt = true;
-                        }
-                    }
-                }
+            if test_id.starts_with("CT-") {
+                has_contract_test = true;
+            } else if test_id.starts_with("PBT-") {
+                has_pbt = true;
             }
         }
 

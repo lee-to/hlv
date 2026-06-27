@@ -90,6 +90,27 @@ fn registry() -> &'static [DiagnosticExplanation] {
             fixes: &["add the type or enum to glossary.yaml", "or update the contract $ref"],
         },
         DiagnosticExplanation {
+            code: "CTR-010",
+            title: "Missing contract section or code trace marker",
+            meaning: "A contract is missing a required Markdown section, or a contract/error/invariant/constraint ID has no matching @hlv marker in source or tests.",
+            common_causes: &["contract Markdown does not include all required sections", "implementation code was added without @hlv markers", "a contract or constraint ID was renamed without updating markers"],
+            fixes: &["add the missing contract section", "add or update the @hlv marker near the implementation or test", "run hlv check again after renaming IDs"],
+        },
+        DiagnosticExplanation {
+            code: "TST-020",
+            title: "No contract tests found",
+            meaning: "A test-spec file does not declare any CT-* contract test IDs.",
+            common_causes: &["the Contract Tests section is empty", "test IDs do not start with CT-", "test cases are described without declaring an ID"],
+            fixes: &["add at least one CT-* test for happy paths and error cases", "declare IDs as headings, bullets, or Markdown table rows with the ID in the first cell", "map each test to a GATE-* reference"],
+        },
+        DiagnosticExplanation {
+            code: "TST-021",
+            title: "No property-based tests found",
+            meaning: "A test-spec file does not declare any PBT-* property-based test IDs.",
+            common_causes: &["the Property-Based Tests section is empty", "invariants were not converted into PBT-* specs", "test IDs do not start with PBT-"],
+            fixes: &["add a PBT-* test for each contract invariant", "declare IDs as headings, bullets, or Markdown table rows with the ID in the first cell", "include generator, assertion, and gate details"],
+        },
+        DiagnosticExplanation {
             code: "CST-050",
             title: "Constraint rule command failed",
             meaning: "A constraint rule check_command ran and returned a failure.",
@@ -102,6 +123,13 @@ fn registry() -> &'static [DiagnosticExplanation] {
             meaning: "An enabled gate command ran during hlv check and returned a failure.",
             common_causes: &["the implementation failed the gate", "the command cannot start", "the command uses unsupported shell syntax"],
             fixes: &["fix the failing implementation or test", "fix the gate command or cwd", "use validation.strictness: relaxed only when gate execution should be skipped"],
+        },
+        DiagnosticExplanation {
+            code: "TRC-022",
+            title: "Mapping references unknown test ID",
+            meaning: "A traceability mapping points at a test ID that HLV could not find in the referenced test-spec files.",
+            common_causes: &["typo in traceability.yaml tests", "test was planned but not added to a test spec", "project.yaml contract entry points at the wrong test_spec file"],
+            fixes: &["add the missing test ID to the relevant test spec", "fix the ID in traceability.yaml", "ensure the contract entry's test_spec path points to the file that declares the test"],
         },
         DiagnosticExplanation {
             code: "MAP-080",

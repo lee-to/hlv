@@ -401,6 +401,19 @@ fn explain_registry_finds_gate_command_failure() {
 }
 
 #[test]
+fn explain_registry_finds_test_spec_and_traceability_codes() {
+    for code in ["CTR-010", "TST-020", "TST-021", "TRC-022"] {
+        let explanation = lookup_diagnostic(code).expect("diagnostic explanation");
+        assert_eq!(explanation.code, code);
+        assert!(
+            !explanation.common_causes.is_empty(),
+            "{code} should list common causes"
+        );
+        assert!(!explanation.fixes.is_empty(), "{code} should list fixes");
+    }
+}
+
+#[test]
 fn explain_registry_suggests_same_prefix_for_unknown_code() {
     let suggestions = hlv::cmd::explain::suggest_diagnostics("CTR-999");
 

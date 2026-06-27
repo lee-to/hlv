@@ -212,6 +212,8 @@ Contains:
 - **Security Tests**: from the Security section
 - **Gate Mappings**: mapping each test to a gate
 
+Test IDs are declared as `### CT-*:` headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell. The same parser feeds `TST-*` validation and `TRC-022` traceability resolution.
+
 ### 4.2 Scenarios
 
 Cross-contract test scenarios:

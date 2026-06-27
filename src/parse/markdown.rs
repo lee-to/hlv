@@ -155,6 +155,73 @@ pub fn extract_sections(md: &str) -> Vec<Section> {
     sections
 }
 
+/// Extract declared test IDs from accepted test-spec shapes:
+/// `### CT-...:`, bullet rows beginning with an ID, and Markdown tables
+/// where the first cell is the ID.
+pub fn extract_test_ids(md: &str) -> Vec<String> {
+    let mut ids = Vec::new();
+
+    for section in extract_sections(md) {
+        for line in section.body.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("### ") {
+                if let Some(id) = first_test_id_token(trimmed.trim_start_matches('#').trim()) {
+                    ids.push(id);
+                }
+            } else if let Some(item) = markdown_list_item(trimmed) {
+                if let Some(id) = first_test_id_token(item) {
+                    ids.push(id);
+                }
+            } else if trimmed.starts_with('|') {
+                let first_cell = trimmed
+                    .trim_matches('|')
+                    .split('|')
+                    .next()
+                    .unwrap_or("")
+                    .trim();
+                if let Some(id) = first_test_id_token(first_cell) {
+                    ids.push(id);
+                }
+            }
+        }
+    }
+
+    ids
+}
+
+fn markdown_list_item(line: &str) -> Option<&str> {
+    for marker in ["- ", "* ", "+ "] {
+        if let Some(rest) = line.strip_prefix(marker) {
+            return Some(rest.trim());
+        }
+    }
+
+    let (number, rest) = line.split_once(". ")?;
+    if !number.is_empty() && number.chars().all(|c| c.is_ascii_digit()) {
+        Some(rest.trim())
+    } else {
+        None
+    }
+}
+
+fn first_test_id_token(text: &str) -> Option<String> {
+    let candidate = text
+        .trim()
+        .trim_start_matches(['*', '`', '[', '('])
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect::<String>();
+
+    let prefixes = ["CT-", "PBT-", "EC-", "PERF-", "SEC-", "TST-"];
+    if prefixes.iter().any(|prefix| candidate.starts_with(prefix))
+        && candidate.len() > candidate.find('-').unwrap_or(0) + 1
+    {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
 /// Extract ```yaml ... ``` code blocks from a markdown text (raw string, not parsed).
 pub fn extract_yaml_blocks(text: &str) -> Vec<String> {
     extract_fenced_blocks(text, "yaml")

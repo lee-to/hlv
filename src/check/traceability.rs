@@ -155,7 +155,7 @@ pub fn check_traceability(
     diags
 }
 
-/// Extract test IDs from all test spec files (### ID: Title pattern).
+/// Extract test IDs from all test spec files.
 fn collect_test_ids(root: &Path, entries: &[ContractEntry]) -> HashSet<String> {
     let mut ids = HashSet::new();
     for entry in entries {
@@ -168,16 +168,8 @@ fn collect_test_ids(root: &Path, entries: &[ContractEntry]) -> HashSet<String> {
             Ok(t) => t,
             Err(_) => continue,
         };
-        let sections = markdown::extract_sections(&text);
-        for section in &sections {
-            for line in section.body.lines() {
-                let trimmed = line.trim();
-                if let Some(rest) = trimmed.strip_prefix("### ") {
-                    if let Some(colon) = rest.find(':') {
-                        ids.insert(rest[..colon].trim().to_string());
-                    }
-                }
-            }
+        for id in markdown::extract_test_ids(&text) {
+            ids.insert(id);
         }
     }
     ids

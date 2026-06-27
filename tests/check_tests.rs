@@ -1257,6 +1257,56 @@ paths:
 }
 
 #[test]
+fn traceability_accepts_tests_declared_in_markdown_table() {
+    let tmp = TempDir::new().unwrap();
+    write_traceability(
+        tmp.path(),
+        r#"
+schema_version: 1
+requirements:
+  - id: REQ-001
+    statement: "Create order"
+mappings:
+  - requirement: REQ-001
+    contracts: [order.create]
+    tests: [CT-001, PBT-001]
+    runtime_gates: []
+"#,
+    );
+
+    fs::create_dir_all(tmp.path().join("validation/test-specs")).unwrap();
+    fs::write(
+        tmp.path().join("validation/test-specs/order.create.md"),
+        r#"# Test Spec
+
+derived_from: c.md
+
+## Contract Tests
+
+| ID | Description | Gate |
+|----|-------------|------|
+| CT-001 | Happy path | GATE-CONTRACT-001 |
+
+## Property-Based Tests
+
+| ID | Invariant | Gate |
+|----|-----------|------|
+| PBT-001 | total_non_negative | GATE-PBT-001 |
+"#,
+    )
+    .unwrap();
+
+    let mut entry = make_entry("order.create", "c.md");
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let diags = check_traceability(tmp.path(), "human/traceability.yaml", &[entry]);
+    assert!(
+        !has_warning(&diags, "TRC-022"),
+        "table-declared test IDs should resolve traceability mappings: {:?}",
+        diags
+    );
+}
+
+#[test]
 fn traceability_unknown_contract_error() {
     let tmp = TempDir::new().unwrap();
     write_traceability(
@@ -1545,6 +1595,75 @@ Gate: GATE-PBT-001
 }
 
 #[test]
+fn test_specs_markdown_tables_are_valid() {
+    let tmp = TempDir::new().unwrap();
+    let spec = r#"# Test Spec: order.create
+derived_from: human/milestones/001/contracts/order.create.md
+
+## Contract Tests
+
+| ID | Description | Input | Expected | Gate |
+|----|-------------|-------|----------|------|
+| CT-001 | Happy path | valid order | created order | GATE-CONTRACT-001 |
+| CT-002 | Error case | empty cart | validation error | GATE-CONTRACT-001 |
+
+## Property-Based Tests
+
+| ID | Invariant | Generator | Assertion | Gate |
+|----|-----------|-----------|-----------|------|
+| PBT-001 | total_non_negative | random cart | total >= 0 | GATE-PBT-001 |
+"#;
+    write_test_spec(tmp.path(), "order.create", spec);
+    let mut entry = make_entry(
+        "order.create",
+        "human/milestones/001/contracts/order.create.md",
+    );
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let diags = check_test_specs(tmp.path(), &[entry]);
+    assert!(
+        !has_warning(&diags, "TST-020"),
+        "table CT rows should count as contract tests: {:?}",
+        diags
+    );
+    assert!(
+        !has_warning(&diags, "TST-021"),
+        "table PBT rows should count as property tests: {:?}",
+        diags
+    );
+    assert_eq!(count_errors(&diags), 0, "unexpected errors: {:?}", diags);
+}
+
+#[test]
+fn test_specs_bullet_ids_are_valid() {
+    let tmp = TempDir::new().unwrap();
+    let spec = r#"# Test Spec: order.create
+derived_from: human/milestones/001/contracts/order.create.md
+
+## Contract Tests
+
+- **CT-001** happy path: valid order creates an order. gate: GATE-CONTRACT-001.
+
+## Property-Based Tests
+
+- **PBT-001** total_non_negative: random carts never produce negative totals. gate: GATE-PBT-001.
+"#;
+    write_test_spec(tmp.path(), "order.create", spec);
+    let mut entry = make_entry(
+        "order.create",
+        "human/milestones/001/contracts/order.create.md",
+    );
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let diags = check_test_specs(tmp.path(), &[entry]);
+    assert_eq!(count_errors(&diags), 0, "unexpected errors: {:?}", diags);
+    assert_eq!(
+        count_warnings(&diags),
+        0,
+        "unexpected warnings: {:?}",
+        diags
+    );
+}
+
+#[test]
 fn test_specs_missing_file_error() {
     let tmp = TempDir::new().unwrap();
     let mut entry = make_entry("order.create", "c.md");
@@ -1638,6 +1757,40 @@ GATE-CONTRACT-001
     assert!(
         has_error(&diags, "TST-040"),
         "expected duplicate ID: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn test_specs_duplicate_table_test_id_error() {
+    let tmp = TempDir::new().unwrap();
+    let spec = r#"# Test Spec: order.create
+derived_from: human/milestones/001/contracts/order.create.md
+
+## Contract Tests
+
+| ID | Description | Gate |
+|----|-------------|------|
+| CT-001 | Happy path | GATE-CONTRACT-001 |
+| CT-001 | Duplicate | GATE-CONTRACT-001 |
+
+## Property-Based Tests
+
+| ID | Invariant | Gate |
+|----|-----------|------|
+| PBT-001 | total_non_negative | GATE-PBT-001 |
+"#;
+    write_test_spec(tmp.path(), "order.create", spec);
+    let mut entry = make_entry(
+        "order.create",
+        "human/milestones/001/contracts/order.create.md",
+    );
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+
+    let diags = check_test_specs(tmp.path(), &[entry]);
+    assert!(
+        has_error(&diags, "TST-040"),
+        "expected duplicate table ID: {:?}",
         diags
     );
 }

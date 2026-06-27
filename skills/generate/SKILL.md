@@ -168,11 +168,19 @@ derived_from: human/milestones/{id}/contracts/<contract-id>.md
 
 ## Contract Tests
 For each error case and happy path from contract:
-- test ID, description, input, expected output, gate mapping
+Use one Markdown table row per test. Put the test ID in the first cell.
+
+| ID | Description | Input | Expected | Gate |
+|----|-------------|-------|----------|------|
+| CT-<CONTRACT>-001 | happy path | <input summary> | <expected output> | GATE-CONTRACT-001 |
 
 ## Property-Based Tests
 For each invariant from contract:
-- property description, input generator, assertion
+Use one Markdown table row per property. Put the test ID in the first cell.
+
+| ID | Invariant | Generator | Assertion | Gate |
+|----|-----------|-----------|-----------|------|
+| PBT-<CONTRACT>-001 | <invariant name> | <generator> | <assertion> | GATE-PBT-001 |
 
 ## Integration Tests
 For cross-contract scenarios:
