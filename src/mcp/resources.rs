@@ -121,6 +121,8 @@ fn ok_json(json: String, uri: &str) -> Result<ReadResourceResult, McpError> {
 }
 
 pub fn read_resource(root: &Path, uri: &str) -> Result<ReadResourceResult, McpError> {
+    // Config artifacts live under the config root (`.hlv/` for adopted projects).
+    let root = &crate::config_root(root);
     let json = match uri {
         "hlv://project" => {
             let pm =

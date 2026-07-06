@@ -60,6 +60,7 @@ pub struct WorkflowStageData {
 }
 
 pub fn get_workflow(project_root: &Path) -> Result<WorkflowData> {
+    let project_root = &crate::config_root(project_root);
     let milestones = MilestoneMap::load(&project_root.join("milestones.yaml"))?;
     let current = match &milestones.current {
         None => {
@@ -186,6 +187,7 @@ pub fn get_workflow(project_root: &Path) -> Result<WorkflowData> {
 }
 
 pub fn run(project_root: &Path, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     if json {
         let data = get_workflow(project_root)?;
         println!("{}", serde_json::to_string_pretty(&data)?);

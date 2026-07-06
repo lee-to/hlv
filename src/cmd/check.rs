@@ -132,6 +132,11 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
 }
 
 fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagnostic>> {
+    // HLV config artifacts live under the config root (`.hlv/` for adopted
+    // projects); command execution (gates, constraint checks) stays on the
+    // repository root.
+    let repo_root = root;
+    let root = &crate::config_root(root);
     let mut all_diags: Vec<Diagnostic> = Vec::new();
 
     let project_diags = check::project_map::check_project_map(root);
@@ -250,11 +255,12 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     if !project.constraints.is_empty() {
         all_diags.extend(check::constraints::check_constraints(root, &project));
         if strictness != &Strictness::Relaxed {
-            // CST-050: run rule-level check_commands
-            let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
+            // CST-050: run rule-level check_commands (cwd relative to repo root)
+            let (cst050, _) =
+                check::constraints::run_constraint_checks(repo_root, &project, None, None);
             all_diags.extend(cst050);
-            // CST-060: run file-level check_commands
-            let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
+            // CST-060: run file-level check_commands (cwd relative to repo root)
+            let (cst060, _) = check::constraints::run_file_level_checks(repo_root, &project, None);
             all_diags.extend(cst060);
         }
     }
@@ -302,7 +308,7 @@ fn effective_strictness(root: &Path, strict: bool) -> Strictness {
     if strict {
         return Strictness::Strict;
     }
-    ProjectMap::load(&root.join("project.yaml"))
+    ProjectMap::load(&crate::config_root(root).join("project.yaml"))
         .ok()
         .and_then(|project| project.validation.map(|validation| validation.strictness))
         .unwrap_or_default()
@@ -322,7 +328,7 @@ fn apply_waivers(
     diags: &mut Vec<Diagnostic>,
     waived: &mut Vec<WaivedDiagnostic>,
 ) -> Vec<Diagnostic> {
-    let waiver_path = root.join("validation/waivers.yaml");
+    let waiver_path = crate::config_root(root).join("validation/waivers.yaml");
     if !waiver_path.exists() {
         return Vec::new();
     }

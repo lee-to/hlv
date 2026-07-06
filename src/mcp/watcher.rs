@@ -39,19 +39,21 @@ fn file_to_uris(file_name: &str, project_id: Option<&str>) -> Vec<String> {
 }
 
 /// Resolve the list of files to watch (absolute paths) from the project root.
-/// `milestones.yaml` and `project.yaml` are always at root; gates-policy path
-/// is read from `project.yaml` to respect the configured location.
+/// `milestones.yaml` and `project.yaml` live in the config root (`.hlv/` for
+/// adopted projects); gates-policy path is read from `project.yaml` to respect
+/// the configured location.
 fn watched_files(project_root: &std::path::Path) -> Vec<PathBuf> {
+    let config_root = crate::config_root(project_root);
     let mut files = vec![
-        project_root.join("milestones.yaml"),
-        project_root.join("project.yaml"),
+        config_root.join("milestones.yaml"),
+        config_root.join("project.yaml"),
     ];
 
     // Try to read gates-policy path from project.yaml
-    let gates_path = crate::model::project::ProjectMap::load(&project_root.join("project.yaml"))
+    let gates_path = crate::model::project::ProjectMap::load(&config_root.join("project.yaml"))
         .ok()
-        .map(|pm| project_root.join(&pm.paths.validation.gates_policy))
-        .unwrap_or_else(|| project_root.join("gates-policy.yaml"));
+        .map(|pm| config_root.join(&pm.paths.validation.gates_policy))
+        .unwrap_or_else(|| config_root.join("gates-policy.yaml"));
     files.push(gates_path);
 
     files

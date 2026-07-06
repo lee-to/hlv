@@ -33,10 +33,12 @@ pub struct GateCommandRunResult {
 }
 
 pub fn run(project_root: &Path) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     run_show(project_root)
 }
 
 pub fn run_show(project_root: &Path) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     style::header("gates");
 
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
@@ -139,6 +141,7 @@ fn table_cell(s: &str, width: usize) -> String {
 }
 
 pub fn run_enable(project_root: &Path, gate_id: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -154,6 +157,7 @@ pub fn run_enable(project_root: &Path, gate_id: &str) -> Result<()> {
 }
 
 pub fn run_disable(project_root: &Path, gate_id: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -169,6 +173,7 @@ pub fn run_disable(project_root: &Path, gate_id: &str) -> Result<()> {
 }
 
 pub fn run_set_command(project_root: &Path, gate_id: &str, command: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -185,6 +190,7 @@ pub fn run_set_command(project_root: &Path, gate_id: &str, command: &str) -> Res
 }
 
 pub fn run_clear_command(project_root: &Path, gate_id: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -200,6 +206,7 @@ pub fn run_clear_command(project_root: &Path, gate_id: &str) -> Result<()> {
 }
 
 pub fn run_set_cwd(project_root: &Path, gate_id: &str, cwd: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -216,6 +223,7 @@ pub fn run_set_cwd(project_root: &Path, gate_id: &str, cwd: &str) -> Result<()> 
 }
 
 pub fn run_clear_cwd(project_root: &Path, gate_id: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -231,6 +239,7 @@ pub fn run_clear_cwd(project_root: &Path, gate_id: &str) -> Result<()> {
 }
 
 pub fn run_show_json(project_root: &Path) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy = GatesPolicy::load(&project_root.join(&project.paths.validation.gates_policy))?;
 
@@ -270,6 +279,7 @@ pub fn run_add(
     cwd: Option<&str>,
     enabled: bool,
 ) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -303,6 +313,7 @@ pub fn run_add(
 }
 
 pub fn run_remove(project_root: &Path, id: &str, force: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -342,6 +353,7 @@ pub fn run_edit(
     mandatory: bool,
     no_mandatory: bool,
 ) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let policy_path = project_root.join(&project.paths.validation.gates_policy);
     let mut policy = GatesPolicy::load(&policy_path)?;
@@ -379,7 +391,7 @@ pub fn run_gate_command_report(
     filter_id: Option<&str>,
     emit_output: bool,
 ) -> Result<GateCommandReport> {
-    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+    let project = ProjectMap::load(&crate::config_root(project_root).join("project.yaml"))?;
     let gates_policy_path = project.paths.validation.gates_policy.clone();
     let summary = run_gate_commands_with_results(project_root, filter_id, emit_output)?;
     let diagnostics = summary
@@ -410,8 +422,11 @@ pub fn run_gate_commands_with_results(
     filter_id: Option<&str>,
     emit_human: bool,
 ) -> Result<GateCommandRunSummary> {
-    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
-    let policy = GatesPolicy::load(&project_root.join(&project.paths.validation.gates_policy))?;
+    // Policy is a config artifact (config root); gate commands execute
+    // relative to the repository root (`project_root`).
+    let config_root = crate::config_root(project_root);
+    let project = ProjectMap::load(&config_root.join("project.yaml"))?;
+    let policy = GatesPolicy::load(&config_root.join(&project.paths.validation.gates_policy))?;
 
     let selected: Vec<_> = policy
         .gates

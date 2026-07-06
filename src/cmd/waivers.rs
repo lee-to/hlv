@@ -16,7 +16,7 @@ pub struct WaiverAudit {
 }
 
 pub fn audit_waivers(root: &Path) -> Result<WaiverAudit> {
-    let waiver_path = root.join("validation/waivers.yaml");
+    let waiver_path = crate::config_root(root).join("validation/waivers.yaml");
     if !waiver_path.exists() {
         return Ok(WaiverAudit {
             waivers: Vec::new(),
@@ -130,6 +130,7 @@ pub fn audit_waivers(root: &Path) -> Result<WaiverAudit> {
 }
 
 pub fn run_list(root: &Path) -> Result<()> {
+    let root = &crate::config_root(root);
     let waiver_path = root.join("validation/waivers.yaml");
     if !waiver_path.exists() {
         style::hint("No validation/waivers.yaml file found");

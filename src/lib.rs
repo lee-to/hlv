@@ -9,16 +9,23 @@ pub mod util;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-/// Find the project root by searching upward for `project.yaml`.
+/// True when `dir` is an HLV project root: either a greenfield root with
+/// `project.yaml` or an adopted root with `.hlv/project.yaml`.
+pub fn has_project_config(dir: &Path) -> bool {
+    dir.join("project.yaml").exists() || dir.join(".hlv").join("project.yaml").exists()
+}
+
+/// Find the project root by searching upward for `project.yaml` or `.hlv/project.yaml`.
 /// If `explicit` is provided, use that path directly.
 pub fn find_project_root(explicit: Option<&str>) -> Result<PathBuf> {
     if let Some(p) = explicit {
         let path = PathBuf::from(p);
         anyhow::ensure!(
-            path.join("project.yaml").exists(),
-            "No project.yaml found at {}",
+            has_project_config(&path),
+            "No project.yaml or .hlv/project.yaml found at {}",
             path.display()
         );
+        tracing::debug!(root = %path.display(), "project root from explicit --root");
         return Ok(path);
     }
 
@@ -26,20 +33,40 @@ pub fn find_project_root(explicit: Option<&str>) -> Result<PathBuf> {
     find_project_root_from(&start)
 }
 
-/// Search upward from `start` for a directory containing `project.yaml`.
+/// Search upward from `start` for a directory containing `project.yaml`
+/// or `.hlv/project.yaml`. A root-level `project.yaml` in the same directory
+/// takes priority over `.hlv/project.yaml` (see [`config_root`]).
 pub fn find_project_root_from(start: &Path) -> Result<PathBuf> {
     let mut dir = start.to_path_buf();
     loop {
-        if dir.join("project.yaml").exists() {
+        if has_project_config(&dir) {
+            tracing::debug!(root = %dir.display(), "project root found");
             return Ok(dir);
         }
         if !dir.pop() {
             anyhow::bail!(
-                "No project.yaml found in any parent directory. \
+                "No project.yaml or .hlv/project.yaml found in any parent directory. \
                  Use --root or run from inside an HLV project."
             );
         }
     }
+}
+
+/// Resolve the HLV config root for a project root.
+///
+/// Greenfield projects keep HLV artifacts at the repository root; adopted
+/// projects keep them under `.hlv/`. A root-level `project.yaml` always
+/// takes priority when both layouts are present.
+pub fn config_root(root: &Path) -> PathBuf {
+    let config = if root.join("project.yaml").exists() {
+        root.to_path_buf()
+    } else if root.join(".hlv").join("project.yaml").exists() {
+        root.join(".hlv")
+    } else {
+        root.to_path_buf()
+    };
+    tracing::debug!(root = %root.display(), config_root = %config.display(), "config root resolved");
+    config
 }
 
 /// Resolve a relative path against the project root.
@@ -89,6 +116,47 @@ mod tests {
         let result = find_project_root_from(&subdir);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().canonicalize().unwrap(), root);
+    }
+
+    #[test]
+    fn config_root_prefers_root_project_yaml() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("project.yaml"), "project: test").unwrap();
+        std::fs::create_dir_all(tmp.path().join(".hlv")).unwrap();
+        std::fs::write(tmp.path().join(".hlv/project.yaml"), "project: adopted").unwrap();
+        assert_eq!(config_root(tmp.path()), tmp.path());
+    }
+
+    #[test]
+    fn config_root_uses_hlv_dir_for_adopted() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".hlv")).unwrap();
+        std::fs::write(tmp.path().join(".hlv/project.yaml"), "project: adopted").unwrap();
+        assert_eq!(config_root(tmp.path()), tmp.path().join(".hlv"));
+    }
+
+    #[test]
+    fn find_project_root_hlv_discovery_from_nested() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        std::fs::create_dir_all(root.join(".hlv")).unwrap();
+        std::fs::write(root.join(".hlv/project.yaml"), "project: adopted").unwrap();
+        let subdir = root.join("app/Http/Controllers");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_project_root_from(&subdir);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().canonicalize().unwrap(), root);
+    }
+
+    #[test]
+    fn find_project_root_explicit_hlv_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".hlv")).unwrap();
+        std::fs::write(tmp.path().join(".hlv/project.yaml"), "project: adopted").unwrap();
+        let result = find_project_root(Some(tmp.path().to_str().unwrap()));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), tmp.path());
     }
 
     #[test]

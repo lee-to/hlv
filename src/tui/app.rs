@@ -106,7 +106,7 @@ impl App {
     }
 
     pub fn reload(&mut self) {
-        let root = &self.project_root;
+        let root = &crate::config_root(&self.project_root);
         self.project = ProjectMap::load(&root.join("project.yaml")).ok();
         self.milestones = MilestoneMap::load(&root.join("milestones.yaml")).ok();
 

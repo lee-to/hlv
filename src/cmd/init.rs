@@ -62,8 +62,38 @@ pub fn run_with_milestone(
     milestone: Option<&str>,
     profile: Option<&str>,
 ) -> Result<()> {
+    run_with_options(path, project, owner, agent, milestone, profile, false)
+}
+
+/// Full init entry point. With `adopt = true`, HLV-owned files (project.yaml,
+/// milestones.yaml, human/, validation/, schema/, llm/) are written under
+/// `.hlv/` while root-owned files (AGENTS.md, HLV.md, agent skills) stay at
+/// the repository root.
+pub fn run_with_options(
+    path: &str,
+    project: Option<&str>,
+    owner: Option<&str>,
+    agent: Option<&str>,
+    milestone: Option<&str>,
+    profile: Option<&str>,
+    adopt: bool,
+) -> Result<()> {
     let root = Path::new(path);
-    let is_reinit = root.join("project.yaml").exists();
+    let is_reinit = crate::has_project_config(root);
+    // On reinit the existing layout wins; on fresh init --adopt selects .hlv/.
+    let config_root = if is_reinit {
+        crate::config_root(root)
+    } else if adopt {
+        root.join(".hlv")
+    } else {
+        root.to_path_buf()
+    };
+    let config_root = config_root.as_path();
+    tracing::debug!(
+        adopt_mode = adopt,
+        config_root = %config_root.display(),
+        "init file layout resolved"
+    );
 
     // Embedded schemas — all go into schema/ directory
     let schemas: &[(&str, &str)] = &[
@@ -134,7 +164,7 @@ pub fn run_with_milestone(
         let project_name = if let Some(p) = project {
             p.to_string()
         } else {
-            let yaml = fs::read_to_string(root.join("project.yaml"))?;
+            let yaml = fs::read_to_string(config_root.join("project.yaml"))?;
             let pm: ProjectMap =
                 serde_yaml::from_str(&yaml).context("failed to parse project.yaml")?;
             pm.project
@@ -170,14 +200,14 @@ pub fn run_with_milestone(
             &hlv_template(&project_name, &agent_name, &skills_dir),
         )?;
 
-        // Schemas are always updated
+        // Schemas are always updated (HLV-owned — config root)
         for (path, content) in schemas {
-            write_or_update(root, path, content)?;
+            write_or_update(config_root, path, content)?;
         }
 
         // Ensure all YAML files have $schema comments
-        ensure_project_yaml_schema(root)?;
-        ensure_yaml_schemas(root)?;
+        ensure_project_yaml_schema(config_root)?;
+        ensure_yaml_schemas(config_root)?;
 
         // AGENTS.md is user-owned — skip if exists
         write_template(root, "AGENTS.md", &agents_template(&project_name))?;
@@ -234,7 +264,7 @@ pub fn run_with_milestone(
         gate_profile.label().bold(),
     );
 
-    // Create directories
+    // Create HLV-owned directories under the config root
     let dirs = vec![
         "human/artifacts".to_string(),
         "human/constraints".to_string(),
@@ -246,62 +276,62 @@ pub fn run_with_milestone(
         "llm/tests".to_string(),
     ];
     for d in &dirs {
-        let dir = root.join(d);
+        let dir = config_root.join(d);
         fs::create_dir_all(&dir)?;
         style::file_op("mkdir", d, None);
     }
 
-    // Create template files
+    // Create HLV-owned template files (config root)
     write_template(
-        root,
+        config_root,
         "human/glossary.yaml",
         &glossary_template(&project_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/security.yaml",
         &security_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/performance.yaml",
         &performance_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/observability.yaml",
         &observability_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "validation/gates-policy.yaml",
         &gates_policy_template(gate_profile),
     )?;
     write_template(
-        root,
+        config_root,
         "validation/equivalence-policy.yaml",
         EQUIV_POLICY_TEMPLATE,
     )?;
     write_template(
-        root,
+        config_root,
         "validation/traceability-policy.yaml",
         TRACE_POLICY_TEMPLATE,
     )?;
-    write_template(root, "validation/ir-policy.yaml", IR_POLICY_TEMPLATE)?;
+    write_template(config_root, "validation/ir-policy.yaml", IR_POLICY_TEMPLATE)?;
     write_template(
-        root,
+        config_root,
         "validation/adversarial-guardrails.yaml",
         ADV_GUARDRAILS_TEMPLATE,
     )?;
-    write_template(root, "validation/waivers.yaml", WAIVERS_TEMPLATE)?;
-    write_template(root, "llm/map.yaml", &llm_map_template())?;
+    write_template(config_root, "validation/waivers.yaml", WAIVERS_TEMPLATE)?;
+    write_template(config_root, "llm/map.yaml", &llm_map_template())?;
     write_template(
-        root,
+        config_root,
         "human/traceability.yaml",
         &traceability_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "project.yaml",
         &project_template(
             &project_name,
@@ -311,14 +341,19 @@ pub fn run_with_milestone(
             security_markers,
         ),
     )?;
-    write_template(root, "milestones.yaml", &milestones_template(&project_name))?;
+    write_template(
+        config_root,
+        "milestones.yaml",
+        &milestones_template(&project_name),
+    )?;
+    // Root-owned files stay at the repository root
     write_template(
         root,
         "HLV.md",
         &hlv_template(&project_name, &agent_name, &skills_dir),
     )?;
     for (path, content) in schemas {
-        write_template(root, path, content)?;
+        write_template(config_root, path, content)?;
     }
     write_template(root, "AGENTS.md", &agents_template(&project_name))?;
 

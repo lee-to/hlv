@@ -8,6 +8,7 @@ use crate::model::traceability::TraceabilityMap;
 use crate::util::display_width::{pad_display_width, truncate_display_width};
 
 pub fn run(project_root: &Path, visual: bool, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     if json {
         let milestones =
             crate::model::milestone::MilestoneMap::load(&project_root.join("milestones.yaml"))?;

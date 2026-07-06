@@ -82,11 +82,11 @@ impl WorkspaceConfig {
             );
         }
 
-        // Check that all roots exist and contain project.yaml
+        // Check that all roots exist and contain project.yaml or .hlv/project.yaml
         for p in &self.projects {
             anyhow::ensure!(
-                p.root.join("project.yaml").exists(),
-                "Project '{}': no project.yaml at {}",
+                crate::has_project_config(&p.root),
+                "Project '{}': no project.yaml or .hlv/project.yaml at {}",
                 p.id,
                 p.root.display()
             );
@@ -116,6 +116,7 @@ impl WorkspaceConfig {
 
 /// Load summary data from a project root into a ProjectSummary (without id/root).
 fn load_project_summary(root: &Path) -> Result<ProjectSummary> {
+    let root = &crate::config_root(root);
     let pm = crate::model::project::ProjectMap::load(&root.join("project.yaml"))?;
     let name = Some(pm.project.clone());
 

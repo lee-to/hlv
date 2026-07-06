@@ -680,6 +680,11 @@ fn run(cli: Cli) -> Result<()> {
     }
 
     let project_root = hlv::find_project_root(cli.root.as_deref())?;
+    tracing::debug!(
+        repo_root = %project_root.display(),
+        config_root = %hlv::config_root(&project_root).display(),
+        "project context resolved"
+    );
 
     match cli.command {
         Commands::Init { .. } => unreachable!(),

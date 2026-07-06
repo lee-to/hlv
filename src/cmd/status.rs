@@ -43,6 +43,7 @@ pub struct StageStatusData {
 }
 
 pub fn get_status(project_root: &Path) -> Result<StatusData> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let milestones = MilestoneMap::load(&project_root.join("milestones.yaml"))?;
 
@@ -115,6 +116,7 @@ fn collect_contracts(root: &Path, milestone_id: &str) -> Vec<String> {
 }
 
 pub fn run(project_root: &Path, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     if json {
         let data = get_status(project_root)?;
         println!("{}", serde_json::to_string_pretty(&data)?);
