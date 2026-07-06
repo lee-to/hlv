@@ -1,0 +1,10 @@
+{
+  "name": "hlv/adopt-laravel-fixture",
+  "require": {
+    "php": "^8.2",
+    "laravel/framework": "^11.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.0"
+  }
+}

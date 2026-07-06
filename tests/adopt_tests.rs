@@ -6,12 +6,19 @@
 
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 use tempfile::TempDir;
+
+use hlv::cmd::init::AdoptManifestKind;
 
 use hlv::cmd::check::{get_check_report, CheckOptions};
 use hlv::cmd::doctor::doctor_report;
 use hlv::cmd::status::get_status;
+
+fn hlv_binary() -> &'static str {
+    env!("CARGO_BIN_EXE_hlv")
+}
 
 /// Write a minimal adopted project: HLV artifacts under `root/.hlv/`,
 /// observed code at the repository root.
@@ -89,6 +96,22 @@ fn check_runs_against_adopted_layout() {
         !report.diagnostics.iter().any(|d| d.code == "PRJ-001"),
         "PRJ-001 should not fire for adopted layout: {:?}",
         report.diagnostics
+    );
+}
+
+#[test]
+fn check_watch_paths_resolve_under_hlv_for_adopted_layout() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_adopted_project(tmp.path());
+
+    let paths = hlv::cmd::check::watch_paths_for_project(tmp.path());
+    assert_eq!(
+        paths,
+        vec![
+            tmp.path().join(".hlv/human"),
+            tmp.path().join(".hlv/validation"),
+            tmp.path().join(".hlv/project.yaml"),
+        ]
     );
 }
 
@@ -177,15 +200,430 @@ fn adopt_init_writes_hlv_owned_files_under_hlv_dir() {
     assert!(tmp.path().join(".hlv/project.yaml").exists());
     assert!(tmp.path().join(".hlv/milestones.yaml").exists());
     assert!(tmp.path().join(".hlv/human/glossary.yaml").exists());
-    assert!(tmp.path().join(".hlv/validation/gates-policy.yaml").exists());
+    assert!(tmp
+        .path()
+        .join(".hlv/validation/gates-policy.yaml")
+        .exists());
     assert!(tmp.path().join(".hlv/llm/map.yaml").exists());
+    assert!(tmp.path().join(".hlv/index").is_dir());
     assert!(tmp.path().join(".hlv/schema/project-schema.json").exists());
+    assert!(tmp
+        .path()
+        .join(".hlv/schema/signatures-schema.json")
+        .exists());
     // Root-owned files stay at the repository root
     assert!(tmp.path().join("AGENTS.md").exists());
     assert!(tmp.path().join("HLV.md").exists());
     assert!(tmp.path().join(".claude/skills").is_dir());
+    let agents_md = fs::read_to_string(tmp.path().join("AGENTS.md")).unwrap();
+    assert!(agents_md.contains("IDX-010"));
+    assert!(agents_md.contains("Adopt mode checklist"));
+    assert!(fs::read_to_string(tmp.path().join(".gitignore"))
+        .unwrap()
+        .contains(".hlv/index/"));
     // No greenfield project.yaml at the root
     assert!(!tmp.path().join("project.yaml").exists());
+
+    let project =
+        hlv::model::project::ProjectMap::load(&tmp.path().join(".hlv/project.yaml")).unwrap();
+    assert_eq!(project.hlv_root.as_deref(), Some(".hlv"));
+    assert!(project.features.legacy_mode);
+    assert!(!project.features.hlv_markers);
+    assert!(!project.features.security_markers);
+    assert_eq!(
+        project.features.index_tracking,
+        hlv::model::project::IndexTrackingPolicy::Ignored
+    );
+    assert!(project.paths.code.is_some());
+}
+
+#[test]
+fn init_detects_existing_project_manifests() {
+    let cases = [
+        ("composer.json", AdoptManifestKind::Composer),
+        ("go.mod", AdoptManifestKind::Go),
+        ("package.json", AdoptManifestKind::Node),
+        ("pyproject.toml", AdoptManifestKind::Python),
+        ("Cargo.toml", AdoptManifestKind::Rust),
+    ];
+
+    for (manifest, expected) in cases {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join(manifest), "").unwrap();
+
+        let detected = hlv::cmd::init::detect_adopt_manifests(tmp.path());
+
+        assert_eq!(detected.len(), 1);
+        assert_eq!(detected[0].kind, expected);
+        assert_eq!(detected[0].path, manifest);
+    }
+}
+
+#[test]
+fn init_defaults_to_adopt_when_manifest_is_present() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+
+    hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("auto-adopt"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        false,
+        false,
+    )
+    .unwrap();
+
+    assert!(tmp.path().join(".hlv/project.yaml").exists());
+    assert!(!tmp.path().join("project.yaml").exists());
+}
+
+#[test]
+fn init_greenfield_opt_out_overrides_manifest_default() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+
+    hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("greenfield"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        false,
+        true,
+    )
+    .unwrap();
+
+    assert!(tmp.path().join("project.yaml").exists());
+    assert!(!tmp.path().join(".hlv/project.yaml").exists());
+}
+
+#[test]
+fn init_explicit_adopt_rejects_existing_root_project() {
+    let tmp = TempDir::new().unwrap();
+    hlv::cmd::init::run_with_options(
+        tmp.path().to_str().unwrap(),
+        Some("root-project"),
+        Some("team"),
+        Some("claude"),
+        Some("init"),
+        Some("minimal"),
+        false,
+    )
+    .unwrap();
+
+    let err = hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("root-project"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        true,
+        false,
+    )
+    .unwrap_err();
+
+    assert!(err.to_string().contains("Cannot use --adopt"));
+    assert!(!tmp.path().join(".hlv/project.yaml").exists());
+}
+
+#[test]
+fn init_adopt_generates_stack_specific_defaults() {
+    struct Case {
+        name: &'static str,
+        files: &'static [(&'static str, &'static str)],
+        dirs: &'static [&'static str],
+        source_roots: &'static [&'static str],
+        test_roots: &'static [&'static str],
+        command: &'static str,
+        languages: &'static [&'static str],
+    }
+
+    let cases = [
+        Case {
+            name: "laravel",
+            files: &[("composer.json", "{}"), ("artisan", "")],
+            dirs: &["app", "routes", "tests"],
+            source_roots: &["app/", "routes/"],
+            test_roots: &["tests/"],
+            command: "php artisan test",
+            languages: &["php"],
+        },
+        Case {
+            name: "go",
+            files: &[("go.mod", "module example.com/app\n")],
+            dirs: &["cmd", "internal", "pkg", "tests"],
+            source_roots: &["cmd/", "internal/", "pkg/"],
+            test_roots: &["tests/"],
+            command: "go test ./...",
+            languages: &["go"],
+        },
+        Case {
+            name: "node",
+            files: &[("package.json", r#"{"scripts":{"test":"vitest run"}}"#)],
+            dirs: &["src", "test"],
+            source_roots: &["src/"],
+            test_roots: &["test/"],
+            command: "vitest run",
+            languages: &["javascript"],
+        },
+        Case {
+            name: "python",
+            files: &[
+                ("pyproject.toml", "[project]\nname = \"app\"\n"),
+                ("service/__init__.py", ""),
+            ],
+            dirs: &["service", "tests"],
+            source_roots: &["service/"],
+            test_roots: &["tests/"],
+            command: "pytest",
+            languages: &["python"],
+        },
+        Case {
+            name: "rust",
+            files: &[("Cargo.toml", "[package]\nname = \"app\"\n")],
+            dirs: &["src", "tests"],
+            source_roots: &["src/"],
+            test_roots: &["tests/"],
+            command: "cargo test",
+            languages: &["rust"],
+        },
+        Case {
+            name: "mixed-go-node",
+            files: &[
+                ("go.mod", "module example.com/app\n"),
+                ("package.json", r#"{"scripts":{"test":"npm run check"}}"#),
+            ],
+            dirs: &["cmd", "internal", "src", "test"],
+            source_roots: &["cmd/", "internal/", "src/"],
+            test_roots: &["test/"],
+            command: "go test ./...",
+            languages: &["go", "javascript"],
+        },
+    ];
+
+    for case in cases {
+        let tmp = TempDir::new().unwrap();
+        for dir in case.dirs {
+            fs::create_dir_all(tmp.path().join(dir)).unwrap();
+        }
+        for (path, content) in case.files {
+            let path = tmp.path().join(path);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            fs::write(path, content).unwrap();
+        }
+
+        hlv::cmd::init::run_auto(
+            tmp.path().to_str().unwrap(),
+            Some(case.name),
+            Some("team"),
+            Some("claude"),
+            Some("minimal"),
+            false,
+            false,
+        )
+        .unwrap();
+
+        let project =
+            hlv::model::project::ProjectMap::load(&tmp.path().join(".hlv/project.yaml")).unwrap();
+        let code = project.paths.code.as_ref().unwrap();
+        let expected_source_roots = case
+            .source_roots
+            .iter()
+            .map(|root| root.to_string())
+            .collect::<Vec<_>>();
+        let expected_test_roots = case
+            .test_roots
+            .iter()
+            .map(|root| root.to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(code.src, expected_source_roots);
+        assert_eq!(code.tests.clone().unwrap_or_default(), expected_test_roots);
+        let stack = project.stack.as_ref().unwrap();
+        let languages = stack
+            .components
+            .iter()
+            .flat_map(|component| component.languages.iter().cloned())
+            .collect::<Vec<_>>();
+        let expected_languages = case
+            .languages
+            .iter()
+            .map(|language| language.to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(languages, expected_languages);
+
+        let gates = hlv::model::policy::GatesPolicy::load(
+            &tmp.path().join(".hlv/validation/gates-policy.yaml"),
+        )
+        .unwrap();
+        let gate = gates
+            .gates
+            .iter()
+            .find(|gate| gate.id == "GATE-CONTRACT-001")
+            .unwrap();
+        assert_eq!(gate.command.as_deref(), Some(case.command));
+        assert_eq!(gate.cwd.as_deref(), Some("."));
+    }
+}
+
+#[test]
+fn init_adopt_builds_initial_index_and_seeds_map() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"app\"\n").unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
+
+    hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("indexed-adopt"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        false,
+        false,
+    )
+    .unwrap();
+
+    let index =
+        hlv::model::index::Index::load(&tmp.path().join(".hlv/index/signatures.yaml")).unwrap();
+    let symbol = index
+        .symbols
+        .iter()
+        .find(|symbol| symbol.name == "real")
+        .expect("initial index should include source symbol");
+
+    let map = hlv::model::llm_map::LlmMap::load(&tmp.path().join(".hlv/llm/map.yaml")).unwrap();
+    assert_eq!(map.entries.len(), 1);
+    assert_eq!(map.entries[0].path, "src/");
+    assert_eq!(map.entries[0].layer, "code");
+    assert_eq!(
+        map.entries[0].index_ref.as_deref(),
+        Some(symbol.id.as_str())
+    );
+}
+
+#[test]
+fn cli_adopt_init_check_and_index_commands_work() {
+    let tmp = TempDir::new().unwrap();
+    fs::write(tmp.path().join("Cargo.toml"), "[package]\nname = \"app\"\n").unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(
+        tmp.path().join("src/lib.rs"),
+        "pub fn real() -> &'static str { \"ok\" }\n",
+    )
+    .unwrap();
+
+    let init = Command::new(hlv_binary())
+        .args([
+            "init",
+            "--adopt",
+            "--path",
+            tmp.path().to_str().unwrap(),
+            "--project",
+            "cli-adopt",
+            "--owner",
+            "team",
+            "--agent",
+            "claude",
+            "--profile",
+            "minimal",
+        ])
+        .output()
+        .expect("run init");
+    assert!(
+        init.status.success(),
+        "init failed: {}",
+        String::from_utf8_lossy(&init.stderr)
+    );
+    let init_stdout = String::from_utf8_lossy(&init.stdout);
+    assert!(init_stdout.contains("Project scaffold created"));
+    assert!(!init_stdout.contains("pub fn real"));
+    assert!(tmp.path().join(".hlv/project.yaml").exists());
+    assert!(!tmp.path().join("project.yaml").exists());
+
+    let check = Command::new(hlv_binary())
+        .args(["--root", tmp.path().to_str().unwrap(), "check"])
+        .output()
+        .expect("run check");
+    assert!(
+        check.status.success(),
+        "check failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&check.stdout),
+        String::from_utf8_lossy(&check.stderr)
+    );
+
+    let build = Command::new(hlv_binary())
+        .args(["--root", tmp.path().to_str().unwrap(), "index", "build"])
+        .output()
+        .expect("run index build");
+    assert!(
+        build.status.success(),
+        "index build failed: {}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+    let build_stdout = String::from_utf8_lossy(&build.stdout);
+    assert!(build_stdout.contains("indexed"));
+    assert!(!build_stdout.contains("pub fn real"));
+
+    let show = Command::new(hlv_binary())
+        .args([
+            "--root",
+            tmp.path().to_str().unwrap(),
+            "index",
+            "show",
+            "real",
+            "--json",
+        ])
+        .output()
+        .expect("run index show");
+    assert!(
+        show.status.success(),
+        "index show failed: {}",
+        String::from_utf8_lossy(&show.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&show.stdout).unwrap();
+    assert_eq!(json[0]["name"], "real");
+}
+
+#[test]
+fn cli_check_example_project_still_passes() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/example-project");
+    let output = Command::new(hlv_binary())
+        .args(["--root", fixture.to_str().unwrap(), "check"])
+        .output()
+        .expect("run check");
+
+    assert!(
+        output.status.success(),
+        "example project check failed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn adopt_init_generates_adopt_aware_hlv_md() {
+    let tmp = TempDir::new().unwrap();
+
+    hlv::cmd::init::run_with_options(
+        tmp.path().to_str().unwrap(),
+        Some("adopted-init"),
+        Some("team"),
+        Some("claude"),
+        Some("adopt-test"),
+        Some("minimal"),
+        true,
+    )
+    .unwrap();
+
+    let hlv_md = fs::read_to_string(tmp.path().join("HLV.md")).unwrap();
+    assert!(hlv_md.contains("`.hlv/project.yaml`"));
+    assert!(hlv_md.contains("HLV adopt mode"));
+    assert!(hlv_md.contains("paths.code"));
+    assert!(hlv_md.contains("Legacy code is observed in place"));
 }
 
 #[test]
@@ -263,7 +701,10 @@ fn adopt_init_schema_comments_resolve_from_hlv_layout() {
             checked += 1;
         }
     }
-    assert!(checked >= 10, "expected many schema comments, got {checked}");
+    assert!(
+        checked >= 10,
+        "expected many schema comments, got {checked}"
+    );
 }
 
 #[test]

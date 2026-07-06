@@ -98,6 +98,7 @@ pub fn run_new(root: &Path, name: &str) -> Result<()> {
         stage: None,
         stages: Vec::new(),
         gate_results: Vec::new(),
+        changed_files: Vec::new(),
         git: None,
         labels: Vec::new(),
         meta: std::collections::HashMap::new(),

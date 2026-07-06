@@ -256,6 +256,22 @@ struct ArtifactsParams {
     name: Option<String>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema, Default)]
+struct IndexShowParams {
+    /// Project ID (required in workspace mode, ignored in single-project mode)
+    project_id: Option<String>,
+    /// Symbol name or index ID to query
+    symbol: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema, Default)]
+struct IndexListParams {
+    /// Project ID (required in workspace mode, ignored in single-project mode)
+    project_id: Option<String>,
+    /// Repository-relative source file path
+    file: String,
+}
+
 // ── Server ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -597,6 +613,36 @@ impl HlvMcpServer {
     ) -> Result<CallToolResult, McpError> {
         let root = self.root(p.project_id.as_deref())?;
         tools::hlv_glossary(&root)
+    }
+
+    #[tool(description = "Query the signature index by symbol name or index ID")]
+    fn hlv_index_show(
+        &self,
+        Parameters(p): Parameters<IndexShowParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let root = self.root(p.project_id.as_deref())?;
+        tracing::debug!(
+            project_id = p.project_id.as_deref().unwrap_or("<single>"),
+            query_type = "show",
+            symbol = p.symbol.as_str(),
+            "MCP signature index query"
+        );
+        tools::hlv_index_show(&root, &p.symbol)
+    }
+
+    #[tool(description = "List signature index symbols for a repository-relative file")]
+    fn hlv_index_list(
+        &self,
+        Parameters(p): Parameters<IndexListParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let root = self.root(p.project_id.as_deref())?;
+        tracing::debug!(
+            project_id = p.project_id.as_deref().unwrap_or("<single>"),
+            query_type = "list",
+            file = p.file.as_str(),
+            "MCP signature index query"
+        );
+        tools::hlv_index_list(&root, &p.file)
     }
 }
 

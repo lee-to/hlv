@@ -16,6 +16,8 @@ pub struct MapEntry {
     pub path: String,
     pub kind: MapEntryKind,
     pub layer: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index_ref: Option<String>,
     pub description: String,
 }
 
@@ -86,6 +88,7 @@ mod tests {
                 path: "project.yaml".to_string(),
                 kind: MapEntryKind::File,
                 layer: "root".to_string(),
+                index_ref: None,
                 description: "Project map".to_string(),
             }],
         };
@@ -109,6 +112,7 @@ mod tests {
             path: "human/constraints/obs.yaml".to_string(),
             kind: MapEntryKind::File,
             layer: "human".to_string(),
+            index_ref: None,
             description: "Observability constraints".to_string(),
         })
         .unwrap();
@@ -120,6 +124,7 @@ mod tests {
                 path: "human/constraints/obs.yaml".to_string(),
                 kind: MapEntryKind::File,
                 layer: "human".to_string(),
+                index_ref: None,
                 description: "Dup".to_string(),
             })
             .is_err());

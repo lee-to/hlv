@@ -17,6 +17,7 @@ JSON Schema for all YAML contracts: `schema/`
 | `performance-constraints-schema.json` | `human/constraints/performance.yaml` | `model::policy::PerformanceConstraints` |
 | `traceability-schema.json` | `human/traceability.yaml` | `model::traceability::TraceabilityMap` |
 | `llm-map-schema.json` | `llm/map.yaml` | `model::llm_map::LlmMap` |
+| `signatures-schema.json` | `index/signatures.yaml` or `.hlv/index/signatures.yaml` | `model::index::Index` |
 | `gates-policy-schema.json` | `validation/gates-policy.yaml` | `model::policy::GatesPolicy` |
 | `equivalence-policy-schema.json` | `validation/equivalence-policy.yaml` | `model::policy::EquivalencePolicy` |
 | `traceability-policy-schema.json` | `validation/traceability-policy.yaml` | `model::policy::TraceabilityPolicy` |
@@ -36,10 +37,14 @@ The single project map. Every LLM agent MUST start by reading this file.
 | `status` | Global project phase: `draft` -> `verified` -> `implementing` -> `implemented` -> `validating` -> `validated`. Per-stage status is stored in `milestones.yaml` |
 | `stack` | Technical stack: components, languages, typed dependencies |
 | `paths` | Paths to all project directories and files; `paths.llm.map` -> `llm/map.yaml` |
+| `paths.code` | Adopted-project observed code roots, resolved from the repository root |
+| `features` | Workflow flags: marker/style enforcement, `legacy_mode`, and `index_tracking` |
 | `constraints` | References to global constraints |
 | `validation` | Verification state: `verify_status`, `verify_date`, `issues` |
 
 Format: YAML. Schema: `schema/project-schema.json`. Updated automatically after `/generate` and `/verify`.
+
+Adopted projects use `.hlv/project.yaml`, set `hlv_root: .hlv`, set `features.legacy_mode: true`, and keep existing code in `paths.code` instead of moving it under `llm/src/`.
 
 ---
 
@@ -391,6 +396,19 @@ Lifecycle:
 
 Format: YAML. Schema: `schema/llm-map-schema.json`. Path is defined in `project.yaml -> paths.llm.map`.
 
+### `index/signatures.yaml` - generated signature index
+
+Compact machine-generated symbol index for adopted projects. It is written to `.hlv/index/signatures.yaml` by `hlv index build` and during `hlv init --adopt` when source files are parseable.
+
+| Field | Purpose |
+|------|---------|
+| `schema_version` | Index schema version |
+| `generated_at` | Build timestamp |
+| `project` | Project name |
+| `symbols[]` | Definitions with `id`, `name`, `file`, `line`, `signature`, `kind`, `language`, optional `namespace`/`scope`, and `source_fingerprint` |
+
+Use `hlv index show --json <symbol>` and `hlv index list --json --file <path>` for compact context. Do not paste the full index into LLM prompts.
+
 `hlv check` runs two checks:
 
 1. **Forward** (MAP-010): every map entry exists on disk
@@ -661,6 +679,10 @@ Important notes:
 | `PRJ-040` | error | Referenced constraint file path does not exist |
 | `PRJ-080` | error | `paths.llm.src` is outside `llm/` |
 | `PRJ-081` | error | `paths.llm.tests` is outside `llm/` |
+| `PRJ-090` | error | `features.legacy_mode` is true but `paths.code.src` is missing or empty |
+| `PRJ-091` | error | A `paths.code.src` directory does not exist |
+| `PRJ-092` | error | A `paths.code.tests` directory does not exist |
+| `PRJ-093` | warning | `paths.code` is configured while `features.legacy_mode` is false |
 
 #### Contracts and Code Trace (`CTR-*`)
 
@@ -760,6 +782,15 @@ Important notes:
 | `MAP-081` | error | Generated test path is outside `paths.llm.tests` |
 | `MAP-100` | info | Forward-check summary (`found/total`) |
 | `MAP-101` | info | Reverse-check summary |
+
+#### Signature Index (`IDX-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `IDX-010` | warning | Signature index is missing, unparsable, or stale; rebuild with `hlv index build` |
+| `IDX-020` | warning | `llm/map.yaml` references an `index_ref` not present in the signature index |
+| `IDX-030` | warning | Adopted `layer: code` map entry is missing `index_ref` |
+| `IDX-040` | warning | Duplicate symbol definitions share the same language/namespace/scope/name/kind |
 
 `MAP-080`/`MAP-081` are emitted for both `llm/map.yaml` entries and `project.yaml -> artifact_graph.code_ownership` paths.
 

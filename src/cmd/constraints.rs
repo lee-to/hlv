@@ -295,6 +295,7 @@ pub fn run_add(
                 path: constraint_path.clone(),
                 kind: MapEntryKind::File,
                 layer: "human".to_string(),
+                index_ref: None,
                 description: format!("{} constraints", name),
             });
             llm_map.save(&map_abs)?;

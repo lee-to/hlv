@@ -17,8 +17,14 @@ Execute all mandatory validation gates defined in `gates-policy.yaml`. Collect r
 Before proceeding, read `project.yaml → features` and note the flag values:
 - `features.hlv_markers` (default: `true`)
 - `features.security_markers` (default: `true`)
+- `features.legacy_mode` (default: `false`)
+- `features.index_tracking` (default: `ignored`)
 
-These flags control whether marker-related validation (Step 3b, 3c) is active. If `project.yaml` has no `features` section, treat all as `true`.
+These flags control whether marker-related validation (Step 3b, 3c) is active. If `features.legacy_mode` is `true`, read `paths.code` and treat untouched legacy code as observed context; the full contract and marker flow applies to new or changed milestone work.
+
+### Adopt Mode
+
+For adopted projects, run gates against the configured project commands and changed milestone work. Untouched legacy code is not required to gain `@hlv` or `@hlv:sec` markers unless the project explicitly enables those marker flags or the file is part of the current change.
 
 ## Prerequisites
 

@@ -401,6 +401,18 @@ fn explain_registry_finds_gate_command_failure() {
 }
 
 #[test]
+fn explain_registry_finds_index_stale_code() {
+    let explanation = lookup_diagnostic("idx-010").expect("IDX-010 explanation");
+
+    assert_eq!(explanation.code, "IDX-010");
+    assert!(explanation.title.contains("Signature index"));
+    assert!(explanation
+        .fixes
+        .iter()
+        .any(|fix| fix.contains("index build")));
+}
+
+#[test]
 fn explain_registry_finds_test_spec_and_traceability_codes() {
     for code in ["CTR-010", "TST-020", "TST-021", "TRC-022"] {
         let explanation = lookup_diagnostic(code).expect("diagnostic explanation");

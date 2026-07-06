@@ -1,0 +1,3 @@
+# yaml-language-server: $schema=../../../../schema/milestones-schema.json
+project: adopt-go
+history: []

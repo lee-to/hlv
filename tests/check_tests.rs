@@ -2,13 +2,14 @@ use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 
-use hlv::check::code_trace::check_code_trace;
+use hlv::check::code_trace::{check_code_trace, check_code_trace_with_scope, CodeTraceScope};
 use hlv::check::constraints::check_constraints;
 use hlv::check::contracts::check_contracts;
-use hlv::check::llm_map::check_llm_map;
+use hlv::check::index::check_index;
+use hlv::check::llm_map::{check_llm_map, check_llm_map_with_context};
 use hlv::check::plan::check_stage_plans;
 use hlv::check::project_map::check_project_map;
-use hlv::check::sec_markers::check_sec_markers;
+use hlv::check::sec_markers::{check_sec_markers, check_sec_markers_with_scope};
 use hlv::check::stack::check_stack;
 use hlv::check::traceability::check_traceability;
 use hlv::check::validation::check_test_specs;
@@ -1900,6 +1901,190 @@ paths:
 }
 
 #[test]
+fn project_map_legacy_code_roots_pass_outside_llm() {
+    let tmp = TempDir::new().unwrap();
+    let hlv = tmp.path().join(".hlv");
+    scaffold_project(&hlv);
+    fs::create_dir_all(tmp.path().join("app")).unwrap();
+    fs::create_dir_all(tmp.path().join("tests")).unwrap();
+
+    let yaml = r#"schema_version: 1
+project: adopted
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: generated-src/
+    tests: generated-tests/
+  code:
+    src: [app/]
+    tests: [tests/]
+features:
+  legacy_mode: true
+"#;
+    fs::write(hlv.join("project.yaml"), yaml).unwrap();
+
+    let diags = check_project_map(&hlv);
+    assert!(
+        !has_error(&diags, "PRJ-080") && !has_error(&diags, "PRJ-081"),
+        "legacy mode should not enforce paths.llm isolation: {:?}",
+        diags
+    );
+    assert!(
+        !has_error(&diags, "PRJ-090")
+            && !has_error(&diags, "PRJ-091")
+            && !has_error(&diags, "PRJ-092"),
+        "expected valid legacy code roots: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn project_map_legacy_mode_requires_code_src() {
+    let tmp = TempDir::new().unwrap();
+    scaffold_project(tmp.path());
+    let yaml = r#"schema_version: 1
+project: adopted
+status: draft
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+features:
+  legacy_mode: true
+"#;
+    fs::write(tmp.path().join("project.yaml"), yaml).unwrap();
+
+    let diags = check_project_map(tmp.path());
+    assert!(
+        has_error(&diags, "PRJ-090"),
+        "expected missing paths.code.src diagnostic: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn project_map_legacy_mode_reports_missing_code_roots() {
+    let tmp = TempDir::new().unwrap();
+    scaffold_project(tmp.path());
+    let yaml = r#"schema_version: 1
+project: adopted
+status: draft
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+  code:
+    src: [missing-app/]
+    tests: [missing-tests/]
+features:
+  legacy_mode: true
+"#;
+    fs::write(tmp.path().join("project.yaml"), yaml).unwrap();
+
+    let diags = check_project_map(tmp.path());
+    assert!(
+        has_error(&diags, "PRJ-091"),
+        "expected missing source root: {:?}",
+        diags
+    );
+    assert!(
+        has_error(&diags, "PRJ-092"),
+        "expected missing test root: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn project_map_code_paths_without_legacy_mode_warns() {
+    let tmp = TempDir::new().unwrap();
+    scaffold_project(tmp.path());
+    fs::create_dir_all(tmp.path().join("app")).unwrap();
+    let yaml = r#"schema_version: 1
+project: greenfield
+status: draft
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+  code:
+    src: [app/]
+"#;
+    fs::write(tmp.path().join("project.yaml"), yaml).unwrap();
+
+    let diags = check_project_map(tmp.path());
+    assert!(
+        has_warning(&diags, "PRJ-093"),
+        "expected paths.code without legacy warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn adopted_fixtures_check_with_only_expected_nonblocking_diagnostics() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let fixtures = [
+        "adopt-laravel-project",
+        "adopt-go-project",
+        "adopt-node-project",
+        "adopt-python-project",
+        "adopt-rust-project",
+    ];
+    let allowed = ["MAP-003", "IDX-010"];
+
+    for fixture in fixtures {
+        let root = manifest.join("tests/fixtures").join(fixture);
+        let (diagnostics, exit_code) = hlv::cmd::check::get_check_diagnostics(&root).unwrap();
+        assert_eq!(exit_code, 0, "{fixture} should not fail: {diagnostics:?}");
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diag| !matches!(diag.severity, Severity::Error)),
+            "{fixture} emitted errors: {diagnostics:?}"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diag| allowed.contains(&diag.code.as_str())),
+            "{fixture} emitted unexpected diagnostics: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn project_map_missing_yaml_error() {
     let tmp = TempDir::new().unwrap();
     // No project.yaml at all
@@ -3052,6 +3237,51 @@ entries:
 }
 
 #[test]
+fn map_legacy_code_layer_allows_repo_paths_without_reverse_check() {
+    let tmp = TempDir::new().unwrap();
+    let repo_root = tmp.path();
+    let config_root = repo_root.join(".hlv");
+    fs::create_dir_all(repo_root.join("app")).unwrap();
+    fs::create_dir_all(config_root.join("llm")).unwrap();
+    fs::write(repo_root.join("app/listed.php"), "<?php\n").unwrap();
+    fs::write(repo_root.join("app/unlisted.php"), "<?php\n").unwrap();
+    fs::write(
+        config_root.join("llm/map.yaml"),
+        r#"schema_version: 1
+entries:
+  - path: app/
+    kind: dir
+    layer: code
+    description: "Observed application source"
+  - path: app/listed.php
+    kind: file
+    layer: code
+    index_ref: php:App\listed
+    description: "Observed source file"
+"#,
+    )
+    .unwrap();
+
+    let diags = check_llm_map_with_context(
+        &config_root,
+        repo_root,
+        "llm/map.yaml",
+        &default_llm_paths(),
+        true,
+    );
+    assert!(
+        !has_error(&diags, "MAP-080") && !has_error(&diags, "MAP-081"),
+        "code layer should not use generated path isolation: {:?}",
+        diags
+    );
+    assert!(
+        !has_warning(&diags, "MAP-020"),
+        "observed code layer should not reverse-scan legacy files: {:?}",
+        diags
+    );
+}
+
+#[test]
 fn map100_forward_summary() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();
@@ -3181,6 +3411,163 @@ fn map_with_fixture_example_project() {
 }
 
 // ═══════════════════════════════════════════════════════
+// check::index — IDX-* diagnostics
+// ═══════════════════════════════════════════════════════
+
+fn index_project_yaml() -> hlv::model::project::ProjectMap {
+    serde_yaml::from_str(
+        r#"schema_version: 1
+project: adopted
+status: draft
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    scenarios: validation/scenarios/
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+    map: llm/map.yaml
+  code:
+    src: [src/]
+features:
+  legacy_mode: true
+"#,
+    )
+    .unwrap()
+}
+
+fn write_index_fixture(root: &Path, signature: &str, extra_symbol: &str) {
+    fs::create_dir_all(root.join(".hlv/index")).unwrap();
+    fs::create_dir_all(root.join(".hlv/llm")).unwrap();
+    fs::write(
+        root.join(".hlv/index/signatures.yaml"),
+        format!(
+            r#"schema_version: 1
+symbols:
+  - id: rust:src/lib.rs:real:function
+    name: real
+    file: src/lib.rs
+    line: 1
+    signature: "{signature}"
+    visibility: public
+    kind: function
+    language: rust
+    source_fingerprint: sha256:real
+{extra_symbol}"#
+        ),
+    )
+    .unwrap();
+}
+
+#[test]
+fn idx010_stale_index_warns() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn changed() {}\n").unwrap();
+    write_index_fixture(tmp.path(), "pub fn real() {}", "");
+    fs::write(
+        tmp.path().join(".hlv/llm/map.yaml"),
+        "schema_version: 1\nentries: []\n",
+    )
+    .unwrap();
+
+    let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
+    assert!(
+        has_warning(&diags, "IDX-010"),
+        "expected stale index warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn idx020_orphan_symbol_warns_when_map_refs_exist() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
+    write_index_fixture(tmp.path(), "pub fn real() {}", "");
+    fs::write(
+        tmp.path().join(".hlv/llm/map.yaml"),
+        r#"schema_version: 1
+entries:
+  - path: src/missing.rs
+    kind: file
+    layer: code
+    index_ref: rust:missing
+    description: "Missing"
+"#,
+    )
+    .unwrap();
+
+    let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
+    assert!(
+        has_warning(&diags, "IDX-020"),
+        "expected missing/orphan symbol warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn idx030_code_map_entry_missing_index_ref_warns() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
+    write_index_fixture(tmp.path(), "pub fn real() {}", "");
+    fs::write(
+        tmp.path().join(".hlv/llm/map.yaml"),
+        r#"schema_version: 1
+entries:
+  - path: src/lib.rs
+    kind: file
+    layer: code
+    description: "Observed"
+"#,
+    )
+    .unwrap();
+
+    let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
+    assert!(
+        has_warning(&diags, "IDX-030"),
+        "expected missing index_ref warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn idx040_duplicate_symbol_warns_scope_aware() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
+    write_index_fixture(
+        tmp.path(),
+        "pub fn real() {}",
+        r#"  - id: rust:src/other.rs:real:function
+    name: real
+    file: src/lib.rs
+    line: 1
+    signature: "pub fn real() {}"
+    visibility: public
+    kind: function
+    language: rust
+    source_fingerprint: sha256:real2
+"#,
+    );
+    fs::write(
+        tmp.path().join(".hlv/llm/map.yaml"),
+        "schema_version: 1\nentries: []\n",
+    )
+    .unwrap();
+
+    let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
+    assert!(
+        has_warning(&diags, "IDX-040"),
+        "expected duplicate symbol warning: {:?}",
+        diags
+    );
+}
+
+// ═══════════════════════════════════════════════════════
 // check::code_trace — CTR-* integration tests
 // ═══════════════════════════════════════════════════════
 
@@ -3265,6 +3652,106 @@ outputs_schema:
             .iter()
             .any(|d| d.code == "CTR-010" && d.message.contains("MISSING_ERR")),
         "expected CTR-010 for missing marker: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn code_trace_legacy_untouched_code_skips_marker_enforcement() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("contracts")).unwrap();
+    fs::write(
+        root.join("contracts/order.yaml"),
+        r#"id: order
+version: 1.0.0
+errors:
+  - code: LEGACY_ERR
+    http_status: 500
+invariants: []
+inputs_schema:
+  type: object
+outputs_schema:
+  type: object
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::write(root.join("app/legacy.rs"), "fn legacy() {}\n").unwrap();
+
+    let contracts = vec![make_entry_with_yaml(
+        "order",
+        "contracts/order.md",
+        "contracts/order.yaml",
+    )];
+    let changed_files: Vec<String> = Vec::new();
+    let diags = check_code_trace_with_scope(
+        CodeTraceScope {
+            artifact_root: root,
+            scan_root: root,
+            src_path: "llm/src",
+            tests_path: None,
+            changed_files: Some(&changed_files),
+        },
+        &contracts,
+        &[],
+        true,
+    );
+    assert!(
+        !diags.iter().any(|d| d.code == "CTR-010"),
+        "untouched legacy code should not require markers: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn code_trace_legacy_changed_file_missing_marker_warns() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("contracts")).unwrap();
+    fs::write(
+        root.join("contracts/order.yaml"),
+        r#"id: order
+version: 1.0.0
+errors:
+  - code: CHANGED_ERR
+    http_status: 500
+invariants: []
+inputs_schema:
+  type: object
+outputs_schema:
+  type: object
+"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::write(root.join("app/changed.rs"), "fn changed() {}\n").unwrap();
+
+    let contracts = vec![make_entry_with_yaml(
+        "order",
+        "contracts/order.md",
+        "contracts/order.yaml",
+    )];
+    let changed_files = vec!["app/changed.rs".to_string()];
+    let diags = check_code_trace_with_scope(
+        CodeTraceScope {
+            artifact_root: root,
+            scan_root: root,
+            src_path: "llm/src",
+            tests_path: None,
+            changed_files: Some(&changed_files),
+        },
+        &contracts,
+        &[],
+        true,
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == "CTR-010" && d.message.contains("CHANGED_ERR")),
+        "changed legacy file should enforce markers: {:?}",
         diags
     );
 }
@@ -4262,6 +4749,7 @@ fn minimal_project_with_constraints(
                 tests: None,
                 map: None,
             },
+            code: None,
         },
         glossary_types: vec![],
         constraints,
@@ -4270,6 +4758,7 @@ fn minimal_project_with_constraints(
         git: Default::default(),
         features: Default::default(),
         artifact_graph: None,
+        hlv_root: None,
     }
 }
 
@@ -4457,6 +4946,48 @@ fn sec_markers_invalid_category_warns() {
     assert!(
         has_warning(&diags, "SEC-011"),
         "should warn on invalid category: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn sec_markers_legacy_scope_ignores_unchanged_invalid_marker() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::write(
+        root.join("app/legacy.rs"),
+        "// @hlv:sec [INVALID_CAT] unchanged legacy marker",
+    )
+    .unwrap();
+
+    let changed_files: Vec<String> = Vec::new();
+    let diags = check_sec_markers_with_scope(root, "llm/src", true, Some(&changed_files));
+    assert!(
+        !has_warning(&diags, "SEC-011"),
+        "unchanged legacy files should not be scanned: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn sec_markers_legacy_scope_scans_changed_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    fs::create_dir_all(root.join("app")).unwrap();
+    fs::write(
+        root.join("app/changed.rs"),
+        "// @hlv:sec [INVALID_CAT] changed marker",
+    )
+    .unwrap();
+
+    let changed_files = vec!["app/changed.rs".to_string()];
+    let diags = check_sec_markers_with_scope(root, "llm/src", true, Some(&changed_files));
+    assert!(
+        has_warning(&diags, "SEC-011"),
+        "changed legacy file should be scanned: {:?}",
         diags
     );
 }

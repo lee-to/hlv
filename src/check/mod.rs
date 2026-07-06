@@ -2,6 +2,7 @@ pub mod artifacts;
 pub mod code_trace;
 pub mod constraints;
 pub mod contracts;
+pub mod index;
 pub mod llm_map;
 pub mod plan;
 pub mod project_map;

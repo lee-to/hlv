@@ -199,6 +199,8 @@ fn server_lists_all_tools() {
         "hlv_task_meta",
         "hlv_artifacts",
         "hlv_glossary",
+        "hlv_index_show",
+        "hlv_index_list",
     ];
 
     for name in &tool_names {
@@ -597,6 +599,42 @@ fn resource_unknown_uri() {
     );
 }
 
+#[test]
+fn resource_index_symbol_is_filtered() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/adopt-rust-project");
+
+    let result = hlv::mcp::resources::read_resource(&root, "hlv://index/symbol/greeting")
+        .expect("index symbol resource should load");
+    let json: serde_json::Value = serde_json::from_str(&resource_text(&result)).unwrap();
+
+    assert_eq!(json.as_array().unwrap().len(), 1);
+    assert_eq!(json[0]["name"], "greeting");
+    assert!(json[0]["signature"].as_str().unwrap().contains("greeting"));
+}
+
+#[test]
+fn tool_index_show_matches_cli_json() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/adopt-rust-project");
+    let result = hlv::mcp::tools::hlv_index_show(&root, "greeting").unwrap();
+    let mcp_json: serde_json::Value = serde_json::from_str(&tool_text(&result)).unwrap();
+    let cli_json =
+        serde_json::to_value(hlv::cmd::index::find_symbols(&root, "greeting").unwrap()).unwrap();
+
+    assert_eq!(mcp_json, cli_json);
+}
+
+#[test]
+fn tool_index_list_matches_cli_json() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/adopt-rust-project");
+    let result = hlv::mcp::tools::hlv_index_list(&root, "src/lib.rs").unwrap();
+    let mcp_json: serde_json::Value = serde_json::from_str(&tool_text(&result)).unwrap();
+    let cli_json =
+        serde_json::to_value(hlv::cmd::index::list_symbols_by_file(&root, "src/lib.rs").unwrap())
+            .unwrap();
+
+    assert_eq!(mcp_json, cli_json);
+}
+
 // ── Artifact parametrized resources ─────────────────────
 
 /// Helper: create a global artifact file
@@ -722,7 +760,7 @@ fn list_resources_returns_all() {
 #[test]
 fn list_resource_templates_returns_all() {
     let result = hlv::mcp::resources::list_resource_templates();
-    assert_eq!(result.resource_templates.len(), 6);
+    assert_eq!(result.resource_templates.len(), 8);
     let uris: Vec<_> = result
         .resource_templates
         .iter()
@@ -731,6 +769,8 @@ fn list_resource_templates_returns_all() {
     assert!(uris.contains(&"hlv://stage/{n}"));
     assert!(uris.contains(&"hlv://contracts/{id}"));
     assert!(uris.contains(&"hlv://tasks/{n}"));
+    assert!(uris.contains(&"hlv://index/symbol/{selector}"));
+    assert!(uris.contains(&"hlv://index/file/{path}"));
 }
 
 #[test]

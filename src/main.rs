@@ -31,6 +31,12 @@ enum Commands {
         /// Target directory
         #[arg(long, default_value = ".")]
         path: String,
+        /// Store HLV-owned files under .hlv/ for an existing codebase
+        #[arg(long)]
+        adopt: bool,
+        /// Force root-level HLV files even when a framework manifest is present
+        #[arg(long, conflicts_with = "adopt")]
+        greenfield: bool,
     },
     /// Validate project artifacts
     Check {
@@ -46,6 +52,11 @@ enum Commands {
         /// Apply validation/waivers.yaml to matching diagnostics
         #[arg(long)]
         with_waivers: bool,
+    },
+    /// Build and query the signature index
+    Index {
+        #[command(subcommand)]
+        action: IndexAction,
     },
     /// Check local environment and HLV project configuration
     Doctor {
@@ -193,6 +204,28 @@ enum Commands {
         /// Path to workspace config YAML for multi-project mode
         #[arg(long)]
         workspace: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum IndexAction {
+    /// Build index/signatures.yaml from configured source roots
+    Build,
+    /// Show a symbol by ID or name
+    Show {
+        symbol: String,
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// List symbols for a file
+    List {
+        /// Repository-relative file path
+        #[arg(long)]
+        file: String,
+        /// Output in JSON
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -614,14 +647,18 @@ fn run(cli: Cli) -> Result<()> {
         agent,
         profile,
         path,
+        adopt,
+        greenfield,
     } = cli.command
     {
-        return hlv::cmd::init::run(
+        return hlv::cmd::init::run_auto(
             &path,
             project.as_deref(),
             owner.as_deref(),
             agent.as_deref(),
             profile.as_deref(),
+            adopt,
+            greenfield,
         );
     }
 
@@ -694,6 +731,15 @@ fn run(cli: Cli) -> Result<()> {
             strict,
             with_waivers,
         } => hlv::cmd::check::run(&project_root, watch, json, strict, with_waivers),
+        Commands::Index { action } => match action {
+            IndexAction::Build => hlv::cmd::index::run_build(&project_root),
+            IndexAction::Show { symbol, json } => {
+                hlv::cmd::index::run_show(&project_root, &symbol, json)
+            }
+            IndexAction::List { file, json } => {
+                hlv::cmd::index::run_list(&project_root, &file, json)
+            }
+        },
         Commands::Status { json } => hlv::cmd::status::run(&project_root, json),
         Commands::Plan { visual, json } => hlv::cmd::plan::run(&project_root, visual, json),
         Commands::Trace { visual, json } => hlv::cmd::trace::run(&project_root, visual, json),

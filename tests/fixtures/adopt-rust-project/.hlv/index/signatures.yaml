@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../../../schema/signatures-schema.json
+schema_version: 1
+project: adopt-rust
+symbols:
+  - id: rust:adopt_rust_fixture.greeting
+    name: greeting
+    file: src/lib.rs
+    line: 1
+    signature: "pub fn greeting(name: &str) -> String"
+    visibility: public
+    kind: function
+    language: rust
+    source_fingerprint: sha256:rust-greeting

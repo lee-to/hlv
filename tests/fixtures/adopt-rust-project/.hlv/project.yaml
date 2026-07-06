@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=../../../../schema/project-schema.json
+schema_version: 1
+project: adopt-rust
+status: draft
+hlv_root: .hlv
+
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    scenarios: validation/scenarios/
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+  code:
+    src:
+      - src/
+    tests:
+      - tests/
+
+features:
+  legacy_mode: true
+  hlv_markers: false
+  security_markers: false
+
+stack:
+  components:
+    - id: app
+      type: library
+      languages: [rust]
+      dependencies: []

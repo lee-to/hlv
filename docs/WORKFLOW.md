@@ -40,7 +40,17 @@ hlv init --project payments --owner backend-team
 # --profile minimal|standard|full can be passed explicitly
 ```
 
-Feature flags (`features.linear_architecture`, `features.hlv_markers`, `features.security_markers`) control whether HLV's opinionated code style, `@hlv` marker system, and `@hlv:sec` security attention markers are enforced. All default to `true`. Set to `false` in `project.yaml` to opt out.
+Feature flags (`features.linear_architecture`, `features.hlv_markers`, `features.security_markers`) control whether HLV's opinionated code style, `@hlv` marker system, and `@hlv:sec` security attention markers are enforced. Greenfield projects default these to `true`; adopted projects default marker enforcement to `false` for untouched legacy code. Adopted projects also set `features.legacy_mode: true`, `paths.code`, and `features.index_tracking: ignored` so `.hlv/index/` is treated as a generated signature index unless the team opts into tracking it.
+
+### Adopt an existing project
+
+```bash
+hlv init --adopt --project my-service --owner my-team --profile minimal
+hlv index build
+hlv check
+```
+
+Adopt mode writes HLV config under `.hlv/` and leaves existing Laravel, Go, Node/TypeScript, Python, Rust, or mixed code in place. `paths.code` points at observed source/test roots. Use `hlv index show --json <symbol>` or `hlv index list --json --file <path>` for compact legacy-code context. Untouched legacy code is observed, not retroactively forced to carry markers; new or changed milestone work follows the normal artifacts -> contracts -> implementation -> validation flow.
 
 ### 2. Fill in the context
 

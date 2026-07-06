@@ -69,6 +69,10 @@
     },
     "artifact_graph": {
       "$ref": "#/$defs/ArtifactGraphConfig"
+    },
+    "hlv_root": {
+      "type": "string",
+      "description": "Location of HLV-owned artifacts relative to the repository root (e.g. \".hlv\" for adopted projects). Informational — discovery is filesystem-based."
     }
   },
   "additionalProperties": false,
@@ -111,6 +115,22 @@
             "src": { "type": "string" },
             "tests": { "type": "string" },
             "map": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "code": {
+          "type": "object",
+          "description": "Observed brownfield code roots for adopted projects. Paths are relative to the repository root, not the HLV config root.",
+          "properties": {
+            "src": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "tests": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
           },
           "additionalProperties": false
         }
@@ -250,6 +270,17 @@
           "type": "boolean",
           "default": true,
           "description": "Enable @hlv:sec security attention markers and SEC-010 diagnostic"
+        },
+        "legacy_mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Adopted (brownfield) project mode: observed legacy code is not required to live under llm/ or carry @hlv markers"
+        },
+        "index_tracking": {
+          "type": "string",
+          "enum": ["ignored", "tracked"],
+          "default": "ignored",
+          "description": "Whether generated signature index files are ignored by git or intentionally committed"
         }
       },
       "additionalProperties": false

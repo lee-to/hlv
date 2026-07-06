@@ -5,12 +5,34 @@ use crate::check::Diagnostic;
 use crate::model::contract_yaml::ContractYaml;
 use crate::model::project::{ConstraintEntry, ContractEntry};
 
+const IGNORED_MARKER_DIRS: &[&str] = &[
+    ".git",
+    "target",
+    "node_modules",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+];
+
 /// Expected marker that must appear in generated code.
 #[derive(Debug)]
 struct ExpectedMarker {
     id: String,
     kind: &'static str,
     source: String,
+}
+
+pub struct CodeTraceScope<'a> {
+    pub artifact_root: &'a Path,
+    pub scan_root: &'a Path,
+    pub src_path: &'a str,
+    pub tests_path: Option<&'a str>,
+    pub changed_files: Option<&'a [String]>,
 }
 
 /// Check that every contract error, invariant, and constraint rule
@@ -23,8 +45,35 @@ pub fn check_code_trace(
     tests_path: Option<&str>,
     markers_enabled: bool,
 ) -> Vec<Diagnostic> {
+    check_code_trace_with_scope(
+        CodeTraceScope {
+            artifact_root: root,
+            scan_root: root,
+            src_path,
+            tests_path,
+            changed_files: None,
+        },
+        contracts,
+        constraints,
+        markers_enabled,
+    )
+}
+
+/// Check code trace markers while optionally limiting marker scans to an
+/// explicit set of repository-relative changed files.
+pub fn check_code_trace_with_scope(
+    scope: CodeTraceScope<'_>,
+    contracts: &[ContractEntry],
+    constraints: &[ConstraintEntry],
+    markers_enabled: bool,
+) -> Vec<Diagnostic> {
     if !markers_enabled {
         tracing::debug!("Skipping code trace check — hlv_markers disabled");
+        return Vec::new();
+    }
+
+    if scope.changed_files.is_some_and(|files| files.is_empty()) {
+        tracing::debug!("Skipping code trace check — legacy mode has no changed files");
         return Vec::new();
     }
 
@@ -35,7 +84,7 @@ pub fn check_code_trace(
 
     for entry in contracts {
         if let Some(yaml_path) = &entry.yaml_path {
-            let full = root.join(yaml_path);
+            let full = scope.artifact_root.join(yaml_path);
             match ContractYaml::load(&full) {
                 Ok(contract) => {
                     for err in &contract.errors {
@@ -60,7 +109,7 @@ pub fn check_code_trace(
 
     // 2. Collect expected markers from constraints (rules[].id)
     for constraint in constraints {
-        let full = root.join(&constraint.path);
+        let full = scope.artifact_root.join(&constraint.path);
         let content = match std::fs::read_to_string(&full) {
             Ok(c) => c,
             Err(_) => continue,
@@ -93,15 +142,26 @@ pub fn check_code_trace(
     // 3. Scan source code for @hlv markers
     let mut found_markers: HashSet<String> = HashSet::new();
 
-    let mut scan_dirs: Vec<&str> = vec![src_path];
-    if let Some(t) = tests_path {
-        scan_dirs.push(t);
-    }
+    if let Some(files) = scope.changed_files {
+        tracing::debug!(
+            file_count = files.len(),
+            "Scanning legacy changed files for @hlv markers"
+        );
+        for rel in files {
+            let full = scope.scan_root.join(rel);
+            scan_file_for_markers(&full, &mut found_markers);
+        }
+    } else {
+        let mut scan_dirs: Vec<&str> = vec![scope.src_path];
+        if let Some(t) = scope.tests_path {
+            scan_dirs.push(t);
+        }
 
-    for dir in scan_dirs {
-        let full = root.join(dir);
-        if full.exists() {
-            scan_for_markers(&full, &mut found_markers);
+        for dir in scan_dirs {
+            let full = scope.scan_root.join(dir);
+            if full.exists() {
+                scan_for_markers(&full, &mut found_markers);
+            }
         }
     }
 
@@ -140,16 +200,27 @@ fn scan_for_markers(dir: &Path, markers: &mut HashSet<String>) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
+            let name = entry.file_name();
+            if IGNORED_MARKER_DIRS
+                .iter()
+                .any(|ignored| name == std::ffi::OsStr::new(ignored))
+            {
+                continue;
+            }
             scan_for_markers(&path, markers);
         } else if path.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                for line in content.lines() {
-                    if let Some(pos) = line.find("@hlv") {
-                        let rest = line[pos + 4..].trim_start();
-                        if let Some(id) = rest.split_whitespace().next() {
-                            markers.insert(id.to_string());
-                        }
-                    }
+            scan_file_for_markers(&path, markers);
+        }
+    }
+}
+
+fn scan_file_for_markers(path: &Path, markers: &mut HashSet<String>) {
+    if let Ok(content) = std::fs::read_to_string(path) {
+        for line in content.lines() {
+            if let Some(pos) = line.find("@hlv") {
+                let rest = line[pos + 4..].trim_start();
+                if let Some(id) = rest.split_whitespace().next() {
+                    markers.insert(id.to_string());
                 }
             }
         }

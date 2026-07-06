@@ -226,30 +226,53 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
 
     all_diags.extend(check::artifacts::check_artifacts(root, &project));
 
+    let legacy_marker_files = if project.features.legacy_mode {
+        Some(resolve_legacy_marker_files(repo_root, &milestone_info))
+    } else {
+        None
+    };
+    let legacy_marker_scope = legacy_marker_files.as_deref();
+    let marker_scan_root = if project.features.legacy_mode {
+        repo_root
+    } else {
+        root
+    };
+
     {
         let tests_path = project.paths.llm.tests.as_deref();
-        all_diags.extend(check::code_trace::check_code_trace(
-            root,
+        all_diags.extend(check::code_trace::check_code_trace_with_scope(
+            check::code_trace::CodeTraceScope {
+                artifact_root: root,
+                scan_root: marker_scan_root,
+                src_path: &project.paths.llm.src,
+                tests_path,
+                changed_files: legacy_marker_scope,
+            },
             &contracts,
             &project.constraints,
-            &project.paths.llm.src,
-            tests_path,
             project.features.hlv_markers,
         ));
     }
 
-    all_diags.extend(check::sec_markers::check_sec_markers(
-        root,
+    all_diags.extend(check::sec_markers::check_sec_markers_with_scope(
+        marker_scan_root,
         &project.paths.llm.src,
         project.features.security_markers,
+        legacy_marker_scope,
     ));
 
     if let Some(ref map_path) = project.paths.llm.map {
-        all_diags.extend(check::llm_map::check_llm_map(
+        all_diags.extend(check::llm_map::check_llm_map_with_context(
             root,
+            repo_root,
             map_path,
             &project.paths.llm,
+            project.features.legacy_mode,
         ));
+    }
+
+    if project.features.legacy_mode || root.join("index/signatures.yaml").exists() {
+        all_diags.extend(check::index::check_index(root, repo_root, &project));
     }
 
     if !project.constraints.is_empty() {
@@ -302,6 +325,62 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     }
 
     Ok(all_diags)
+}
+
+fn resolve_legacy_marker_files(
+    repo_root: &Path,
+    milestone_info: &Option<(MilestoneMap, String)>,
+) -> Vec<String> {
+    if let Some((milestones, _)) = milestone_info {
+        if let Some(current) = &milestones.current {
+            if !current.changed_files.is_empty() {
+                tracing::debug!(
+                    file_count = current.changed_files.len(),
+                    "Using milestone changed_files for legacy marker scope"
+                );
+                return current.changed_files.clone();
+            }
+        }
+    }
+
+    match git_changed_files(repo_root) {
+        Some(files) => {
+            tracing::debug!(
+                file_count = files.len(),
+                "Using git diff fallback for legacy marker scope"
+            );
+            files
+        }
+        None => {
+            tracing::debug!("No legacy marker scope available; treating changed file set as empty");
+            Vec::new()
+        }
+    }
+}
+
+fn git_changed_files(repo_root: &Path) -> Option<Vec<String>> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .arg("diff")
+        .arg("--name-only")
+        .arg("HEAD")
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Some(
+        stdout
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+            .collect(),
+    )
 }
 
 fn effective_strictness(root: &Path, strict: bool) -> Strictness {
@@ -453,6 +532,15 @@ fn print_check_report(report: &CheckReport) {
         status, report.errors, report.warnings, report.infos
     );
     println!();
+}
+
+/// Paths watched by `hlv check --watch`.
+pub fn watch_paths_for_project(root: &Path) -> Vec<std::path::PathBuf> {
+    let context = crate::ProjectContext::from_root(root);
+    ["human", "validation", "project.yaml"]
+        .into_iter()
+        .map(|p| context.hlv_path(p))
+        .collect()
 }
 
 /// Load milestone info if milestones.yaml exists with a current milestone.
@@ -617,9 +705,7 @@ fn watch_loop(root: &Path, options: CheckOptions) -> Result<()> {
             }
         })?;
 
-    let watch_paths = ["human", "validation", "project.yaml"];
-    for p in &watch_paths {
-        let full = root.join(p);
+    for full in watch_paths_for_project(root) {
         if full.exists() {
             let mode = if full.is_dir() {
                 RecursiveMode::Recursive
@@ -627,6 +713,7 @@ fn watch_loop(root: &Path, options: CheckOptions) -> Result<()> {
                 RecursiveMode::NonRecursive
             };
             watcher.watch(&full, mode)?;
+            tracing::debug!(path = %full.display(), "watch path registered");
         }
     }
 

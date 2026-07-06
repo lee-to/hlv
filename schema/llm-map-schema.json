@@ -38,8 +38,12 @@
         },
         "layer": {
           "type": "string",
-          "enum": ["root", "human", "validation", "llm"],
+          "enum": ["root", "human", "validation", "llm", "code"],
           "description": "Project layer this entry belongs to"
+        },
+        "index_ref": {
+          "type": "string",
+          "description": "Optional reference to a symbol in index/signatures.yaml for observed code entries"
         },
         "description": {
           "type": "string",

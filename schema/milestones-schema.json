@@ -51,6 +51,12 @@
           "items": { "$ref": "#/$defs/GateResult" },
           "default": []
         },
+        "changed_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Canonical deterministic source for files changed in the current milestone; git diff is only a fallback when this list is empty."
+        },
         "git": {
           "$ref": "#/$defs/MilestoneGitConfig"
         },

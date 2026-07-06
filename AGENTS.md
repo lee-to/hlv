@@ -4,6 +4,14 @@ This file defines invariants that any agent modifying the HLV codebase MUST foll
 
 ---
 
+## AI Context Files
+
+| File | Purpose |
+|------|---------|
+| `.ai-factory/ARCHITECTURE.md` | Engineering architecture guidelines for HLV's Rust CLI, validation, MCP, TUI, and model boundaries. |
+
+---
+
 ## Core Invariant
 
 **Every schema change must ripple through all layers.**
@@ -62,6 +70,17 @@ No partial changes. If you add a field to `project.yaml`, all five layers must r
 - [ ] `cargo test` — all pass
 - [ ] `cargo clippy` — no warnings
 
+### Adopting an existing project
+
+- [ ] Keep HLV-owned files under `.hlv/`; keep `AGENTS.md` and `HLV.md` at repo root
+- [ ] Set `features.legacy_mode: true`
+- [ ] Configure `paths.code.src` and optional `paths.code.tests` for observed brownfield roots
+- [ ] Keep `paths.llm` for generated HLV-owned code/tests
+- [ ] Ensure marker scans use `current.changed_files` before any git fallback
+- [ ] Add or refresh `.hlv/index/signatures.yaml` when index support is involved
+- [ ] Use `layer: code` plus `index_ref` in `llm/map.yaml` for observed legacy entries
+- [ ] `hlv check --root <repo>` — adopted fixtures pass or only emit expected non-blocking diagnostics
+
 ### Modifying model structs
 
 - [ ] Update `src/model/project.rs`
@@ -84,6 +103,7 @@ No partial changes. If you add a field to `project.yaml`, all five layers must r
 | STK | stack | Tech stack components |
 | ART | artifacts | Artifact dependency graph, impact, owners, references |
 | MAP | llm_map, artifacts | `llm/map.yaml` consistency and `paths.llm` isolation |
+| IDX | index | Signature index freshness, symbol references, orphan/duplicate symbol diagnostics |
 | MST | milestone | Milestone tracking (milestones.yaml) |
 | TSK | tasks | Stage task tracking diagnostics |
 | SEC | sec_markers | `@hlv:sec` security attention markers |

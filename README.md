@@ -81,8 +81,10 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 | Command | What it does |
 |---------|-------------|
 | `hlv init` | Scaffold the full HLV directory structure (asks for feature flags) |
+| `hlv init --adopt` | Attach HLV to an existing Laravel, Go, Node/TypeScript, Python, or Rust codebase under `.hlv/` |
 | `hlv doctor` | Preflight paths, schema compatibility, command portability, cwd values, and rendering |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
+| `hlv index build/show/list` | Build and query the compact signature index for adopted code |
 | `hlv explain <CODE>` | Explain a diagnostic and common fixes |
 | `hlv waivers` | List and audit explicit expiring diagnostic waivers |
 | `hlv milestone` | Track progress across milestones |
@@ -153,9 +155,11 @@ features:
   linear_architecture: true   # flat module structure, no layered arch
   hlv_markers: true            # @hlv code traceability markers + CTR-010/CTR-001
   security_markers: true       # @hlv:sec security attention markers + SEC-010
+  legacy_mode: false           # true for adopted projects with paths.code
+  index_tracking: ignored      # ignored or tracked for .hlv/index/
 ```
 
-All default to `true`. Set to `false` to use your preferred architecture style, skip `@hlv` markers, or disable security attention markers. `hlv init` asks about these during project setup.
+Greenfield marker/style booleans default to `true`. Adopted projects default marker enforcement to `false` for untouched legacy code and store observed roots in `paths.code`; new or changed milestone work still goes through contracts, implementation, and validation.
 
 ## Your best practices are LLM anti-patterns
 
@@ -206,7 +210,7 @@ Alternatively, set the MCP server `cwd` to the HLV project root and use `args: [
 hlv mcp --transport sse --port 3000
 ```
 
-12 resources + 27 tools + change notifications. See [docs/MCP.md](docs/MCP.md) for details.
+12 static resources + parameterized resources + 29 tools + change notifications. See [docs/MCP.md](docs/MCP.md) for details.
 
 **Web Dashboard example:** [hlv-dashboard-example](https://github.com/lee-to/hlv-dashboard-example) — a reference implementation of the [Dashboard spec](docs/specs/SPEC_DASHBOARD.md) built with HLV MCP.
 

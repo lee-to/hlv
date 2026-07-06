@@ -2,6 +2,8 @@
 
 MCP (Model Context Protocol) server for HLV. Provides programmatic access to HLV project data and operations.
 
+Adopted projects are supported: point `--root` at the repository root and the server reads HLV-owned resources from `.hlv/`. Use index resources/tools for compact symbol lookups instead of reading `.hlv/index/signatures.yaml` wholesale.
+
 ## Launch
 
 ```bash
@@ -79,6 +81,8 @@ Workspace mode (multi-project):
 | Artifact | `hlv://artifacts/{name}` | Global artifact content |
 | Milestone artifacts | `hlv://artifacts/milestone/{mid}` | Milestone artifacts (metadata) |
 | Milestone artifact | `hlv://artifacts/milestone/{mid}/{name}` | Milestone artifact content |
+| Index symbol | `hlv://index/symbol/{selector}` | Signature index entries matching a symbol name or index ID |
+| Index file | `hlv://index/file/{path}` | Signature index entries for a repository-relative file |
 
 ### Response examples
 
@@ -209,6 +213,13 @@ Workspace mode (multi-project):
 |---|---|---|
 | `hlv_artifacts` | `scope?`, `name?` | List/show artifacts |
 | `hlv_glossary` | - | Domain glossary |
+
+### Signature Index
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `hlv_index_show` | `symbol` | Query compact signature index entries by symbol name or index ID |
+| `hlv_index_list` | `file` | List compact signature index entries for a repository-relative file |
 
 ### Request/response examples
 
@@ -501,7 +512,7 @@ projects:
     root: /home/dev/projects/infra
 ```
 
-Each project must contain `project.yaml` at the specified `root`.
+Each project must contain `project.yaml` or `.hlv/project.yaml` at the specified `root`.
 
 ### URI scheme
 
@@ -514,6 +525,8 @@ In workspace mode, all resources are available via `hlv://projects/{id}/...`:
 | Milestones | `hlv://milestones` | `hlv://projects/{id}/milestones` |
 | Tasks | `hlv://tasks` | `hlv://projects/{id}/tasks` |
 | Stage | `hlv://stage/{n}` | `hlv://projects/{id}/stage/{n}` |
+| Index symbol | `hlv://index/symbol/{selector}` | `hlv://projects/{id}/index/symbol/{selector}` |
+| Index file | `hlv://index/file/{path}` | `hlv://projects/{id}/index/file/{path}` |
 | ... | `hlv://{resource}` | `hlv://projects/{id}/{resource}` |
 
 ### `hlv://projects` - overview of all projects

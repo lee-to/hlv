@@ -347,3 +347,17 @@ pub fn hlv_glossary(root: &Path) -> Result<CallToolResult, McpError> {
         crate::cmd::glossary::get_glossary(root).map_err(|e| mcp_err("glossary failed", e))?;
     json_ok(&glossary)
 }
+
+// ── Index tools ───────────────────────────────────────────────────────
+
+pub fn hlv_index_show(root: &Path, symbol: &str) -> Result<CallToolResult, McpError> {
+    let symbols = crate::cmd::index::find_symbols(root, symbol)
+        .map_err(|e| mcp_err("index show failed", e))?;
+    json_ok(&symbols)
+}
+
+pub fn hlv_index_list(root: &Path, file: &str) -> Result<CallToolResult, McpError> {
+    let symbols = crate::cmd::index::list_symbols_by_file(root, file)
+        .map_err(|e| mcp_err("index list failed", e))?;
+    json_ok(&symbols)
+}

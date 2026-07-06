@@ -28,6 +28,10 @@ pub struct MilestoneCurrent {
     pub stages: Vec<StageEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gate_results: Vec<GateResult>,
+    /// Canonical deterministic list of files changed in the current milestone.
+    /// Git diff is only a fallback for older milestone files that omit this.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_files: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git: Option<MilestoneGitConfig>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

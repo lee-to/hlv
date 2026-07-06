@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=../../../../../schema/gates-policy-schema.json
+version: 1.0.0
+policy_id: HLV-ADOPT-RUST
+gates: []

@@ -2,7 +2,9 @@ use hlv::model::contract_yaml::ContractYaml;
 use hlv::model::glossary::Glossary;
 use hlv::model::milestone::{ContractChangeAction, MilestoneMap, MilestoneStatus, StageStatus};
 use hlv::model::policy::*;
-use hlv::model::project::{ComponentType, DependencyType, ProjectMap, Strictness};
+use hlv::model::project::{
+    ComponentType, DependencyType, IndexTrackingPolicy, ProjectMap, Strictness,
+};
 use hlv::model::stage::StagePlan;
 use hlv::model::traceability::TraceabilityMap;
 use std::path::Path;
@@ -410,6 +412,7 @@ fn llm_map_modify_save_reload() {
             path: "human/constraints/test.yaml".to_string(),
             kind: hlv::model::llm_map::MapEntryKind::File,
             layer: "human".to_string(),
+            index_ref: None,
             description: "Test constraint".to_string(),
         })
         .unwrap();
@@ -421,4 +424,219 @@ fn llm_map_modify_save_reload() {
         .entries
         .iter()
         .any(|e| e.path == "human/constraints/test.yaml"));
+}
+
+#[test]
+fn llm_map_entry_index_ref_parses() {
+    let yaml = r#"
+schema_version: 1
+entries:
+  - path: app/Services/GreetingService.php
+    kind: file
+    layer: code
+    index_ref: php:App\Services\GreetingService
+    description: "Observed Laravel service"
+"#;
+    let map: hlv::model::llm_map::LlmMap = serde_yaml::from_str(yaml).unwrap();
+    assert_eq!(map.entries.len(), 1);
+    assert_eq!(
+        map.entries[0].index_ref.as_deref(),
+        Some(r"php:App\Services\GreetingService")
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// Signature index model
+// ═══════════════════════════════════════════════════════
+
+const SIGNATURE_INDEX_YAML: &str = r#"
+schema_version: 1
+generated_at: "2026-07-06T10:00:00Z"
+project: adopted
+symbols:
+  - id: php:App\Services\GreetingService
+    name: GreetingService
+    file: app/Services/GreetingService.php
+    line: 7
+    signature: "final class GreetingService"
+    visibility: public
+    kind: class
+    language: php
+    namespace: App\Services
+    source_fingerprint: sha256:class
+  - id: php:App\Services\GreetingService::greet
+    name: greet
+    file: app/Services/GreetingService.php
+    line: 9
+    signature: "public function greet(string $name): string"
+    visibility: public
+    kind: method
+    language: php
+    namespace: App\Services
+    scope: GreetingService
+    source_fingerprint: sha256:method
+  - id: go:internal/greeting.Message
+    name: Message
+    file: internal/greeting/greeting.go
+    line: 3
+    signature: "func Message(name string) string"
+    visibility: public
+    kind: function
+    language: go
+    source_fingerprint: sha256:go-message
+  - id: py:other.Message
+    name: Message
+    file: src/other.py
+    line: 1
+    signature: "def Message(name: str) -> str"
+    visibility: public
+    kind: function
+    language: python
+    source_fingerprint: sha256:py-message
+"#;
+
+#[test]
+fn signature_index_parse_duplicate_names_and_nested_symbols() {
+    let index: hlv::model::index::Index = serde_yaml::from_str(SIGNATURE_INDEX_YAML).unwrap();
+    assert_eq!(index.symbols.len(), 4);
+    assert_eq!(index.symbols[1].scope.as_deref(), Some("GreetingService"));
+    assert_eq!(index.symbols[1].namespace.as_deref(), Some("App\\Services"));
+    assert_eq!(
+        index
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.name == "Message")
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn signature_index_serialization_roundtrip() {
+    let index: hlv::model::index::Index = serde_yaml::from_str(SIGNATURE_INDEX_YAML).unwrap();
+    let out = serde_yaml::to_string(&index).unwrap();
+    let reloaded: hlv::model::index::Index = serde_yaml::from_str(&out).unwrap();
+    assert_eq!(reloaded.symbols.len(), index.symbols.len());
+    assert_eq!(reloaded.symbols[0].source_fingerprint, "sha256:class");
+}
+
+// ═══════════════════════════════════════════════════════
+// Adopt mode: legacy_mode, paths.code, hlv_root
+// ═══════════════════════════════════════════════════════
+
+const ADOPTED_PROJECT_YAML: &str = r#"
+schema_version: 1
+project: adopted
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    gates_policy: validation/gates-policy.yaml
+    scenarios: validation/scenarios/
+  llm:
+    src: llm/src/
+  code:
+    src: [app/, routes/]
+    tests: [tests/]
+features:
+  legacy_mode: true
+  index_tracking: ignored
+"#;
+
+#[test]
+fn adopt_fields_default_for_greenfield_yaml() {
+    let yaml = r#"
+schema_version: 1
+project: test
+status: draft
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    gates_policy: validation/gates-policy.yaml
+    scenarios: validation/scenarios/
+  llm:
+    src: llm/src/
+"#;
+    let p: ProjectMap = serde_yaml::from_str(yaml).unwrap();
+    assert!(!p.features.legacy_mode, "legacy_mode defaults to false");
+    assert_eq!(p.features.index_tracking, IndexTrackingPolicy::Ignored);
+    assert!(p.paths.code.is_none(), "paths.code defaults to None");
+    assert!(p.hlv_root.is_none(), "hlv_root defaults to None");
+}
+
+#[test]
+fn adopt_fields_parse_from_adopted_yaml() {
+    let p: ProjectMap = serde_yaml::from_str(ADOPTED_PROJECT_YAML).unwrap();
+    assert!(p.features.legacy_mode);
+    assert_eq!(p.features.index_tracking, IndexTrackingPolicy::Ignored);
+    assert_eq!(p.hlv_root.as_deref(), Some(".hlv"));
+    let code = p.paths.code.as_ref().expect("paths.code");
+    assert_eq!(code.src, vec!["app/", "routes/"]);
+    assert_eq!(code.tests.as_deref(), Some(&["tests/".to_string()][..]));
+}
+
+#[test]
+fn adopt_fields_serialization_roundtrip() {
+    let p: ProjectMap = serde_yaml::from_str(ADOPTED_PROJECT_YAML).unwrap();
+    let out = serde_yaml::to_string(&p).unwrap();
+    let p2: ProjectMap = serde_yaml::from_str(&out).unwrap();
+    assert!(p2.features.legacy_mode);
+    assert_eq!(p2.hlv_root.as_deref(), Some(".hlv"));
+    assert_eq!(p2.paths.code.as_ref().unwrap().src, vec!["app/", "routes/"]);
+}
+
+#[test]
+fn adopt_fields_absent_are_not_serialized() {
+    let yaml = r#"
+schema_version: 1
+project: test
+status: draft
+paths:
+  human:
+    glossary: g.yaml
+    constraints: c/
+  validation:
+    gates_policy: v/g.yaml
+    scenarios: v/s/
+  llm:
+    src: llm/src/
+"#;
+    let p: ProjectMap = serde_yaml::from_str(yaml).unwrap();
+    let out = serde_yaml::to_string(&p).unwrap();
+    assert!(
+        !out.contains("hlv_root"),
+        "hlv_root must not serialize when None"
+    );
+    assert!(
+        !out.contains("code:"),
+        "paths.code must not serialize when None"
+    );
+}
+
+#[test]
+fn paths_code_rejects_unknown_fields() {
+    let yaml = r#"
+schema_version: 1
+project: test
+status: draft
+paths:
+  human:
+    glossary: g.yaml
+    constraints: c/
+  validation:
+    gates_policy: v/g.yaml
+    scenarios: v/s/
+  llm:
+    src: llm/src/
+  code:
+    src: [app/]
+    bogus: true
+"#;
+    let result: Result<ProjectMap, _> = serde_yaml::from_str(yaml);
+    assert!(result.is_err(), "unknown field in paths.code must fail");
 }

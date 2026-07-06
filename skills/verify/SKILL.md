@@ -41,6 +41,12 @@ Read `milestones.yaml` → get `current.id`. Set `MID = human/milestones/{id}`.
 
 If no `current` in `milestones.yaml` → tell the user to run `hlv milestone new` first.
 
+If `project.yaml → features.legacy_mode` is `true`, verify that `paths.code` describes observed legacy roots and that generated work stays under `paths.llm`. Use `hlv index show/list --json` for compact symbol context; `features.index_tracking` records whether `.hlv/index/` is ignored or intentionally tracked.
+
+### Adopt Mode
+
+Do not fail verification because untouched legacy code lacks new HLV contracts or markers. Verification focuses on the current milestone's generated/changed work, while `paths.code` and the signature index provide context for existing code that the milestone touches.
+
 ## Steps
 
 ### Step 1: Structural validation (deterministic)
