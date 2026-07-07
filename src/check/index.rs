@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::check::Diagnostic;
 use crate::model::index::{Index, Symbol};
-use crate::model::llm_map::LlmMap;
+use crate::model::llm_map::{LlmMap, MapEntryKind};
 use crate::model::project::ProjectMap;
 
 type SymbolGroupKey<'a> = (&'a str, Option<&'a str>, Option<&'a str>, &'a str, &'a str);
@@ -85,10 +85,11 @@ fn check_map_index_refs(
     diags: &mut Vec<Diagnostic>,
 ) {
     let symbol_ids: BTreeSet<&str> = symbols.iter().map(|symbol| symbol.id.as_str()).collect();
-    let mut referenced = BTreeSet::new();
 
     for entry in &map.entries {
-        if entry.layer == "code" && entry.index_ref.is_none() {
+        // Directory entries are navigational; only file-level code entries are
+        // expected to pin a concrete indexed symbol.
+        if entry.layer == "code" && entry.kind == MapEntryKind::File && entry.index_ref.is_none() {
             diags.push(
                 Diagnostic::warning(
                     "IDX-030",
@@ -99,7 +100,6 @@ fn check_map_index_refs(
         }
 
         if let Some(index_ref) = &entry.index_ref {
-            referenced.insert(index_ref.as_str());
             if !symbol_ids.contains(index_ref.as_str()) {
                 diags.push(
                     Diagnostic::warning(
@@ -112,25 +112,6 @@ fn check_map_index_refs(
                     .with_file(map_path),
                 );
             }
-        }
-    }
-
-    if referenced.is_empty() {
-        return;
-    }
-
-    for symbol in symbols {
-        if !referenced.contains(symbol.id.as_str()) {
-            diags.push(
-                Diagnostic::warning(
-                    "IDX-020",
-                    format!(
-                        "Indexed symbol '{}' is not referenced by llm/map.yaml",
-                        symbol.id
-                    ),
-                )
-                .with_file("index/signatures.yaml"),
-            );
         }
     }
 }

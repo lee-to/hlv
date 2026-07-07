@@ -298,8 +298,21 @@ fn node_test_command(root: &Path) -> Option<String> {
         .get("test")?
         .as_str()
         .map(str::trim)
-        .filter(|script| !script.is_empty())
-        .map(ToString::to_string)
+        .filter(|script| !script.is_empty())?;
+
+    // Run the script through the package manager: script bodies like
+    // "vitest run" resolve binaries via node_modules/.bin, which only the
+    // package manager injects into PATH.
+    let manager = if root.join("pnpm-lock.yaml").exists() {
+        "pnpm"
+    } else if root.join("yarn.lock").exists() {
+        "yarn"
+    } else if root.join("bun.lockb").exists() || root.join("bun.lock").exists() {
+        "bun"
+    } else {
+        "npm"
+    };
+    Some(format!("{manager} test"))
 }
 
 fn push_unique(items: &mut Vec<String>, item: String) {
@@ -1348,7 +1361,7 @@ This file is yours — `hlv init` will not overwrite it.
 
 When changing `project.yaml` schema, model structs, or diagnostic codes, update all dependent layers in the same changeset: model, validation, tests, skills, and docs.
 
-Diagnostic prefixes include `PRJ` for project map checks, `MAP` for `llm/map.yaml`, and `IDX` for signature index diagnostics (`IDX-010` stale/missing index, `IDX-020` missing referenced symbol, `IDX-030` missing `index_ref`, `IDX-040` duplicate symbols).
+Diagnostic prefixes include `PRJ` for project map checks, `MAP` for `llm/map.yaml`, `IDX` for signature index diagnostics (`IDX-010` stale/missing index, `IDX-020` missing referenced symbol, `IDX-030` `kind: file` code entry missing `index_ref`, `IDX-040` duplicate symbols), and `LEG` for legacy changed-file scope (`LEG-010` scope cannot be determined; set `git.base_ref`).
 
 ## Adopt mode checklist
 

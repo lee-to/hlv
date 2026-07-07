@@ -365,7 +365,7 @@ fn init_adopt_generates_stack_specific_defaults() {
             dirs: &["src", "test"],
             source_roots: &["src/"],
             test_roots: &["test/"],
-            command: "vitest run",
+            command: "npm test",
             languages: &["javascript"],
         },
         Case {
@@ -719,4 +719,137 @@ fn greenfield_layout_still_prioritized_over_hlv_dir() {
     .unwrap();
 
     assert_eq!(hlv::config_root(tmp.path()), tmp.path());
+}
+
+// ═══════════════════════════════════════════════════════
+// Legacy changed-file scope (LEG-010)
+// ═══════════════════════════════════════════════════════
+
+fn write_legacy_project_yaml(root: &Path, base_ref: Option<&str>) {
+    let base_ref_line = base_ref
+        .map(|base| format!("  base_ref: {base}\n"))
+        .unwrap_or_default();
+    fs::write(
+        root.join(".hlv/project.yaml"),
+        format!(
+            r#"schema_version: 1
+project: adopted-demo
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    gates_policy: validation/gates-policy.yaml
+    scenarios: validation/scenarios/
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+  code:
+    src: [app/]
+features:
+  legacy_mode: true
+git:
+  commit_convention: conventional
+  merge_strategy: manual
+{base_ref_line}"#
+        ),
+    )
+    .unwrap();
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn init_committed_git_repo(dir: &Path) {
+    git(dir, &["init", "-b", "main"]);
+    git(dir, &["config", "user.email", "test@test.com"]);
+    git(dir, &["config", "user.name", "Test"]);
+    git(dir, &["add", "."]);
+    git(dir, &["commit", "-m", "init"]);
+}
+
+fn leg010_diags(root: &Path) -> Vec<String> {
+    let report = get_check_report(root, CheckOptions::default()).unwrap();
+    report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "LEG-010")
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+#[test]
+fn legacy_scope_warns_when_undetectable() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_adopted_project(tmp.path());
+    write_legacy_project_yaml(tmp.path(), None);
+    init_committed_git_repo(tmp.path());
+
+    // Clean committed worktree, no changed_files, no base_ref: the changed
+    // file set cannot be determined and must warn instead of silently
+    // skipping marker checks (the CI case).
+    let warnings = leg010_diags(tmp.path());
+    assert!(
+        !warnings.is_empty(),
+        "expected LEG-010 when scope is undetectable"
+    );
+}
+
+#[test]
+fn legacy_scope_with_base_ref_is_deterministic() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_adopted_project(tmp.path());
+    write_legacy_project_yaml(tmp.path(), Some("main"));
+    init_committed_git_repo(tmp.path());
+
+    // With a resolvable base ref the (possibly empty) merge-base diff is a
+    // legitimate deterministic scope — no warning even on a clean worktree.
+    let warnings = leg010_diags(tmp.path());
+    assert!(
+        warnings.is_empty(),
+        "base_ref scope should not warn: {warnings:?}"
+    );
+
+    // Committed milestone work on a branch is still in scope (no warning,
+    // diff against merge-base picks it up even with a clean worktree).
+    git(tmp.path(), &["checkout", "-b", "feature"]);
+    fs::write(
+        tmp.path().join("app/main.py"),
+        "def main():\n    return 1\n",
+    )
+    .unwrap();
+    git(tmp.path(), &["add", "."]);
+    git(tmp.path(), &["commit", "-m", "change"]);
+    let warnings = leg010_diags(tmp.path());
+    assert!(
+        warnings.is_empty(),
+        "committed branch changes should resolve scope: {warnings:?}"
+    );
+}
+
+#[test]
+fn legacy_scope_warns_on_unresolvable_base_ref() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_adopted_project(tmp.path());
+    write_legacy_project_yaml(tmp.path(), Some("origin/does-not-exist"));
+    init_committed_git_repo(tmp.path());
+
+    let warnings = leg010_diags(tmp.path());
+    assert!(
+        warnings.iter().any(|m| m.contains("origin/does-not-exist")),
+        "expected LEG-010 naming the unresolvable base ref: {warnings:?}"
+    );
 }

@@ -345,6 +345,10 @@
       "properties": {
         "branch_per_milestone": { "type": "boolean", "default": false },
         "branch_format": { "type": "string" },
+        "base_ref": {
+          "type": "string",
+          "description": "Base ref (e.g. main or origin/main) used as merge-base anchor for changed-file detection in adopted projects"
+        },
         "commit_convention": {
           "type": "string",
           "enum": ["conventional", "simple", "custom"]

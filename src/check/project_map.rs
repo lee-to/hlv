@@ -60,43 +60,42 @@ pub fn check_project_map(root: &Path) -> Vec<Diagnostic> {
 
     if project.features.legacy_mode {
         check_legacy_code_paths(root, &project, &mut diags);
-    } else {
-        if project.paths.code.is_some() {
-            diags.push(
-                Diagnostic::warning(
-                    "PRJ-093",
-                    "paths.code is configured but features.legacy_mode is false; paths.code is only used for adopted projects.",
-                )
-                .with_file("project.yaml"),
-            );
-        }
+    } else if project.paths.code.is_some() {
+        diags.push(
+            Diagnostic::warning(
+                "PRJ-093",
+                "paths.code is configured but features.legacy_mode is false; paths.code is only used for adopted projects.",
+            )
+            .with_file("project.yaml"),
+        );
+    }
 
-        // Check paths.llm.src must be under llm/ — prevents agents from creating code in project root
-        if !project.paths.llm.src.starts_with("llm/") {
+    // paths.llm.* is the generated/agent-owned namespace and must stay under
+    // llm/ in every mode; only paths.code.* may point at brownfield roots.
+    if !project.paths.llm.src.starts_with("llm/") {
+        diags.push(
+            Diagnostic::error(
+                "PRJ-080",
+                format!(
+                    "paths.llm.src is '{}' but must be under llm/ (e.g. llm/src/). Generated code must not pollute the project root.",
+                    project.paths.llm.src
+                ),
+            )
+            .with_file("project.yaml"),
+        );
+    }
+    if let Some(ref tests) = project.paths.llm.tests {
+        if !tests.starts_with("llm/") {
             diags.push(
                 Diagnostic::error(
-                    "PRJ-080",
+                    "PRJ-081",
                     format!(
-                        "paths.llm.src is '{}' but must be under llm/ (e.g. llm/src/). Generated code must not pollute the project root.",
-                        project.paths.llm.src
+                        "paths.llm.tests is '{}' but must be under llm/ (e.g. llm/tests/)",
+                        tests
                     ),
                 )
                 .with_file("project.yaml"),
             );
-        }
-        if let Some(ref tests) = project.paths.llm.tests {
-            if !tests.starts_with("llm/") {
-                diags.push(
-                    Diagnostic::error(
-                        "PRJ-081",
-                        format!(
-                            "paths.llm.tests is '{}' but must be under llm/ (e.g. llm/tests/)",
-                            tests
-                        ),
-                    )
-                    .with_file("project.yaml"),
-                );
-            }
         }
     }
 

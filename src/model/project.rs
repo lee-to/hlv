@@ -115,6 +115,11 @@ pub struct GitPolicy {
     pub branch_per_milestone: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch_format: Option<String>,
+    /// Base ref for changed-file detection in adopted projects
+    /// (e.g. "main" or "origin/main"). Used as the merge-base anchor when
+    /// milestones.yaml does not record changed_files explicitly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_ref: Option<String>,
     #[serde(default)]
     pub commit_convention: CommitConvention,
     #[serde(default)]
@@ -132,6 +137,7 @@ impl Default for GitPolicy {
         Self {
             branch_per_milestone: false,
             branch_format: None,
+            base_ref: None,
             commit_convention: CommitConvention::Conventional,
             commit_scopes: vec![],
             commit_template: None,

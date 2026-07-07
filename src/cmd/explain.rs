@@ -181,6 +181,13 @@ fn registry() -> &'static [DiagnosticExplanation] {
             fixes: &["run hlv index build", "commit or regenerate .hlv/index/signatures.yaml according to the project index policy"],
         },
         DiagnosticExplanation {
+            code: "LEG-010",
+            title: "Legacy marker scope unknown",
+            meaning: "HLV cannot determine which files changed in the current milestone, so changed legacy files are not re-validated by marker checks.",
+            common_causes: &["milestones.yaml current.changed_files is empty", "git.base_ref is not configured", "the configured base ref is missing in a shallow CI checkout"],
+            fixes: &["set git.base_ref in project.yaml (e.g. origin/main)", "record changed_files in milestones.yaml", "fetch the base ref in CI (actions/checkout with fetch-depth: 0)"],
+        },
+        DiagnosticExplanation {
             code: "WVR-020",
             title: "Expired waiver",
             meaning: "A waiver reached its expiry date and no longer suppresses diagnostics.",

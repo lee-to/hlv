@@ -1923,6 +1923,54 @@ paths:
     traceability: human/traceability.yaml
     gates_policy: validation/gates-policy.yaml
   llm:
+    src: llm/src/
+    tests: llm/tests/
+  code:
+    src: [app/]
+    tests: [tests/]
+features:
+  legacy_mode: true
+"#;
+    fs::write(hlv.join("project.yaml"), yaml).unwrap();
+
+    let diags = check_project_map(&hlv);
+    assert!(
+        !has_error(&diags, "PRJ-080") && !has_error(&diags, "PRJ-081"),
+        "llm/-scoped paths should pass in legacy mode: {:?}",
+        diags
+    );
+    assert!(
+        !has_error(&diags, "PRJ-090")
+            && !has_error(&diags, "PRJ-091")
+            && !has_error(&diags, "PRJ-092"),
+        "expected valid legacy code roots: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn project_map_legacy_mode_still_enforces_llm_isolation() {
+    let tmp = TempDir::new().unwrap();
+    let hlv = tmp.path().join(".hlv");
+    scaffold_project(&hlv);
+    fs::create_dir_all(tmp.path().join("app")).unwrap();
+    fs::create_dir_all(tmp.path().join("tests")).unwrap();
+
+    let yaml = r#"schema_version: 1
+project: adopted
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
     src: generated-src/
     tests: generated-tests/
   code:
@@ -1935,15 +1983,13 @@ features:
 
     let diags = check_project_map(&hlv);
     assert!(
-        !has_error(&diags, "PRJ-080") && !has_error(&diags, "PRJ-081"),
-        "legacy mode should not enforce paths.llm isolation: {:?}",
+        has_error(&diags, "PRJ-080"),
+        "paths.llm.src outside llm/ must fail even in legacy mode: {:?}",
         diags
     );
     assert!(
-        !has_error(&diags, "PRJ-090")
-            && !has_error(&diags, "PRJ-091")
-            && !has_error(&diags, "PRJ-092"),
-        "expected valid legacy code roots: {:?}",
+        has_error(&diags, "PRJ-081"),
+        "paths.llm.tests outside llm/ must fail even in legacy mode: {:?}",
         diags
     );
 }
@@ -2063,7 +2109,9 @@ fn adopted_fixtures_check_with_only_expected_nonblocking_diagnostics() {
         "adopt-python-project",
         "adopt-rust-project",
     ];
-    let allowed = ["MAP-003", "IDX-010"];
+    // LEG-010: fixtures have no milestone changed_files, no git.base_ref, and
+    // the surrounding repo worktree may be clean, so scope detection warns.
+    let allowed = ["MAP-003", "IDX-010", "LEG-010"];
 
     for fixture in fixtures {
         let root = manifest.join("tests/fixtures").join(fixture);
@@ -3482,7 +3530,7 @@ fn idx010_stale_index_warns() {
 }
 
 #[test]
-fn idx020_orphan_symbol_warns_when_map_refs_exist() {
+fn idx020_map_reference_to_missing_symbol_warns() {
     let tmp = TempDir::new().unwrap();
     fs::create_dir_all(tmp.path().join("src")).unwrap();
     fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
@@ -3503,7 +3551,16 @@ entries:
     let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
     assert!(
         has_warning(&diags, "IDX-020"),
-        "expected missing/orphan symbol warning: {:?}",
+        "expected missing symbol warning: {:?}",
+        diags
+    );
+    // Indexed symbols not referenced by the map are fine: map.yaml stays
+    // compact and does not have to enumerate every symbol.
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.message.contains("is not referenced")),
+        "unreferenced indexed symbols must not warn: {:?}",
         diags
     );
 }
@@ -3530,6 +3587,32 @@ entries:
     assert!(
         has_warning(&diags, "IDX-030"),
         "expected missing index_ref warning: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn idx030_code_dir_entry_without_index_ref_is_exempt() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("src")).unwrap();
+    fs::write(tmp.path().join("src/lib.rs"), "pub fn real() {}\n").unwrap();
+    write_index_fixture(tmp.path(), "pub fn real() {}", "");
+    fs::write(
+        tmp.path().join(".hlv/llm/map.yaml"),
+        r#"schema_version: 1
+entries:
+  - path: src/
+    kind: dir
+    layer: code
+    description: "Observed source root"
+"#,
+    )
+    .unwrap();
+
+    let diags = check_index(&tmp.path().join(".hlv"), tmp.path(), &index_project_yaml());
+    assert!(
+        !has_warning(&diags, "IDX-030"),
+        "dir entries are navigational and must not require index_ref: {:?}",
         diags
     );
 }

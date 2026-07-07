@@ -789,10 +789,16 @@ Important notes:
 |-----|---------|--------------|
 | `IDX-010` | warning | Signature index is missing, unparsable, or stale; rebuild with `hlv index build` |
 | `IDX-020` | warning | `llm/map.yaml` references an `index_ref` not present in the signature index |
-| `IDX-030` | warning | Adopted `layer: code` map entry is missing `index_ref` |
+| `IDX-030` | warning | Adopted `layer: code` map entry with `kind: file` is missing `index_ref` (directory entries are navigational and exempt) |
 | `IDX-040` | warning | Duplicate symbol definitions share the same language/namespace/scope/name/kind |
 
 `MAP-080`/`MAP-081` are emitted for both `llm/map.yaml` entries and `project.yaml -> artifact_graph.code_ownership` paths.
+
+#### Legacy Scope (`LEG-*`)
+
+| Code | Default Severity | What it checks |
+|-----|---------|--------------|
+| `LEG-010` | warning | Changed-file scope for legacy marker checks cannot be determined, so changed legacy files are not validated. Scope resolution order: `milestones.yaml current.changed_files` → merge-base diff against `git.base_ref` → uncommitted worktree diff. Set `git.base_ref` (e.g. `origin/main`) for deterministic CI behavior. |
 
 #### Tasks (`TSK-*`)
 

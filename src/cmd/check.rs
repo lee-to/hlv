@@ -227,7 +227,15 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     all_diags.extend(check::artifacts::check_artifacts(root, &project));
 
     let legacy_marker_files = if project.features.legacy_mode {
-        Some(resolve_legacy_marker_files(repo_root, &milestone_info))
+        let (files, scope_diag) = resolve_legacy_marker_files(
+            repo_root,
+            &milestone_info,
+            project.git.base_ref.as_deref(),
+        );
+        if let Some(diag) = scope_diag {
+            all_diags.push(diag);
+        }
+        Some(files)
     } else {
         None
     };
@@ -330,7 +338,8 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
 fn resolve_legacy_marker_files(
     repo_root: &Path,
     milestone_info: &Option<(MilestoneMap, String)>,
-) -> Vec<String> {
+    base_ref: Option<&str>,
+) -> (Vec<String>, Option<Diagnostic>) {
     if let Some((milestones, _)) = milestone_info {
         if let Some(current) = &milestones.current {
             if !current.changed_files.is_empty() {
@@ -338,24 +347,92 @@ fn resolve_legacy_marker_files(
                     file_count = current.changed_files.len(),
                     "Using milestone changed_files for legacy marker scope"
                 );
-                return current.changed_files.clone();
+                return (current.changed_files.clone(), None);
             }
         }
     }
 
-    match git_changed_files(repo_root) {
-        Some(files) => {
-            tracing::debug!(
-                file_count = files.len(),
-                "Using git diff fallback for legacy marker scope"
-            );
-            files
-        }
-        None => {
-            tracing::debug!("No legacy marker scope available; treating changed file set as empty");
-            Vec::new()
+    if let Some(base) = base_ref {
+        match git_changed_files_since_base(repo_root, base) {
+            Some(files) => {
+                tracing::debug!(
+                    file_count = files.len(),
+                    base,
+                    "Using git merge-base diff for legacy marker scope"
+                );
+                return (files, None);
+            }
+            None => {
+                return (
+                    Vec::new(),
+                    Some(
+                        Diagnostic::warning(
+                            "LEG-010",
+                            format!(
+                                "Cannot resolve git.base_ref '{base}' for legacy marker scope; changed legacy files will not be validated. Fetch the base ref (e.g. fetch-depth: 0 in CI) or fix git.base_ref."
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                );
+            }
         }
     }
+
+    // No configured base: fall back to uncommitted worktree changes, which
+    // only helps locally. If that is empty too, warn instead of silently
+    // treating the milestone scope as empty (the CI case).
+    match git_changed_files(repo_root) {
+        Some(files) if !files.is_empty() => {
+            tracing::debug!(
+                file_count = files.len(),
+                "Using uncommitted git diff fallback for legacy marker scope"
+            );
+            (files, None)
+        }
+        _ => (
+            Vec::new(),
+            Some(
+                Diagnostic::warning(
+                    "LEG-010",
+                    "Cannot determine changed-file scope for legacy marker checks; changed legacy files will not be validated. Set git.base_ref (e.g. origin/main) or record changed_files in milestones.yaml.",
+                )
+                .with_file("project.yaml"),
+            ),
+        ),
+    }
+}
+
+/// Changed files between the merge-base of `base_ref`/HEAD and the current
+/// worktree (committed and uncommitted changes alike).
+fn git_changed_files_since_base(repo_root: &Path, base_ref: &str) -> Option<Vec<String>> {
+    let merge_base = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["merge-base", base_ref, "HEAD"])
+        .output()
+        .ok()?;
+    if !merge_base.status.success() {
+        return None;
+    }
+    let merge_base = String::from_utf8_lossy(&merge_base.stdout)
+        .trim()
+        .to_string();
+    if merge_base.is_empty() {
+        return None;
+    }
+
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["diff", "--name-only", &merge_base])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(parse_git_paths(&output.stdout))
 }
 
 fn git_changed_files(repo_root: &Path) -> Option<Vec<String>> {
@@ -372,15 +449,16 @@ fn git_changed_files(repo_root: &Path) -> Option<Vec<String>> {
         return None;
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    Some(
-        stdout
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .map(ToOwned::to_owned)
-            .collect(),
-    )
+    Some(parse_git_paths(&output.stdout))
+}
+
+fn parse_git_paths(stdout: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 fn effective_strictness(root: &Path, strict: bool) -> Strictness {
