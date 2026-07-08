@@ -46,12 +46,13 @@ impl ProjectContext {
     }
 
     pub fn from_root(root: &Path) -> Self {
+        let root = normalize_project_root(root);
         if root.join("project.yaml").exists() {
-            Self::greenfield(root)
+            Self::greenfield(&root)
         } else if root.join(".hlv").join("project.yaml").exists() {
-            Self::adopted(root)
+            Self::adopted(&root)
         } else {
-            Self::greenfield(root)
+            Self::greenfield(&root)
         }
     }
 
@@ -103,6 +104,20 @@ pub fn has_project_config(dir: &Path) -> bool {
     dir.join("project.yaml").exists() || dir.join(".hlv").join("project.yaml").exists()
 }
 
+fn normalize_project_root(root: &Path) -> PathBuf {
+    if root.file_name().and_then(|name| name.to_str()) == Some(".hlv")
+        && root.join("project.yaml").exists()
+    {
+        return root
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+    }
+
+    root.to_path_buf()
+}
+
 /// Find the project root by searching upward for `project.yaml` or `.hlv/project.yaml`.
 /// If `explicit` is provided, use that path directly.
 pub fn find_project_root(explicit: Option<&str>) -> Result<PathBuf> {
@@ -113,8 +128,9 @@ pub fn find_project_root(explicit: Option<&str>) -> Result<PathBuf> {
             "No project.yaml or .hlv/project.yaml found at {}",
             path.display()
         );
-        tracing::debug!(root = %path.display(), "project root from explicit --root");
-        return Ok(path);
+        let root = normalize_project_root(&path);
+        tracing::debug!(root = %root.display(), "project root from explicit --root");
+        return Ok(root);
     }
 
     let start = std::env::current_dir().context("cannot get current directory")?;
@@ -134,8 +150,9 @@ pub fn find_project_root_from(start: &Path) -> Result<PathBuf> {
     let mut dir = start.to_path_buf();
     loop {
         if has_project_config(&dir) {
-            tracing::debug!(root = %dir.display(), "project root found");
-            return Ok(dir);
+            let root = normalize_project_root(&dir);
+            tracing::debug!(root = %root.display(), "project root found");
+            return Ok(root);
         }
         if !dir.pop() {
             anyhow::bail!(

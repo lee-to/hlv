@@ -86,6 +86,33 @@ fn find_project_root_discovers_adopted_layout_from_nested_dir() {
 }
 
 #[test]
+fn find_project_root_normalizes_from_hlv_owned_dirs() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().canonicalize().unwrap();
+    write_minimal_adopted_project(&root);
+
+    for relative in ["human", "validation"] {
+        let found = hlv::find_project_root_from(&root.join(".hlv").join(relative)).unwrap();
+        assert_eq!(found.canonicalize().unwrap(), root, "{relative}");
+        assert_eq!(hlv::config_root(&found), found.join(".hlv"));
+    }
+}
+
+#[test]
+fn find_project_root_normalizes_explicit_hlv_root() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().canonicalize().unwrap();
+    write_minimal_adopted_project(&root);
+
+    let found = hlv::find_project_root(Some(root.join(".hlv").to_str().unwrap())).unwrap();
+    assert_eq!(found.canonicalize().unwrap(), root);
+    assert_eq!(
+        hlv::ProjectContext::from_root(&root.join(".hlv")).repo_root(),
+        root
+    );
+}
+
+#[test]
 fn check_runs_against_adopted_layout() {
     let tmp = TempDir::new().unwrap();
     write_minimal_adopted_project(tmp.path());
@@ -726,6 +753,15 @@ fn greenfield_layout_still_prioritized_over_hlv_dir() {
 // ═══════════════════════════════════════════════════════
 
 fn write_legacy_project_yaml(root: &Path, base_ref: Option<&str>) {
+    write_legacy_project_yaml_with_markers(root, base_ref, true, true);
+}
+
+fn write_legacy_project_yaml_with_markers(
+    root: &Path,
+    base_ref: Option<&str>,
+    hlv_markers: bool,
+    security_markers: bool,
+) {
     let base_ref_line = base_ref
         .map(|base| format!("  base_ref: {base}\n"))
         .unwrap_or_default();
@@ -751,6 +787,8 @@ paths:
     src: [app/]
 features:
   legacy_mode: true
+  hlv_markers: {hlv_markers}
+  security_markers: {security_markers}
 git:
   commit_convention: conventional
   merge_strategy: manual
@@ -789,6 +827,19 @@ fn leg010_diags(root: &Path) -> Vec<String> {
         .filter(|d| d.code == "LEG-010")
         .map(|d| d.message.clone())
         .collect()
+}
+
+#[test]
+fn legacy_scope_does_not_warn_when_marker_validation_disabled() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_adopted_project(tmp.path());
+    write_legacy_project_yaml_with_markers(tmp.path(), None, false, false);
+
+    let warnings = leg010_diags(tmp.path());
+    assert!(
+        warnings.is_empty(),
+        "marker-disabled adopted projects should not need legacy scope: {warnings:?}"
+    );
 }
 
 #[test]

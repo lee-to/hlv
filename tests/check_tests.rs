@@ -2109,9 +2109,7 @@ fn adopted_fixtures_check_with_only_expected_nonblocking_diagnostics() {
         "adopt-python-project",
         "adopt-rust-project",
     ];
-    // LEG-010: fixtures have no milestone changed_files, no git.base_ref, and
-    // the surrounding repo worktree may be clean, so scope detection warns.
-    let allowed = ["MAP-003", "IDX-010", "LEG-010"];
+    let allowed = ["MAP-003", "IDX-010"];
 
     for fixture in fixtures {
         let root = manifest.join("tests/fixtures").join(fixture);

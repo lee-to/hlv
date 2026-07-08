@@ -226,7 +226,9 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
 
     all_diags.extend(check::artifacts::check_artifacts(root, &project));
 
-    let legacy_marker_files = if project.features.legacy_mode {
+    let needs_legacy_marker_scope = project.features.legacy_mode
+        && (project.features.hlv_markers || project.features.security_markers);
+    let legacy_marker_files = if needs_legacy_marker_scope {
         let (files, scope_diag) = resolve_legacy_marker_files(
             repo_root,
             &milestone_info,

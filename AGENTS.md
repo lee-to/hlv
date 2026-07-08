@@ -110,6 +110,7 @@ No partial changes. If you add a field to `project.yaml`, all five layers must r
 | GAT | gates | Gates policy parse/execution diagnostics |
 | GLO | glossary | Glossary parse diagnostics |
 | DOC | doctor | Preflight environment and configuration diagnostics |
+| LEG | check | Legacy changed-file scope for adopted marker checks |
 | WVR | waivers | Diagnostic waiver parse/audit/application diagnostics |
 
 When adding a new validation domain, register a new prefix here.
