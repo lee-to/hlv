@@ -61,6 +61,7 @@ schema/                              # JSON schemas (copied during init)
   performance-constraints-schema.json
   traceability-schema.json
   llm-map-schema.json
+  signatures-schema.json
   gates-policy-schema.json
   equivalence-policy-schema.json
   traceability-policy-schema.json
@@ -76,6 +77,31 @@ schema/                              # JSON schemas (copied during init)
     validate/SKILL.md
     questions/SKILL.md
 ```
+
+## Adopted Project Layout
+
+`hlv init --adopt` keeps repository code in place and writes HLV-owned artifacts under `.hlv/`:
+
+```
+AGENTS.md                            # root-owned project rules
+HLV.md                               # root-owned methodology rules
+.gitignore                           # includes .hlv/index/ by default
+
+.hlv/project.yaml                    # entry point; sets hlv_root: .hlv
+.hlv/milestones.yaml
+.hlv/human/
+.hlv/validation/
+.hlv/llm/
+  map.yaml                           # includes layer: code entries for observed roots
+  src/                               # generated code home
+  tests/                             # generated tests home
+.hlv/index/
+  signatures.yaml                    # generated signature index, usually ignored
+
+app/, src/, cmd/, internal/, tests/   # observed legacy roots from project.yaml -> paths.code
+```
+
+In adopted projects, `paths.code` points at observed legacy source/test roots relative to the repository root. Existing code is not moved into `.hlv/llm/src/`; the full contract flow applies to new or changed milestone work.
 
 ## Lifecycle
 

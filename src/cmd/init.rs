@@ -11,6 +11,52 @@ use crate::model::project::ProjectMap;
 
 static EMBEDDED_SKILLS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills");
 
+/// Framework/package manifests that indicate an existing codebase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdoptManifestKind {
+    Composer,
+    Go,
+    Node,
+    Python,
+    Rust,
+}
+
+impl AdoptManifestKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Composer => "composer",
+            Self::Go => "go",
+            Self::Node => "node",
+            Self::Python => "python",
+            Self::Rust => "rust",
+        }
+    }
+
+    pub fn language(self) -> &'static str {
+        match self {
+            Self::Composer => "php",
+            Self::Go => "go",
+            Self::Node => "javascript",
+            Self::Python => "python",
+            Self::Rust => "rust",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetectedAdoptManifest {
+    pub kind: AdoptManifestKind,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdoptInitDefaults {
+    pub source_roots: Vec<String>,
+    pub test_roots: Vec<String>,
+    pub gate_command: Option<String>,
+    pub languages: Vec<String>,
+}
+
 /// Gate profile determines which validation gates are created.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateProfile {
@@ -51,7 +97,68 @@ pub fn run(
     agent: Option<&str>,
     profile: Option<&str>,
 ) -> Result<()> {
-    run_with_milestone(path, project, owner, agent, None, profile)
+    run_auto(path, project, owner, agent, profile, false, false)
+}
+
+pub fn run_auto(
+    path: &str,
+    project: Option<&str>,
+    owner: Option<&str>,
+    agent: Option<&str>,
+    profile: Option<&str>,
+    adopt: bool,
+    greenfield: bool,
+) -> Result<()> {
+    anyhow::ensure!(
+        !(adopt && greenfield),
+        "--adopt and --greenfield cannot be used together"
+    );
+
+    let root = Path::new(path);
+    let manifests = detect_adopt_manifests(root);
+    tracing::debug!(
+        manifests = ?manifests,
+        "Detected existing-project manifests for init"
+    );
+
+    let has_root_project = root.join("project.yaml").exists();
+    let has_hlv_project = root.join(".hlv").join("project.yaml").exists();
+    if adopt && has_root_project {
+        anyhow::bail!(
+            "Cannot use --adopt because {} already exists. Re-run without --adopt to update the existing greenfield HLV project.",
+            root.join("project.yaml").display()
+        );
+    }
+    if greenfield && has_hlv_project {
+        anyhow::bail!(
+            "Cannot use --greenfield because {} already exists. Re-run without --greenfield to update the existing adopted HLV project.",
+            root.join(".hlv/project.yaml").display()
+        );
+    }
+
+    let adopt_mode = if has_root_project {
+        false
+    } else if has_hlv_project || adopt {
+        true
+    } else if greenfield {
+        false
+    } else {
+        !manifests.is_empty()
+    };
+
+    if adopt_mode {
+        let stack = manifests
+            .iter()
+            .map(|m| m.kind.label())
+            .collect::<Vec<_>>()
+            .join(",");
+        tracing::info!(
+            stack = stack.as_str(),
+            "Selected adopted-project init defaults"
+        );
+    }
+
+    run_with_options(path, project, owner, agent, None, profile, adopt_mode)
 }
 
 pub fn run_with_milestone(
@@ -62,8 +169,189 @@ pub fn run_with_milestone(
     milestone: Option<&str>,
     profile: Option<&str>,
 ) -> Result<()> {
+    run_with_options(path, project, owner, agent, milestone, profile, false)
+}
+
+pub fn detect_adopt_manifests(root: &Path) -> Vec<DetectedAdoptManifest> {
+    let candidates = [
+        ("composer.json", AdoptManifestKind::Composer),
+        ("go.mod", AdoptManifestKind::Go),
+        ("package.json", AdoptManifestKind::Node),
+        ("pyproject.toml", AdoptManifestKind::Python),
+        ("Cargo.toml", AdoptManifestKind::Rust),
+    ];
+
+    candidates
+        .into_iter()
+        .filter(|(path, _)| root.join(path).exists())
+        .map(|(path, kind)| DetectedAdoptManifest {
+            kind,
+            path: path.to_string(),
+        })
+        .collect()
+}
+
+pub fn adopt_init_defaults(root: &Path) -> AdoptInitDefaults {
+    let manifests = detect_adopt_manifests(root);
+    let mut source_roots = Vec::new();
+    let mut test_roots = Vec::new();
+    let mut languages = Vec::new();
+    let mut gate_command = None;
+
+    for manifest in manifests {
+        push_unique(&mut languages, manifest.kind.language().to_string());
+        let defaults = defaults_for_manifest(root, manifest.kind);
+        for src in defaults.source_roots {
+            push_unique(&mut source_roots, src);
+        }
+        for test in defaults.test_roots {
+            push_unique(&mut test_roots, test);
+        }
+        if gate_command.is_none() {
+            gate_command = defaults.gate_command;
+        }
+    }
+
+    if source_roots.is_empty() {
+        source_roots.push(".".to_string());
+    }
+
+    AdoptInitDefaults {
+        source_roots,
+        test_roots,
+        gate_command,
+        languages,
+    }
+}
+
+fn defaults_for_manifest(root: &Path, kind: AdoptManifestKind) -> AdoptInitDefaults {
+    let (source_roots, test_roots, gate_command) = match kind {
+        AdoptManifestKind::Composer => (
+            existing_dirs(root, &["app", "routes"]),
+            existing_dirs(root, &["tests"]),
+            Some("php artisan test".to_string()),
+        ),
+        AdoptManifestKind::Go => (
+            existing_dirs(root, &["cmd", "internal", "pkg"]),
+            existing_dirs(root, &["tests"]),
+            Some("go test ./...".to_string()),
+        ),
+        AdoptManifestKind::Node => (
+            existing_dirs(root, &["src"]),
+            existing_dirs(root, &["test", "tests"]),
+            Some(node_test_command(root).unwrap_or_else(|| "npm test".to_string())),
+        ),
+        AdoptManifestKind::Python => (
+            python_source_roots(root),
+            existing_dirs(root, &["tests"]),
+            Some("pytest".to_string()),
+        ),
+        AdoptManifestKind::Rust => (
+            existing_dirs(root, &["src"]),
+            existing_dirs(root, &["tests"]),
+            Some("cargo test".to_string()),
+        ),
+    };
+
+    AdoptInitDefaults {
+        source_roots,
+        test_roots,
+        gate_command,
+        languages: vec![kind.language().to_string()],
+    }
+}
+
+fn existing_dirs(root: &Path, candidates: &[&str]) -> Vec<String> {
+    candidates
+        .iter()
+        .filter(|candidate| root.join(candidate).is_dir())
+        .map(|candidate| format!("{candidate}/"))
+        .collect()
+}
+
+fn python_source_roots(root: &Path) -> Vec<String> {
+    if root.join("src").is_dir() {
+        return vec!["src/".to_string()];
+    }
+
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if !path.is_dir() || !path.join("__init__.py").exists() {
+                return None;
+            }
+            let name = path.file_name()?.to_str()?;
+            (name != "tests").then(|| format!("{name}/"))
+        })
+        .collect()
+}
+
+fn node_test_command(root: &Path) -> Option<String> {
+    let content = fs::read_to_string(root.join("package.json")).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    json.get("scripts")?
+        .get("test")?
+        .as_str()
+        .map(str::trim)
+        .filter(|script| !script.is_empty())?;
+
+    // Run the script through the package manager: script bodies like
+    // "vitest run" resolve binaries via node_modules/.bin, which only the
+    // package manager injects into PATH.
+    let manager = if root.join("pnpm-lock.yaml").exists() {
+        "pnpm"
+    } else if root.join("yarn.lock").exists() {
+        "yarn"
+    } else if root.join("bun.lockb").exists() || root.join("bun.lock").exists() {
+        "bun"
+    } else {
+        "npm"
+    };
+    Some(format!("{manager} test"))
+}
+
+fn push_unique(items: &mut Vec<String>, item: String) {
+    if !items.contains(&item) {
+        items.push(item);
+    }
+}
+
+/// Full init entry point. With `adopt = true`, HLV-owned files (project.yaml,
+/// milestones.yaml, human/, validation/, schema/, llm/) are written under
+/// `.hlv/` while root-owned files (AGENTS.md, HLV.md, agent skills) stay at
+/// the repository root.
+pub fn run_with_options(
+    path: &str,
+    project: Option<&str>,
+    owner: Option<&str>,
+    agent: Option<&str>,
+    milestone: Option<&str>,
+    profile: Option<&str>,
+    adopt: bool,
+) -> Result<()> {
     let root = Path::new(path);
-    let is_reinit = root.join("project.yaml").exists();
+    let is_reinit = crate::has_project_config(root);
+    // On reinit the existing layout wins; on fresh init --adopt selects .hlv/.
+    let project_context = if is_reinit {
+        crate::ProjectContext::from_root(root)
+    } else if adopt {
+        crate::ProjectContext::adopted(root)
+    } else {
+        crate::ProjectContext::greenfield(root)
+    };
+    let config_root = project_context.hlv_root();
+    tracing::debug!(
+        adopt_mode = adopt,
+        layout = ?project_context.layout(),
+        repo_root = %project_context.repo_root().display(),
+        config_root = %config_root.display(),
+        "init file layout resolved"
+    );
 
     // Embedded schemas — all go into schema/ directory
     let schemas: &[(&str, &str)] = &[
@@ -127,6 +415,10 @@ pub fn run_with_milestone(
             "schema/waivers-schema.json",
             include_str!("../../schema/waivers-schema.json"),
         ),
+        (
+            "schema/signatures-schema.json",
+            include_str!("../../schema/signatures-schema.json"),
+        ),
     ];
 
     if is_reinit {
@@ -134,7 +426,7 @@ pub fn run_with_milestone(
         let project_name = if let Some(p) = project {
             p.to_string()
         } else {
-            let yaml = fs::read_to_string(root.join("project.yaml"))?;
+            let yaml = fs::read_to_string(config_root.join("project.yaml"))?;
             let pm: ProjectMap =
                 serde_yaml::from_str(&yaml).context("failed to parse project.yaml")?;
             pm.project
@@ -167,17 +459,17 @@ pub fn run_with_milestone(
         write_or_update(
             root,
             "HLV.md",
-            &hlv_template(&project_name, &agent_name, &skills_dir),
+            &hlv_template(&project_name, &agent_name, &skills_dir, &project_context),
         )?;
 
-        // Schemas are always updated
+        // Schemas are always updated (HLV-owned — config root)
         for (path, content) in schemas {
-            write_or_update(root, path, content)?;
+            write_or_update(config_root, path, content)?;
         }
 
         // Ensure all YAML files have $schema comments
-        ensure_project_yaml_schema(root)?;
-        ensure_yaml_schemas(root)?;
+        ensure_project_yaml_schema(config_root)?;
+        ensure_yaml_schemas(config_root)?;
 
         // AGENTS.md is user-owned — skip if exists
         write_template(root, "AGENTS.md", &agents_template(&project_name))?;
@@ -205,6 +497,12 @@ pub fn run_with_milestone(
         Some(p) => GateProfile::from_str_opt(p)?,
         None => prompt_gate_profile()?,
     };
+    let adopt_defaults = project_context
+        .is_adopted()
+        .then(|| adopt_init_defaults(root));
+    if let Some(defaults) = &adopt_defaults {
+        tracing::debug!(defaults = ?defaults, "Selected adopted-project init defaults");
+    }
 
     let milestone_name = match milestone {
         Some(m) => m.to_string(),
@@ -212,8 +510,12 @@ pub fn run_with_milestone(
     };
 
     let linear_arch = prompt_yes_no("Enable linear architecture style?", true)?;
-    let hlv_markers = prompt_yes_no("Enable @hlv code traceability markers?", true)?;
-    let security_markers = prompt_yes_no("Enable @hlv:sec security attention markers?", true)?;
+    let marker_default = !project_context.is_adopted();
+    let hlv_markers = prompt_yes_no("Enable @hlv code traceability markers?", marker_default)?;
+    let security_markers = prompt_yes_no(
+        "Enable @hlv:sec security attention markers?",
+        marker_default,
+    )?;
 
     tracing::debug!(
         linear_architecture = linear_arch,
@@ -234,7 +536,7 @@ pub fn run_with_milestone(
         gate_profile.label().bold(),
     );
 
-    // Create directories
+    // Create HLV-owned directories under the config root
     let dirs = vec![
         "human/artifacts".to_string(),
         "human/constraints".to_string(),
@@ -244,81 +546,89 @@ pub fn run_with_milestone(
         "validation/scenarios".to_string(),
         "llm/src".to_string(),
         "llm/tests".to_string(),
+        "index".to_string(),
     ];
     for d in &dirs {
-        let dir = root.join(d);
+        let dir = config_root.join(d);
         fs::create_dir_all(&dir)?;
         style::file_op("mkdir", d, None);
     }
 
-    // Create template files
+    // Create HLV-owned template files (config root)
     write_template(
-        root,
+        config_root,
         "human/glossary.yaml",
         &glossary_template(&project_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/security.yaml",
         &security_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/performance.yaml",
         &performance_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "human/constraints/observability.yaml",
         &observability_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "validation/gates-policy.yaml",
-        &gates_policy_template(gate_profile),
+        &gates_policy_template_for_defaults(gate_profile, adopt_defaults.as_ref()),
     )?;
     write_template(
-        root,
+        config_root,
         "validation/equivalence-policy.yaml",
         EQUIV_POLICY_TEMPLATE,
     )?;
     write_template(
-        root,
+        config_root,
         "validation/traceability-policy.yaml",
         TRACE_POLICY_TEMPLATE,
     )?;
-    write_template(root, "validation/ir-policy.yaml", IR_POLICY_TEMPLATE)?;
+    write_template(config_root, "validation/ir-policy.yaml", IR_POLICY_TEMPLATE)?;
     write_template(
-        root,
+        config_root,
         "validation/adversarial-guardrails.yaml",
         ADV_GUARDRAILS_TEMPLATE,
     )?;
-    write_template(root, "validation/waivers.yaml", WAIVERS_TEMPLATE)?;
-    write_template(root, "llm/map.yaml", &llm_map_template())?;
+    write_template(config_root, "validation/waivers.yaml", WAIVERS_TEMPLATE)?;
+    write_template(config_root, "llm/map.yaml", &llm_map_template())?;
     write_template(
-        root,
+        config_root,
         "human/traceability.yaml",
         &traceability_template(&owner_name),
     )?;
     write_template(
-        root,
+        config_root,
         "project.yaml",
-        &project_template(
+        &project_template_for_context(
             &project_name,
             &owner_name,
             linear_arch,
             hlv_markers,
             security_markers,
+            &project_context,
+            adopt_defaults.as_ref(),
         ),
     )?;
-    write_template(root, "milestones.yaml", &milestones_template(&project_name))?;
+    write_template(
+        config_root,
+        "milestones.yaml",
+        &milestones_template(&project_name),
+    )?;
+    // Root-owned files stay at the repository root
     write_template(
         root,
         "HLV.md",
-        &hlv_template(&project_name, &agent_name, &skills_dir),
+        &hlv_template(&project_name, &agent_name, &skills_dir, &project_context),
     )?;
     for (path, content) in schemas {
-        write_template(root, path, content)?;
+        write_template(config_root, path, content)?;
     }
     write_template(root, "AGENTS.md", &agents_template(&project_name))?;
 
@@ -327,6 +637,13 @@ pub fn run_with_milestone(
         let rel = file.path().to_string_lossy().replace('\\', "/");
         let content = file.contents_utf8().unwrap_or("");
         write_template(root, &format!("{skills_dir}/{rel}"), content)?;
+    }
+
+    if project_context.is_adopted() {
+        ensure_index_gitignore(root)?;
+        if let Some(defaults) = adopt_defaults.as_ref() {
+            seed_adopt_index_and_map(root, config_root, defaults)?;
+        }
     }
 
     // Create first milestone
@@ -556,6 +873,108 @@ fn write_or_update(root: &Path, rel: &str, content: &str) -> Result<()> {
     Ok(())
 }
 
+fn ensure_index_gitignore(root: &Path) -> Result<()> {
+    let path = root.join(".gitignore");
+    let existing = fs::read_to_string(&path).unwrap_or_default();
+    if existing.lines().any(|line| line.trim() == ".hlv/") {
+        style::warn(".hlv/ is already ignored; commit HLV config files intentionally");
+    }
+    if existing.lines().any(|line| line.trim() == ".hlv/index/") {
+        style::file_op("skip", ".gitignore", Some(".hlv/index/ already ignored"));
+        return Ok(());
+    }
+
+    let mut updated = existing;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    updated.push_str(".hlv/index/\n");
+    fs::write(&path, updated)?;
+    style::file_op("update", ".gitignore", Some("ignore generated HLV index"));
+    Ok(())
+}
+
+fn seed_adopt_index_and_map(
+    root: &Path,
+    config_root: &Path,
+    defaults: &AdoptInitDefaults,
+) -> Result<()> {
+    let index = match crate::index::builder::build_index(root) {
+        Ok(summary) => {
+            tracing::info!(
+                files_scanned = summary.files_scanned,
+                symbols_indexed = summary.symbols_indexed,
+                output = %summary.output.display(),
+                "Initial signature index built"
+            );
+            if summary.symbols_indexed == 0 {
+                tracing::warn!("Initial signature index contains no parseable source symbols");
+            }
+            crate::model::index::Index::load(&summary.output).ok()
+        }
+        Err(error) => {
+            tracing::warn!(error = %error, "Initial signature index build failed");
+            None
+        }
+    };
+
+    let map = adopt_initial_llm_map(defaults, index.as_ref());
+    map.save(&config_root.join("llm/map.yaml"))?;
+    style::file_op("update", "llm/map.yaml", Some("seeded adopted code roots"));
+    Ok(())
+}
+
+fn adopt_initial_llm_map(
+    defaults: &AdoptInitDefaults,
+    index: Option<&crate::model::index::Index>,
+) -> crate::model::llm_map::LlmMap {
+    let entries = defaults
+        .source_roots
+        .iter()
+        .map(|root| crate::model::llm_map::MapEntry {
+            path: root.clone(),
+            kind: crate::model::llm_map::MapEntryKind::Dir,
+            layer: "code".to_string(),
+            index_ref: index.and_then(|index| unique_index_ref_for_root(index, root)),
+            description: format!("Observed legacy source root ({root})."),
+        })
+        .collect();
+
+    crate::model::llm_map::LlmMap {
+        schema_version: 1,
+        ignore: default_llm_map_ignores(),
+        entries,
+    }
+}
+
+fn unique_index_ref_for_root(index: &crate::model::index::Index, root: &str) -> Option<String> {
+    let matches = index
+        .symbols
+        .iter()
+        .filter(|symbol| root == "." || symbol.file.starts_with(root))
+        .collect::<Vec<_>>();
+    (matches.len() == 1).then(|| matches[0].id.clone())
+}
+
+fn default_llm_map_ignores() -> Vec<String> {
+    [
+        "__pycache__",
+        "*.pyc",
+        "node_modules",
+        "target",
+        "dist",
+        "build",
+        "*.egg-info",
+        ".venv",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+    ]
+    .into_iter()
+    .map(ToString::to_string)
+    .collect()
+}
+
 fn glossary_template(project: &str) -> String {
     format!(
         r#"# yaml-language-server: $schema=../schema/glossary-schema.json
@@ -748,6 +1167,157 @@ git:
     )
 }
 
+fn project_template_for_context(
+    project: &str,
+    owner: &str,
+    linear_architecture: bool,
+    hlv_markers: bool,
+    security_markers: bool,
+    context: &crate::ProjectContext,
+    adopt_defaults: Option<&AdoptInitDefaults>,
+) -> String {
+    if context.is_adopted() {
+        adopt_project_template(
+            project,
+            owner,
+            linear_architecture,
+            hlv_markers,
+            security_markers,
+            context.repo_root(),
+            adopt_defaults,
+        )
+    } else {
+        project_template(
+            project,
+            owner,
+            linear_architecture,
+            hlv_markers,
+            security_markers,
+        )
+    }
+}
+
+fn adopt_project_template(
+    project: &str,
+    _owner: &str,
+    linear_architecture: bool,
+    hlv_markers: bool,
+    security_markers: bool,
+    root: &Path,
+    adopt_defaults: Option<&AdoptInitDefaults>,
+) -> String {
+    let fallback_defaults;
+    let defaults = match adopt_defaults {
+        Some(defaults) => defaults,
+        None => {
+            fallback_defaults = adopt_init_defaults(root);
+            &fallback_defaults
+        }
+    };
+    let code_src = &defaults.source_roots;
+    let code_tests = (!defaults.test_roots.is_empty()).then_some(&defaults.test_roots);
+    let code_src_yaml = yaml_list(code_src, 6);
+    let code_tests_yaml = code_tests
+        .as_ref()
+        .map(|items| format!("    tests:\n{}", yaml_list(items, 6)))
+        .unwrap_or_default();
+    let stack_yaml = stack_components_yaml(&defaults.languages);
+
+    format!(
+        r#"# yaml-language-server: $schema=schema/project-schema.json
+# HLV Project Map
+schema_version: 1
+project: {project}
+status: draft
+spec: schema/project-schema.json
+hlv_root: .hlv
+
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+  code:
+    src:
+{code_src_yaml}{code_tests_yaml}
+
+constraints:
+  - id: security.global
+    path: human/constraints/security.yaml
+    applies_to: all
+  - id: performance.global
+    path: human/constraints/performance.yaml
+    applies_to: all
+  - id: observability.global
+    path: human/constraints/observability.yaml
+    applies_to: all
+
+features:
+  linear_architecture: {linear_architecture}
+  hlv_markers: {hlv_markers}
+  security_markers: {security_markers}
+  legacy_mode: true
+  index_tracking: ignored
+
+stack:
+  components:
+{stack_yaml}
+
+artifact_graph:
+  code_ownership: {{}}
+
+validation:
+  strictness: standard
+
+git:
+  branch_per_milestone: false
+  commit_convention: conventional
+  commit_scopes:
+    - feat
+    - fix
+    - refactor
+    - test
+    - docs
+    - chore
+  merge_strategy: manual
+
+"#
+    )
+}
+
+fn stack_components_yaml(languages: &[String]) -> String {
+    if languages.is_empty() {
+        return "    - id: app\n      type: application\n      languages: []\n      dependencies: []\n"
+            .to_string();
+    }
+
+    languages
+        .iter()
+        .map(|language| {
+            format!(
+                "    - id: {language}\n      type: application\n      languages: [{language}]\n      dependencies: []\n"
+            )
+        })
+        .collect::<String>()
+}
+
+fn yaml_list(items: &[String], indent: usize) -> String {
+    let prefix = " ".repeat(indent);
+    items
+        .iter()
+        .map(|item| format!("{prefix}- {item}\n"))
+        .collect::<String>()
+}
+
 fn milestones_template(project: &str) -> String {
     format!(
         r#"# yaml-language-server: $schema=schema/milestones-schema.json
@@ -787,6 +1357,21 @@ fn agents_template(project: &str) -> String {
 Add your team's conventions, coding standards, and project-specific constraints below.
 This file is yours — `hlv init` will not overwrite it.
 
+## HLV schema and diagnostic changes
+
+When changing `project.yaml` schema, model structs, or diagnostic codes, update all dependent layers in the same changeset: model, validation, tests, skills, and docs.
+
+Diagnostic prefixes include `PRJ` for project map checks, `MAP` for `llm/map.yaml`, `IDX` for signature index diagnostics (`IDX-010` stale/missing index, `IDX-020` missing referenced symbol, `IDX-030` `kind: file` code entry missing `index_ref`, `IDX-040` duplicate symbols), and `LEG` for legacy changed-file scope (`LEG-010` scope cannot be determined; set `git.base_ref`).
+
+## Adopt mode checklist
+
+For adopted projects:
+- HLV-owned files live under `.hlv/`; root files `AGENTS.md` and `HLV.md` stay at repository root.
+- Existing code remains in place and is listed in `project.yaml -> paths.code`.
+- Legacy code is observed, not rewritten into `llm/src/`.
+- Use `hlv index build`, `hlv index show --json <symbol>`, and `hlv index list --json --file <path>` for compact symbol context.
+- Full contract and marker flow applies to new or changed milestone work, not untouched legacy code.
+
 <!-- Example:
 ## Coding conventions
 - Use snake_case for all identifiers
@@ -801,7 +1386,108 @@ This file is yours — `hlv init` will not overwrite it.
     )
 }
 
-fn hlv_template(project: &str, _agent: &str, skills_dir: &str) -> String {
+fn hlv_template(
+    project: &str,
+    _agent: &str,
+    skills_dir: &str,
+    context: &crate::ProjectContext,
+) -> String {
+    let project_map_path = if context.is_adopted() {
+        ".hlv/project.yaml"
+    } else {
+        "project.yaml"
+    };
+    let glossary_path = if context.is_adopted() {
+        ".hlv/human/glossary.yaml"
+    } else {
+        "human/glossary.yaml"
+    };
+    let constraints_path = if context.is_adopted() {
+        ".hlv/human/constraints/"
+    } else {
+        "human/constraints/"
+    };
+    let adopted_section = if context.is_adopted() {
+        r#"
+### Adopted Project Layout
+
+This repository uses HLV adopt mode:
+
+- HLV-owned artifacts live under `.hlv/`.
+- `AGENTS.md` and `HLV.md` stay in the repository root.
+- Existing source and test roots are listed in `paths.code`.
+- Legacy code is observed in place; do not move it into `.hlv/llm/src/`.
+- Full contract, marker, and validation flow applies to new or changed milestone work, not untouched legacy code.
+"#
+    } else {
+        ""
+    };
+    let layout_tree = if context.is_adopted() {
+        r#"```
+.hlv/project.yaml          ← READ THIS FIRST
+.hlv/milestones.yaml       ← current milestone, stage, history
+HLV.md                     ← HLV rules (this file, auto-generated)
+AGENTS.md                  ← project-specific rules (user-editable)
+.hlv/human/
+  artifacts/               ← global project context (domain, stack, arch decisions)
+  glossary.yaml            ← domain types (canonical, shared across milestones)
+  constraints/*.yaml       ← security, performance rules (global)
+  milestones/
+    001-xxx/
+      artifacts/           ← milestone-specific artifacts (features, unknowns)
+      contracts/*.md       ← formal specifications
+      contracts/*.yaml     ← machine-readable IR
+      test-specs/*.md      ← what to test (derived from contracts)
+      plan.md              ← milestone overview: scope, stages table
+      stage_N.md           ← tasks for each stage
+      traceability.yaml    ← REQ → CTR → TST → GATE
+      open-questions.md    ← unresolved questions
+.hlv/validation/
+  scenarios/*.md           ← cross-milestone integration scenarios
+  gates-policy.yaml        ← gate thresholds
+  equivalence-policy.yaml  ← regeneration rules
+  traceability-policy.yaml ← traceability rules
+  ir-policy.yaml           ← IR versioning
+  adversarial-guardrails.yaml
+.hlv/llm/
+  map.yaml                 ← file map (hlv check validates all entries exist)
+  src/                     ← generated code
+app/, src/, tests/, ...    ← observed legacy roots from paths.code
+```
+"#
+    } else {
+        r#"```
+project.yaml               ← READ THIS FIRST
+milestones.yaml            ← current milestone, stage, history
+HLV.md                     ← HLV rules (this file, auto-generated)
+AGENTS.md                  ← project-specific rules (user-editable)
+human/
+  artifacts/               ← global project context (domain, stack, arch decisions)
+  glossary.yaml            ← domain types (canonical, shared across milestones)
+  constraints/*.yaml       ← security, performance rules (global)
+  milestones/
+    001-xxx/
+      artifacts/           ← milestone-specific artifacts (features, unknowns)
+      contracts/*.md       ← formal specifications
+      contracts/*.yaml     ← machine-readable IR
+      test-specs/*.md      ← what to test (derived from contracts)
+      plan.md              ← milestone overview: scope, stages table
+      stage_N.md           ← tasks for each stage
+      traceability.yaml    ← REQ → CTR → TST → GATE
+      open-questions.md    ← unresolved questions
+validation/
+  scenarios/*.md           ← cross-milestone integration scenarios
+  gates-policy.yaml        ← gate thresholds
+  equivalence-policy.yaml  ← regeneration rules
+  traceability-policy.yaml ← traceability rules
+  ir-policy.yaml           ← IR versioning
+  adversarial-guardrails.yaml
+llm/
+  map.yaml                 ← file map (hlv check validates all entries exist)
+  src/                     ← generated code
+```
+"#
+    };
     format!(
         r#"# HLV.md — HLV methodology rules for {project}
 
@@ -812,14 +1498,15 @@ fn hlv_template(project: &str, _agent: &str, skills_dir: &str) -> String {
 
 ## 1. Entry Point
 
-**Always start by reading `project.yaml`.** It is the single source of truth for:
+**Always start by reading `{project_map_path}`.** It is the single source of truth for:
 
 - **status** — current project phase (`draft` → `implementing` → `implemented` → `validating` → `validated`)
 - **paths** — where every file and directory lives
 - **stack** — tech stack: components, languages, typed dependencies
 - **validation** — state of each gate
 
-Do NOT guess paths. Read them from `project.yaml`.
+Do NOT guess paths. Read them from `{project_map_path}`.
+{adopted_section}
 
 ---
 
@@ -895,36 +1582,7 @@ Every error from the contract's Errors table has an explicit code path. No catch
 
 ## 3. Where Things Live
 
-```
-project.yaml                 ← READ THIS FIRST
-milestones.yaml              ← current milestone, stage, history
-HLV.md                       ← HLV rules (this file, auto-generated)
-AGENTS.md                    ← project-specific rules (user-editable)
-human/
-  artifacts/                 ← global project context (domain, stack, arch decisions)
-  glossary.yaml              ← domain types (canonical, shared across milestones)
-  constraints/*.yaml         ← security, performance rules (global)
-  milestones/
-    001-xxx/
-      artifacts/             ← milestone-specific artifacts (features, unknowns)
-      contracts/*.md         ← formal specifications
-      contracts/*.yaml       ← machine-readable IR
-      test-specs/*.md        ← what to test (derived from contracts)
-      plan.md                ← milestone overview: scope, stages table
-      stage_N.md             ← tasks for each stage
-      traceability.yaml      ← REQ → CTR → TST → GATE
-      open-questions.md      ← unresolved questions
-validation/
-  scenarios/*.md             ← cross-milestone integration scenarios
-  gates-policy.yaml          ← gate thresholds
-  equivalence-policy.yaml    ← regeneration rules
-  traceability-policy.yaml   ← traceability rules
-  ir-policy.yaml             ← IR versioning
-  adversarial-guardrails.yaml
-llm/
-  map.yaml                   ← file map (hlv check validates all entries exist)
-  src/                       ← generated code
-```
+{layout_tree}
 
 ---
 
@@ -970,13 +1628,13 @@ Each skill has one job:
 
 When executing a task from the plan:
 
-1. Read `project.yaml` → find your task
+1. Read `{project_map_path}` → find your task
 2. Check `depends_on` → all dependencies completed
 3. Load context: contract + glossary + stack + test spec + dependent code
 4. Generate tests first (TDD): write tests with `@hlv` markers from contract error codes, invariants, and constraint rules
 5. Generate implementation code to make the tests pass
 6. Validate locally (compile, lint, unit tests, `hlv check` for marker coverage)
-7. Update `project.yaml`: `task.status → completed`
+7. Update `{project_map_path}`: `task.status → completed`
 
 Two agents NEVER write to the same file. Between groups — git commit.
 
@@ -984,18 +1642,25 @@ Two agents NEVER write to the same file. Between groups — git commit.
 
 ## 6. Glossary
 
-`human/glossary.yaml` is the canonical type dictionary. All contracts and code MUST use glossary types. No synonyms. No redefinitions.
+`{glossary_path}` is the canonical type dictionary. All contracts and code MUST use glossary types. No synonyms. No redefinitions.
 
 ---
 
 ## 7. Constraints
 
-Global rules in `human/constraints/`:
+Global rules in `{constraints_path}`:
 - `security.yaml` — prepared statements, no secrets in logs, auth required
 - `performance.yaml` — latency budgets, error rate limits, SLOs
 
 These apply to ALL contracts unless explicitly excepted.
-"#
+"#,
+        project = project,
+        project_map_path = project_map_path,
+        glossary_path = glossary_path,
+        constraints_path = constraints_path,
+        adopted_section = adopted_section,
+        layout_tree = layout_tree,
+        skills_dir = skills_dir,
     )
 }
 
@@ -1124,14 +1789,33 @@ fn prompt_gate_profile() -> Result<GateProfile> {
     }
 }
 
+#[cfg(test)]
 fn gates_policy_template(profile: GateProfile) -> String {
+    gates_policy_template_with_command(profile, None)
+}
+
+fn gates_policy_template_for_defaults(
+    profile: GateProfile,
+    defaults: Option<&AdoptInitDefaults>,
+) -> String {
+    gates_policy_template_with_command(
+        profile,
+        defaults.and_then(|defaults| defaults.gate_command.as_deref()),
+    )
+}
+
+fn gates_policy_template_with_command(profile: GateProfile, gate_command: Option<&str>) -> String {
     let mut gates = String::new();
+    let command_yaml = gate_command
+        .map(|command| format!("    command: {}\n    cwd: .\n", yaml_inline_string(command)))
+        .unwrap_or_default();
 
     // Core gates — always present
-    gates.push_str(
+    gates.push_str(&format!(
         r#"  - id: GATE-CONTRACT-001
     type: contract_tests
     mandatory: true
+{command_yaml}    enabled: true
     pass_criteria:
       required_scenarios_pass_rate: 1.0
   - id: GATE-SECURITY-001
@@ -1141,7 +1825,7 @@ fn gates_policy_template(profile: GateProfile) -> String {
       max_open_critical: 0
       max_open_high: 0
 "#,
-    );
+    ));
 
     // Standard adds integration + PBT
     if matches!(profile, GateProfile::Standard | GateProfile::Full) {
@@ -1205,6 +1889,14 @@ gates:
         profile = profile.label(),
         gates = gates,
     )
+}
+
+fn yaml_inline_string(value: &str) -> String {
+    serde_yaml::to_string(value)
+        .unwrap_or_else(|_| format!("{value:?}"))
+        .trim()
+        .trim_start_matches("--- ")
+        .to_string()
 }
 
 static EQUIV_POLICY_TEMPLATE: &str = r#"# yaml-language-server: $schema=../schema/equivalence-policy-schema.json

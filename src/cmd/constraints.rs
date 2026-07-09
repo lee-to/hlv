@@ -12,6 +12,7 @@ use crate::util::command_parser::{check_command_failure_reason, parse_portable_c
 use crate::util::cwd::ensure_existing_cwd;
 
 pub fn run_list(project_root: &Path, severity: Option<&str>, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
 
     if json {
@@ -153,6 +154,7 @@ fn run_list_json(project_root: &Path, project: &ProjectMap, severity: Option<&st
 }
 
 pub fn run_show(project_root: &Path, name: &str, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
 
     let entry = project
@@ -245,6 +247,7 @@ pub fn run_add(
     intent: Option<&str>,
     applies_to: &str,
 ) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project_path = project_root.join("project.yaml");
     let mut project = ProjectMap::load(&project_path)?;
 
@@ -292,6 +295,7 @@ pub fn run_add(
                 path: constraint_path.clone(),
                 kind: MapEntryKind::File,
                 layer: "human".to_string(),
+                index_ref: None,
                 description: format!("{} constraints", name),
             });
             llm_map.save(&map_abs)?;
@@ -306,6 +310,7 @@ pub fn run_add(
 }
 
 pub fn run_remove(project_root: &Path, name: &str, force: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project_path = project_root.join("project.yaml");
     let mut project = ProjectMap::load(&project_path)?;
 
@@ -373,6 +378,7 @@ pub fn run_add_rule(
     check_cwd: Option<&str>,
     error_level: Option<&str>,
 ) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     // Validate severity
     if !["critical", "high", "medium", "low"].contains(&severity) {
         anyhow::bail!(
@@ -434,6 +440,7 @@ pub fn run_add_rule(
 }
 
 pub fn run_remove_rule(project_root: &Path, constraint_name: &str, rule_id: &str) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
 
     let entry = project
@@ -463,7 +470,7 @@ pub fn run_check(
     rule: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+    let project = ProjectMap::load(&crate::config_root(project_root).join("project.yaml"))?;
 
     let (mut diags, mut results) =
         crate::check::constraints::run_constraint_checks(project_root, &project, constraint, rule);
@@ -556,7 +563,7 @@ pub fn get_constraint_check_results(
     constraint: Option<&str>,
     rule: Option<&str>,
 ) -> Result<serde_json::Value> {
-    let project = ProjectMap::load(&project_root.join("project.yaml"))?;
+    let project = ProjectMap::load(&crate::config_root(project_root).join("project.yaml"))?;
 
     let (mut diags, mut results) =
         crate::check::constraints::run_constraint_checks(project_root, &project, constraint, rule);

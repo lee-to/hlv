@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../../../../schema/glossary-schema.json
+schema_version: 1
+domain: adopt-laravel
+types: {}
+enums: {}
+terms: {}
+rules: []

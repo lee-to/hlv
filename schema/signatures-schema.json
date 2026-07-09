@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-signatures-schema",
+  "title": "HLV signature index",
+  "description": "Machine-generated symbol signature index for adopted and indexed projects.",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "RFC3339 timestamp when the index was generated"
+    },
+    "project": {
+      "type": "string"
+    },
+    "symbols": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Symbol" },
+      "default": []
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Symbol": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "file",
+        "line",
+        "signature",
+        "visibility",
+        "kind",
+        "language",
+        "source_fingerprint"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable symbol identifier"
+        },
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string",
+          "description": "Repository-relative file path"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "signature": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Language-specific visibility such as public, private, protected, internal, or package"
+        },
+        "kind": {
+          "type": "string",
+          "description": "Symbol kind such as function, method, class, struct, enum, trait, or module"
+        },
+        "language": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "source_fingerprint": {
+          "type": "string",
+          "description": "Fingerprint of the source slice used to detect stale index entries"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

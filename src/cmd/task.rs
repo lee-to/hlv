@@ -15,6 +15,7 @@ pub fn run_list(
     label_filter: Option<&str>,
     json: bool,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let map = load(root)?;
     let current = map.current.as_ref().context("No active milestone")?;
 
@@ -87,6 +88,7 @@ pub fn get_task_list(
     status_filter: Option<&str>,
     label_filter: Option<&str>,
 ) -> Result<Vec<TaskView>> {
+    let root = &crate::config_root(root);
     let map = load(root)?;
     let current = map.current.as_ref().context("No active milestone")?;
     let status_enum = status_filter.map(parse_status).transpose()?;
@@ -126,6 +128,7 @@ pub fn get_task_list(
 
 /// `hlv task start <task-id>`
 pub fn run_start(root: &Path, task_id: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let milestone_id = map.current.as_ref().unwrap().id.clone();
 
@@ -155,6 +158,7 @@ pub fn run_start(root: &Path, task_id: &str) -> Result<()> {
 
 /// `hlv task done <task-id>`
 pub fn run_done(root: &Path, task_id: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let stage = &mut map.current.as_mut().unwrap().stages[stage_idx];
 
@@ -174,6 +178,7 @@ pub fn run_done(root: &Path, task_id: &str) -> Result<()> {
 
 /// `hlv task block <task-id> --reason "..."`
 pub fn run_block(root: &Path, task_id: &str, reason: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let stage = &mut map.current.as_mut().unwrap().stages[stage_idx];
 
@@ -185,6 +190,7 @@ pub fn run_block(root: &Path, task_id: &str, reason: &str) -> Result<()> {
 
 /// `hlv task unblock <task-id>`
 pub fn run_unblock(root: &Path, task_id: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let stage = &mut map.current.as_mut().unwrap().stages[stage_idx];
 
@@ -196,6 +202,7 @@ pub fn run_unblock(root: &Path, task_id: &str) -> Result<()> {
 
 /// `hlv task status [--json]`
 pub fn run_status(root: &Path, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let map = load(root)?;
     let current = map.current.as_ref().context("No active milestone")?;
 
@@ -254,6 +261,7 @@ pub fn run_status(root: &Path, json: bool) -> Result<()> {
 
 /// `hlv task sync`
 pub fn run_sync(root: &Path, force: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let current = map.current.as_mut().context("No active milestone")?;
     let milestone_dir = root.join("human/milestones").join(&current.id);
@@ -358,6 +366,7 @@ pub fn run_sync(root: &Path, force: bool) -> Result<()> {
 
 /// `hlv task label <task-id> add|remove <label>`
 pub fn run_label(root: &Path, task_id: &str, action: &str, label: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let task = &mut map.current.as_mut().unwrap().stages[stage_idx].tasks[task_idx];
 
@@ -386,6 +395,7 @@ pub fn run_meta(
     key: &str,
     value: Option<&str>,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let (mut map, stage_idx, task_idx) = find_task_mut(root, task_id)?;
     let task = &mut map.current.as_mut().unwrap().stages[stage_idx].tasks[task_idx];
 
@@ -416,6 +426,7 @@ pub fn run_add(
     name: &str,
     description: Option<&str>,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let current = map.current.as_mut().context("No active milestone")?;
     let milestone_id = current.id.clone();

@@ -53,6 +53,7 @@ pub struct PlanTaskData {
 }
 
 pub fn get_plan(project_root: &Path) -> Result<Option<PlanData>> {
+    let project_root = &crate::config_root(project_root);
     let milestones = MilestoneMap::load(&project_root.join("milestones.yaml"))?;
     let current = match &milestones.current {
         Some(c) => c,
@@ -120,6 +121,7 @@ pub fn get_plan(project_root: &Path) -> Result<Option<PlanData>> {
 }
 
 pub fn run(project_root: &Path, visual: bool, json: bool) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     if json {
         let data = get_plan(project_root)?;
         println!("{}", serde_json::to_string_pretty(&data)?);

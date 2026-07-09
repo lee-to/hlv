@@ -132,6 +132,11 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
 }
 
 fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagnostic>> {
+    // HLV config artifacts live under the config root (`.hlv/` for adopted
+    // projects); command execution (gates, constraint checks) stays on the
+    // repository root.
+    let repo_root = root;
+    let root = &crate::config_root(root);
     let mut all_diags: Vec<Diagnostic> = Vec::new();
 
     let project_diags = check::project_map::check_project_map(root);
@@ -221,40 +226,74 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
 
     all_diags.extend(check::artifacts::check_artifacts(root, &project));
 
+    let needs_legacy_marker_scope = project.features.legacy_mode
+        && (project.features.hlv_markers || project.features.security_markers);
+    let legacy_marker_files = if needs_legacy_marker_scope {
+        let (files, scope_diag) = resolve_legacy_marker_files(
+            repo_root,
+            &milestone_info,
+            project.git.base_ref.as_deref(),
+        );
+        if let Some(diag) = scope_diag {
+            all_diags.push(diag);
+        }
+        Some(files)
+    } else {
+        None
+    };
+    let legacy_marker_scope = legacy_marker_files.as_deref();
+    let marker_scan_root = if project.features.legacy_mode {
+        repo_root
+    } else {
+        root
+    };
+
     {
         let tests_path = project.paths.llm.tests.as_deref();
-        all_diags.extend(check::code_trace::check_code_trace(
-            root,
+        all_diags.extend(check::code_trace::check_code_trace_with_scope(
+            check::code_trace::CodeTraceScope {
+                artifact_root: root,
+                scan_root: marker_scan_root,
+                src_path: &project.paths.llm.src,
+                tests_path,
+                changed_files: legacy_marker_scope,
+            },
             &contracts,
             &project.constraints,
-            &project.paths.llm.src,
-            tests_path,
             project.features.hlv_markers,
         ));
     }
 
-    all_diags.extend(check::sec_markers::check_sec_markers(
-        root,
+    all_diags.extend(check::sec_markers::check_sec_markers_with_scope(
+        marker_scan_root,
         &project.paths.llm.src,
         project.features.security_markers,
+        legacy_marker_scope,
     ));
 
     if let Some(ref map_path) = project.paths.llm.map {
-        all_diags.extend(check::llm_map::check_llm_map(
+        all_diags.extend(check::llm_map::check_llm_map_with_context(
             root,
+            repo_root,
             map_path,
             &project.paths.llm,
+            project.features.legacy_mode,
         ));
+    }
+
+    if project.features.legacy_mode || root.join("index/signatures.yaml").exists() {
+        all_diags.extend(check::index::check_index(root, repo_root, &project));
     }
 
     if !project.constraints.is_empty() {
         all_diags.extend(check::constraints::check_constraints(root, &project));
         if strictness != &Strictness::Relaxed {
-            // CST-050: run rule-level check_commands
-            let (cst050, _) = check::constraints::run_constraint_checks(root, &project, None, None);
+            // CST-050: run rule-level check_commands (cwd relative to repo root)
+            let (cst050, _) =
+                check::constraints::run_constraint_checks(repo_root, &project, None, None);
             all_diags.extend(cst050);
-            // CST-060: run file-level check_commands
-            let (cst060, _) = check::constraints::run_file_level_checks(root, &project, None);
+            // CST-060: run file-level check_commands (cwd relative to repo root)
+            let (cst060, _) = check::constraints::run_file_level_checks(repo_root, &project, None);
             all_diags.extend(cst060);
         }
     }
@@ -298,11 +337,137 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     Ok(all_diags)
 }
 
+fn resolve_legacy_marker_files(
+    repo_root: &Path,
+    milestone_info: &Option<(MilestoneMap, String)>,
+    base_ref: Option<&str>,
+) -> (Vec<String>, Option<Diagnostic>) {
+    if let Some((milestones, _)) = milestone_info {
+        if let Some(current) = &milestones.current {
+            if !current.changed_files.is_empty() {
+                tracing::debug!(
+                    file_count = current.changed_files.len(),
+                    "Using milestone changed_files for legacy marker scope"
+                );
+                return (current.changed_files.clone(), None);
+            }
+        }
+    }
+
+    if let Some(base) = base_ref {
+        match git_changed_files_since_base(repo_root, base) {
+            Some(files) => {
+                tracing::debug!(
+                    file_count = files.len(),
+                    base,
+                    "Using git merge-base diff for legacy marker scope"
+                );
+                return (files, None);
+            }
+            None => {
+                return (
+                    Vec::new(),
+                    Some(
+                        Diagnostic::warning(
+                            "LEG-010",
+                            format!(
+                                "Cannot resolve git.base_ref '{base}' for legacy marker scope; changed legacy files will not be validated. Fetch the base ref (e.g. fetch-depth: 0 in CI) or fix git.base_ref."
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                );
+            }
+        }
+    }
+
+    // No configured base: fall back to uncommitted worktree changes, which
+    // only helps locally. If that is empty too, warn instead of silently
+    // treating the milestone scope as empty (the CI case).
+    match git_changed_files(repo_root) {
+        Some(files) if !files.is_empty() => {
+            tracing::debug!(
+                file_count = files.len(),
+                "Using uncommitted git diff fallback for legacy marker scope"
+            );
+            (files, None)
+        }
+        _ => (
+            Vec::new(),
+            Some(
+                Diagnostic::warning(
+                    "LEG-010",
+                    "Cannot determine changed-file scope for legacy marker checks; changed legacy files will not be validated. Set git.base_ref (e.g. origin/main) or record changed_files in milestones.yaml.",
+                )
+                .with_file("project.yaml"),
+            ),
+        ),
+    }
+}
+
+/// Changed files between the merge-base of `base_ref`/HEAD and the current
+/// worktree (committed and uncommitted changes alike).
+fn git_changed_files_since_base(repo_root: &Path, base_ref: &str) -> Option<Vec<String>> {
+    let merge_base = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["merge-base", base_ref, "HEAD"])
+        .output()
+        .ok()?;
+    if !merge_base.status.success() {
+        return None;
+    }
+    let merge_base = String::from_utf8_lossy(&merge_base.stdout)
+        .trim()
+        .to_string();
+    if merge_base.is_empty() {
+        return None;
+    }
+
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .args(["diff", "--name-only", &merge_base])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(parse_git_paths(&output.stdout))
+}
+
+fn git_changed_files(repo_root: &Path) -> Option<Vec<String>> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo_root)
+        .arg("diff")
+        .arg("--name-only")
+        .arg("HEAD")
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    Some(parse_git_paths(&output.stdout))
+}
+
+fn parse_git_paths(stdout: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 fn effective_strictness(root: &Path, strict: bool) -> Strictness {
     if strict {
         return Strictness::Strict;
     }
-    ProjectMap::load(&root.join("project.yaml"))
+    ProjectMap::load(&crate::config_root(root).join("project.yaml"))
         .ok()
         .and_then(|project| project.validation.map(|validation| validation.strictness))
         .unwrap_or_default()
@@ -322,7 +487,7 @@ fn apply_waivers(
     diags: &mut Vec<Diagnostic>,
     waived: &mut Vec<WaivedDiagnostic>,
 ) -> Vec<Diagnostic> {
-    let waiver_path = root.join("validation/waivers.yaml");
+    let waiver_path = crate::config_root(root).join("validation/waivers.yaml");
     if !waiver_path.exists() {
         return Vec::new();
     }
@@ -447,6 +612,15 @@ fn print_check_report(report: &CheckReport) {
         status, report.errors, report.warnings, report.infos
     );
     println!();
+}
+
+/// Paths watched by `hlv check --watch`.
+pub fn watch_paths_for_project(root: &Path) -> Vec<std::path::PathBuf> {
+    let context = crate::ProjectContext::from_root(root);
+    ["human", "validation", "project.yaml"]
+        .into_iter()
+        .map(|p| context.hlv_path(p))
+        .collect()
 }
 
 /// Load milestone info if milestones.yaml exists with a current milestone.
@@ -611,9 +785,7 @@ fn watch_loop(root: &Path, options: CheckOptions) -> Result<()> {
             }
         })?;
 
-    let watch_paths = ["human", "validation", "project.yaml"];
-    for p in &watch_paths {
-        let full = root.join(p);
+    for full in watch_paths_for_project(root) {
         if full.exists() {
             let mode = if full.is_dir() {
                 RecursiveMode::Recursive
@@ -621,6 +793,7 @@ fn watch_loop(root: &Path, options: CheckOptions) -> Result<()> {
                 RecursiveMode::NonRecursive
             };
             watcher.watch(&full, mode)?;
+            tracing::debug!(path = %full.display(), "watch path registered");
         }
     }
 

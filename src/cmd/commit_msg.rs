@@ -6,6 +6,7 @@ use crate::model::milestone::MilestoneMap;
 use crate::model::project::{CommitConvention, ProjectMap};
 
 pub fn run(project_root: &Path, stage_complete: bool, type_override: Option<&str>) -> Result<()> {
+    let project_root = &crate::config_root(project_root);
     let msg = get_commit_msg(project_root, stage_complete, type_override)?;
     println!("{}", msg);
     Ok(())
@@ -17,6 +18,7 @@ pub fn get_commit_msg(
     stage_complete: bool,
     type_override: Option<&str>,
 ) -> Result<String> {
+    let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
 
     let convention = &project.git.commit_convention;

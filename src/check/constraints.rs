@@ -16,6 +16,7 @@ const CHECK_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
 /// CST-020: no duplicate rule IDs within a constraint
 /// CST-030: severity values are valid
 pub fn check_constraints(root: &Path, project: &ProjectMap) -> Vec<Diagnostic> {
+    let root = &crate::config_root(root);
     let mut diags = Vec::new();
     let valid_severities = ["critical", "high", "medium", "low"];
     let valid_error_levels = ["error", "warning", "info"];
@@ -141,6 +142,9 @@ pub fn run_constraint_checks(
     filter_constraint: Option<&str>,
     filter_rule: Option<&str>,
 ) -> (Vec<Diagnostic>, Vec<ConstraintCheckResult>) {
+    // Constraint files are config artifacts (config root); check commands
+    // execute relative to the repository root.
+    let config_root = crate::config_root(root);
     let mut diags = Vec::new();
     let mut results = Vec::new();
 
@@ -152,7 +156,7 @@ pub fn run_constraint_checks(
             }
         }
 
-        let file_path = root.join(&entry.path);
+        let file_path = config_root.join(&entry.path);
         let cf = match ConstraintFile::load(&file_path) {
             Ok(cf) => cf,
             Err(_) => continue,
@@ -210,6 +214,9 @@ pub fn run_file_level_checks(
     project: &ProjectMap,
     filter_constraint: Option<&str>,
 ) -> (Vec<Diagnostic>, Vec<ConstraintCheckResult>) {
+    // Constraint files are config artifacts (config root); check commands
+    // execute relative to the repository root.
+    let config_root = crate::config_root(root);
     let mut diags = Vec::new();
     let mut results = Vec::new();
 
@@ -221,7 +228,7 @@ pub fn run_file_level_checks(
             }
         }
 
-        let file_path = root.join(&entry.path);
+        let file_path = config_root.join(&entry.path);
         let cf = match ConstraintFile::load(&file_path) {
             Ok(cf) => cf,
             Err(_) => continue,

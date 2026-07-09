@@ -47,7 +47,10 @@ pub fn run(root: &Path, json: bool, fix: bool) -> Result<()> {
 pub fn doctor_report(root: &Path, fix: bool) -> Result<DoctorReport> {
     let mut diagnostics = Vec::new();
     let mut fixed = Vec::new();
-    let project_path = root.join("project.yaml");
+    // Config artifacts live under the config root (`.hlv/` for adopted
+    // projects); gate/constraint command cwds resolve against the repo root.
+    let config_root = &crate::config_root(root);
+    let project_path = config_root.join("project.yaml");
     if !project_path.exists() {
         diagnostics
             .push(Diagnostic::error("DOC-001", "project.yaml not found").with_file("project.yaml"));
@@ -65,11 +68,11 @@ pub fn doctor_report(root: &Path, fix: bool) -> Result<DoctorReport> {
         }
     };
 
-    check_schema_compat(root, &project, &mut diagnostics);
-    check_project_paths(root, &project, fix, &mut diagnostics, &mut fixed)?;
+    check_schema_compat(config_root, &project, &mut diagnostics);
+    check_project_paths(config_root, &project, fix, &mut diagnostics, &mut fixed)?;
     check_llm_paths(&project, &mut diagnostics);
-    check_gate_commands(root, &project, &mut diagnostics);
-    check_constraint_commands(root, &project, &mut diagnostics);
+    check_gate_commands(root, config_root, &project, &mut diagnostics);
+    check_constraint_commands(root, config_root, &project, &mut diagnostics);
     check_non_ascii_smoke(&mut diagnostics);
 
     Ok(report(diagnostics, fixed))
@@ -268,8 +271,13 @@ fn check_llm_paths(project: &ProjectMap, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
-fn check_gate_commands(root: &Path, project: &ProjectMap, diagnostics: &mut Vec<Diagnostic>) {
-    let path = root.join(&project.paths.validation.gates_policy);
+fn check_gate_commands(
+    root: &Path,
+    config_root: &Path,
+    project: &ProjectMap,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let path = config_root.join(&project.paths.validation.gates_policy);
     let Ok(policy) = GatesPolicy::load(&path) else {
         return;
     };
@@ -299,9 +307,14 @@ fn check_gate_commands(root: &Path, project: &ProjectMap, diagnostics: &mut Vec<
     }
 }
 
-fn check_constraint_commands(root: &Path, project: &ProjectMap, diagnostics: &mut Vec<Diagnostic>) {
+fn check_constraint_commands(
+    root: &Path,
+    config_root: &Path,
+    project: &ProjectMap,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for entry in &project.constraints {
-        let Ok(file) = ConstraintFile::load(&root.join(&entry.path)) else {
+        let Ok(file) = ConstraintFile::load(&config_root.join(&entry.path)) else {
             continue;
         };
         if let Some(command) = file.check_command.as_deref() {

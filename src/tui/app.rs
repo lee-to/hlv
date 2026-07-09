@@ -106,7 +106,7 @@ impl App {
     }
 
     pub fn reload(&mut self) {
-        let root = &self.project_root;
+        let root = &crate::config_root(&self.project_root);
         self.project = ProjectMap::load(&root.join("project.yaml")).ok();
         self.milestones = MilestoneMap::load(&root.join("milestones.yaml")).ok();
 
@@ -305,9 +305,8 @@ impl App {
     /// Save gates policy to disk.
     fn save_gates_policy(&self) {
         if let (Some(ref policy), Some(ref project)) = (&self.gates_policy, &self.project) {
-            let path = self
-                .project_root
-                .join(&project.paths.validation.gates_policy);
+            let config_root = crate::config_root(&self.project_root);
+            let path = config_root.join(&project.paths.validation.gates_policy);
             let _ = policy.save(&path);
         }
     }
@@ -662,5 +661,69 @@ mod tests {
         app.project = None;
         app.reload();
         assert_eq!(app.project.as_ref().unwrap().project, proj_name);
+    }
+
+    #[test]
+    fn adopted_layout_loads_and_saves_gates_under_hlv_root() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        let hlv_root = root.join(".hlv");
+        std::fs::create_dir_all(hlv_root.join("validation")).unwrap();
+        std::fs::create_dir_all(hlv_root.join("human/constraints")).unwrap();
+        std::fs::create_dir_all(hlv_root.join("llm")).unwrap();
+
+        std::fs::write(
+            hlv_root.join("project.yaml"),
+            r#"
+schema_version: 1
+project: adopted-tui
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    scenarios: validation/scenarios/
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+features:
+  legacy_mode: true
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            hlv_root.join("milestones.yaml"),
+            "project: adopted-tui\nhistory: []\n",
+        )
+        .unwrap();
+        std::fs::write(
+            hlv_root.join("validation/gates-policy.yaml"),
+            r#"
+version: 1.0.0
+policy_id: TUI
+gates:
+  - id: GATE-001
+    type: test
+    mandatory: true
+    enabled: true
+"#,
+        )
+        .unwrap();
+
+        let mut app = App::new(root);
+        assert_eq!(app.project.as_ref().unwrap().project, "adopted-tui");
+        assert_eq!(app.gates_policy.as_ref().unwrap().gates.len(), 1);
+
+        app.current_tab = Tab::Gates;
+        app.selected_index = 0;
+        app.toggle_gate();
+
+        let saved = std::fs::read_to_string(hlv_root.join("validation/gates-policy.yaml")).unwrap();
+        assert!(saved.contains("enabled: false"));
+        assert!(!root.join("validation/gates-policy.yaml").exists());
     }
 }

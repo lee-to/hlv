@@ -8,6 +8,7 @@ use crate::model::project::ProjectMap;
 
 /// Returns glossary as data (no stdout). Returns None if no glossary file exists.
 pub fn get_glossary(root: &Path) -> Result<Option<Glossary>> {
+    let root = &crate::config_root(root);
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let glossary_path = root.join(&project.paths.human.glossary);
 
@@ -19,6 +20,7 @@ pub fn get_glossary(root: &Path) -> Result<Option<Glossary>> {
 }
 
 pub fn run(root: &Path, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let glossary_path = root.join(&project.paths.human.glossary);
 

@@ -1,0 +1,11 @@
+{
+  "name": "adopt-node-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -18,8 +18,15 @@ Before proceeding, read `project.yaml → features` and note the flag values:
 - `features.linear_architecture` (default: `true`)
 - `features.hlv_markers` (default: `true`)
 - `features.security_markers` (default: `true`)
+- `features.legacy_mode` (default: `false`)
+- `features.index_tracking` (default: `ignored`)
 
-These flags control which sections below are active. If `project.yaml` has no `features` section, treat all as `true`.
+These flags control which sections below are active. If `project.yaml` has no `features` section, use defaults: the first three booleans are `true`, `legacy_mode` is `false`, and `index_tracking` is `ignored`.
+If `features.legacy_mode` is `true`, also read `paths.code` and query the signature index with `hlv index show --json <symbol>` or `hlv index list --json --file <path>` before changing observed legacy code. Legacy code stays in place; only new/changed milestone work must follow the full contract and marker flow.
+
+### Adopt Mode
+
+When `legacy_mode` is enabled, treat `paths.code` as observed brownfield code and `paths.llm` as the generated-work area. Do not relocate legacy files into `llm/src`. Before editing a legacy file, use the signature index to identify the relevant symbols, then apply the normal contract-driven workflow to the changed files.
 
 ## CRITICAL: Code Architecture Philosophy
 

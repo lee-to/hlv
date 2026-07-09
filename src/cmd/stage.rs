@@ -6,6 +6,7 @@ use crate::model::milestone::{MilestoneMap, StageStatus};
 
 /// `hlv stage label <stage-id> add|remove <label>`
 pub fn run_label(root: &Path, stage_id: u32, action: &str, label: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let stage = find_stage_mut(&mut map, stage_id)?;
 
@@ -34,6 +35,7 @@ pub fn run_meta(
     key: &str,
     value: Option<&str>,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let stage = find_stage_mut(&mut map, stage_id)?;
 
@@ -55,6 +57,7 @@ pub fn run_meta(
 
 /// `hlv milestone label add|remove <label>`
 pub fn run_milestone_label(root: &Path, action: &str, label: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let current = map.current.as_mut().context("No active milestone")?;
 
@@ -77,6 +80,7 @@ pub fn run_milestone_label(root: &Path, action: &str, label: &str) -> Result<()>
 
 /// `hlv milestone meta set|delete <key> [<value>]`
 pub fn run_milestone_meta(root: &Path, action: &str, key: &str, value: Option<&str>) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let current = map.current.as_mut().context("No active milestone")?;
 
@@ -105,6 +109,7 @@ pub fn run_milestone_meta(root: &Path, action: &str, key: &str, value: Option<&s
 ///
 /// Use when manual review finds issues after implementation or validation.
 pub fn run_reopen(root: &Path, stage_id: u32) -> Result<()> {
+    let root = &crate::config_root(root);
     let mut map = load(root)?;
     let stage = find_stage_mut(&mut map, stage_id)?;
 

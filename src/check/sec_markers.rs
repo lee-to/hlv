@@ -17,6 +17,20 @@ const VALID_CATEGORIES: &[&str] = &[
     "NETWORK",
 ];
 
+const IGNORED_MARKER_DIRS: &[&str] = &[
+    ".git",
+    "target",
+    "node_modules",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "dist",
+    "build",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+];
+
 /// A single @hlv:sec marker found in source code.
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -29,14 +43,24 @@ struct SecMarker {
 /// Check for @hlv:sec security attention markers in source code.
 /// Returns SEC-010 Info diagnostic with summary table of markers by category and file.
 pub fn check_sec_markers(root: &Path, src_path: &str, markers_enabled: bool) -> Vec<Diagnostic> {
+    check_sec_markers_with_scope(root, src_path, markers_enabled, None)
+}
+
+/// Check security attention markers, optionally limiting scans to an explicit
+/// set of repository-relative changed files.
+pub fn check_sec_markers_with_scope(
+    root: &Path,
+    src_path: &str,
+    markers_enabled: bool,
+    changed_files: Option<&[String]>,
+) -> Vec<Diagnostic> {
     if !markers_enabled {
         tracing::debug!("Skipping security markers check — security_markers disabled");
         return Vec::new();
     }
 
-    let full_src = root.join(src_path);
-    if !full_src.exists() {
-        tracing::debug!("Source path does not exist: {}", full_src.display());
+    if changed_files.is_some_and(|files| files.is_empty()) {
+        tracing::debug!("Skipping security markers check — legacy mode has no changed files");
         return Vec::new();
     }
 
@@ -44,7 +68,28 @@ pub fn check_sec_markers(root: &Path, src_path: &str, markers_enabled: bool) -> 
     let mut markers: Vec<SecMarker> = Vec::new();
     let mut invalid_categories: Vec<(String, String, usize)> = Vec::new();
 
-    scan_sec_markers(&full_src, root, &re, &mut markers, &mut invalid_categories);
+    if let Some(files) = changed_files {
+        tracing::debug!(
+            file_count = files.len(),
+            "Scanning legacy changed files for @hlv:sec markers"
+        );
+        for rel in files {
+            scan_sec_marker_file(
+                &root.join(rel),
+                root,
+                &re,
+                &mut markers,
+                &mut invalid_categories,
+            );
+        }
+    } else {
+        let full_src = root.join(src_path);
+        if !full_src.exists() {
+            tracing::debug!("Source path does not exist: {}", full_src.display());
+            return Vec::new();
+        }
+        scan_sec_markers(&full_src, root, &re, &mut markers, &mut invalid_categories);
+    }
 
     let mut diags = Vec::new();
 
@@ -118,7 +163,7 @@ fn scan_sec_markers(
 
         // Skip common build/dependency directories
         if path.is_dir() {
-            if matches!(name.as_str(), ".git" | "target" | "node_modules") {
+            if IGNORED_MARKER_DIRS.contains(&name.as_str()) {
                 continue;
             }
             scan_sec_markers(&path, root, re, markers, invalid);
@@ -129,29 +174,43 @@ fn scan_sec_markers(
             continue;
         }
 
-        let content = match std::fs::read_to_string(&path) {
-            Ok(c) => c,
-            Err(_) => continue,
-        };
+        scan_sec_marker_file(&path, root, re, markers, invalid);
+    }
+}
 
-        let rel_path = path
-            .strip_prefix(root)
-            .unwrap_or(&path)
-            .to_string_lossy()
-            .to_string();
+fn scan_sec_marker_file(
+    path: &Path,
+    root: &Path,
+    re: &Regex,
+    markers: &mut Vec<SecMarker>,
+    invalid: &mut Vec<(String, String, usize)>,
+) {
+    if !path.is_file() {
+        return;
+    }
 
-        for (line_num, line) in content.lines().enumerate() {
-            for cap in re.captures_iter(line) {
-                let category = cap[1].to_string();
-                if VALID_CATEGORIES.contains(&category.as_str()) {
-                    markers.push(SecMarker {
-                        category,
-                        file: rel_path.clone(),
-                        line: line_num + 1,
-                    });
-                } else {
-                    invalid.push((category, rel_path.clone(), line_num + 1));
-                }
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let rel_path = path
+        .strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .to_string();
+
+    for (line_num, line) in content.lines().enumerate() {
+        for cap in re.captures_iter(line) {
+            let category = cap[1].to_string();
+            if VALID_CATEGORIES.contains(&category.as_str()) {
+                markers.push(SecMarker {
+                    category,
+                    file: rel_path.clone(),
+                    line: line_num + 1,
+                });
+            } else {
+                invalid.push((category, rel_path.clone(), line_num + 1));
             }
         }
     }

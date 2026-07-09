@@ -7,6 +7,7 @@ pub mod doctor;
 pub mod explain;
 pub mod gates;
 pub mod glossary;
+pub mod index;
 pub mod init;
 pub mod mcp;
 pub mod milestone;

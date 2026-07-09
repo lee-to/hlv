@@ -40,6 +40,12 @@ Transform free-form human artifacts into structured contracts, validation specif
 11. Glossary: read from `human/glossary.yaml`, update it with new domain types discovered in this milestone
 12. If no `current` in milestones.yaml → tell the user to run `hlv milestone new <name>` first
 
+If `project.yaml → features.legacy_mode` is `true`, also read `paths.code` and keep existing code in place. Use the signature index (`features.index_tracking`, `hlv index show/list --json`) as compact context for observed legacy symbols; do not copy legacy code into `paths.llm.src`.
+
+### Adopt Mode
+
+For adopted projects, generate contracts and plans for the requested milestone, not for the whole legacy codebase. Use `paths.code` and the signature index to understand existing behavior, but write new generated artifacts under the configured HLV paths. Untouched legacy code does not need retroactive contracts or markers.
+
 ## Input
 
 ```

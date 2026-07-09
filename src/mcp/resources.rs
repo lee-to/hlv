@@ -98,6 +98,16 @@ pub fn list_resource_templates() -> ListResourceTemplatesResult {
                 "Milestone artifact",
                 "Single milestone artifact",
             ),
+            tmpl(
+                "hlv://index/symbol/{selector}",
+                "Index symbol",
+                "Signature index entries matching a symbol name or index ID",
+            ),
+            tmpl(
+                "hlv://index/file/{path}",
+                "Index file",
+                "Signature index entries for a repository-relative file",
+            ),
         ],
         next_cursor: None,
         meta: None,
@@ -121,6 +131,8 @@ fn ok_json(json: String, uri: &str) -> Result<ReadResourceResult, McpError> {
 }
 
 pub fn read_resource(root: &Path, uri: &str) -> Result<ReadResourceResult, McpError> {
+    // Config artifacts live under the config root (`.hlv/` for adopted projects).
+    let root = &crate::config_root(root);
     let json = match uri {
         "hlv://project" => {
             let pm =
@@ -361,6 +373,29 @@ fn read_parametrized_resource(root: &Path, uri: &str) -> Result<ReadResourceResu
         return ok_json(to_json(&data)?, uri);
     }
 
+    // hlv://index/symbol/{selector}
+    if let Some(selector) = uri.strip_prefix("hlv://index/symbol/") {
+        if selector.is_empty() {
+            return Err(McpError::invalid_params(
+                "Symbol selector is required",
+                None,
+            ));
+        }
+        let symbols = crate::cmd::index::find_symbols(root, selector)
+            .map_err(|e| load_err("index symbol", e))?;
+        return ok_json(to_json(&symbols)?, uri);
+    }
+
+    // hlv://index/file/{path}
+    if let Some(path) = uri.strip_prefix("hlv://index/file/") {
+        if path.is_empty() {
+            return Err(McpError::invalid_params("File path is required", None));
+        }
+        let symbols = crate::cmd::index::list_symbols_by_file(root, path)
+            .map_err(|e| load_err("index file", e))?;
+        return ok_json(to_json(&symbols)?, uri);
+    }
+
     // hlv://artifacts/milestone/{mid}/{name}
     if let Some(rest) = uri.strip_prefix("hlv://artifacts/milestone/") {
         if let Some((mid, name)) = rest.split_once('/') {
@@ -505,6 +540,16 @@ pub fn list_resource_templates_workspace() -> ListResourceTemplatesResult {
                 "hlv://projects/{id}/artifacts/milestone/{mid}/{name}",
                 "Milestone artifact",
                 "Single milestone artifact",
+            ),
+            tmpl(
+                "hlv://projects/{id}/index/symbol/{selector}",
+                "Index symbol",
+                "Signature index entries matching a symbol name or index ID",
+            ),
+            tmpl(
+                "hlv://projects/{id}/index/file/{path}",
+                "Index file",
+                "Signature index entries for a repository-relative file",
             ),
         ],
         next_cursor: None,

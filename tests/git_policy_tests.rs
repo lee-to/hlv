@@ -73,6 +73,7 @@ fn git_policy_serde_roundtrip() {
     let gp = GitPolicy {
         branch_per_milestone: true,
         branch_format: Some("hlv/{milestone-id}".to_string()),
+        base_ref: Some("origin/main".to_string()),
         commit_convention: CommitConvention::Simple,
         commit_scopes: vec!["feat".to_string(), "fix".to_string()],
         commit_template: None,

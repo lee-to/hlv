@@ -10,6 +10,7 @@ use crate::model::project::{ArtifactGraphConfig, CodeOwnershipEntry, ProjectMap}
 
 /// `hlv artifacts [--global | --milestone] [--json]`
 pub fn run_list(root: &Path, global_only: bool, milestone_only: bool, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let milestone_id = current_milestone_id(root);
 
     let index = if global_only {
@@ -57,6 +58,7 @@ pub fn run_show(
     milestone_only: bool,
     json: bool,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let milestone_id = current_milestone_id(root);
 
     // Search in appropriate scope
@@ -90,6 +92,7 @@ pub fn get_artifacts_list(
     global_only: bool,
     milestone_only: bool,
 ) -> Result<ArtifactIndex> {
+    let root = &crate::config_root(root);
     let milestone_id = current_milestone_id(root);
 
     if global_only {
@@ -115,6 +118,7 @@ pub fn get_artifact_show(
     global_only: bool,
     milestone_only: bool,
 ) -> Result<ArtifactFull> {
+    let root = &crate::config_root(root);
     let milestone_id = current_milestone_id(root);
 
     if global_only {
@@ -141,6 +145,7 @@ pub fn run_impact(
     base: Option<&str>,
     json: bool,
 ) -> Result<()> {
+    let root = &crate::config_root(root);
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let milestone_id = current_milestone_id(root);
     let graph = ArtifactGraph::load(root, &project, milestone_id.as_deref())?;
@@ -200,6 +205,7 @@ pub fn run_impact(
 
 /// `hlv artifacts graph [--json]`
 pub fn run_graph(root: &Path, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let milestone_id = current_milestone_id(root);
     let graph = ArtifactGraph::load(root, &project, milestone_id.as_deref())?;
@@ -266,6 +272,7 @@ pub fn run_graph(root: &Path, json: bool) -> Result<()> {
 
 /// `hlv artifacts audit [--json]`
 pub fn run_audit(root: &Path, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let project = ProjectMap::load(&root.join("project.yaml"))?;
     let milestone_id = current_milestone_id(root);
     let graph = ArtifactGraph::load(root, &project, milestone_id.as_deref());
@@ -319,6 +326,7 @@ pub fn run_audit(root: &Path, json: bool) -> Result<()> {
 
 /// `hlv artifacts sync [--check] [--json]`
 pub fn run_sync(root: &Path, check: bool, json: bool) -> Result<()> {
+    let root = &crate::config_root(root);
     let project_path = root.join("project.yaml");
     let mut project = ProjectMap::load(&project_path)?;
     let milestone_id = current_milestone_id(root);

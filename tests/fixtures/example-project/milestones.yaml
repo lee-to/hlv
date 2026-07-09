@@ -1,13 +1,33 @@
-# yaml-language-server: $schema=../../../schema/milestones-schema.json
+# yaml-language-server: $schema=schema/milestones-schema.json
 project: commerce-checkout
-
 current:
-  id: "001"
+  id: '001'
   number: 1
   stage: 1
   stages:
-    - id: 1
-      scope: "Order create and cancel contracts"
-      status: implementing
-
+  - id: 1
+    scope: Order create and cancel contracts
+    status: implementing
+  gate_results:
+  - id: GATE-CONTRACT-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-PBT-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-INTEGRATION-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-PERF-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-SECURITY-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-MUTATION-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
+  - id: GATE-OBS-001
+    status: skipped
+    run_at: 2026-07-07T11:57:18.887524+03:00
 history: []

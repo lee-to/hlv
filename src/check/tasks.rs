@@ -182,6 +182,7 @@ mod tests {
                     meta: HashMap::new(),
                 }],
                 gate_results: Default::default(),
+                changed_files: Vec::new(),
                 git: None,
                 labels: Vec::new(),
                 meta: HashMap::new(),

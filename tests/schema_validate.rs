@@ -15,6 +15,7 @@ use hlv::model::waiver::WaiverFile;
 
 const FIXTURE: &str = "tests/fixtures/example-project";
 const MS_FIXTURE: &str = "tests/fixtures/milestone-project";
+const ADOPT_RUST_HLV_FIXTURE: &str = "tests/fixtures/adopt-rust-project/.hlv";
 const SCHEMA_DIR: &str = "schema";
 
 const FIXTURE_CASES: &[(&str, &str, &str)] = &[
@@ -129,6 +130,11 @@ const FIXTURE_CASES: &[(&str, &str, &str)] = &[
         MS_FIXTURE,
         "adversarial-guardrails-schema.json",
         "validation/adversarial-guardrails.yaml",
+    ),
+    (
+        ADOPT_RUST_HLV_FIXTURE,
+        "signatures-schema.json",
+        "index/signatures.yaml",
     ),
 ];
 
@@ -667,5 +673,130 @@ paths:
             .any(|e| e.contains("dead_field_that_should_not_exist")),
         "additionalProperties: false should catch dead fields, errors: {:?}",
         errors
+    );
+}
+
+// ═══════════════════════════════════════════════════════
+// Adopt mode: schema accepts new fields, rejects unknown
+// ═══════════════════════════════════════════════════════
+
+fn project_schema_validator() -> jsonschema::Validator {
+    let schema_str =
+        std::fs::read_to_string(Path::new(SCHEMA_DIR).join("project-schema.json")).unwrap();
+    let schema: Value = serde_json::from_str(&schema_str).unwrap();
+    jsonschema::validator_for(&schema).unwrap()
+}
+
+fn yaml_to_json(yaml: &str) -> Value {
+    let v: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
+    serde_json::to_value(v).unwrap()
+}
+
+const ADOPTED_YAML: &str = r#"
+schema_version: 1
+project: adopted
+status: draft
+hlv_root: .hlv
+paths:
+  human:
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+    artifacts: human/artifacts/
+  validation:
+    gates_policy: validation/gates-policy.yaml
+    scenarios: validation/scenarios/
+    test_specs: validation/test-specs/
+    traceability: human/traceability.yaml
+  llm:
+    src: llm/src/
+  code:
+    src: [app/, routes/]
+    tests: [tests/]
+features:
+  legacy_mode: true
+  index_tracking: ignored
+git:
+  commit_convention: conventional
+  merge_strategy: manual
+"#;
+
+#[test]
+fn project_schema_accepts_adopt_fields() {
+    let validator = project_schema_validator();
+    let json = yaml_to_json(ADOPTED_YAML);
+    let errors: Vec<String> = validator
+        .iter_errors(&json)
+        .map(|e| format!("{}: {e}", e.instance_path))
+        .collect();
+    assert!(errors.is_empty(), "adopted YAML must validate: {errors:?}");
+}
+
+#[test]
+fn project_schema_rejects_unknown_code_field() {
+    let validator = project_schema_validator();
+    let json = yaml_to_json(&ADOPTED_YAML.replace("    tests: [tests/]", "    bogus: [x/]"));
+    assert!(
+        !validator.is_valid(&json),
+        "unknown field under paths.code must be rejected"
+    );
+}
+
+#[test]
+fn project_schema_rejects_unknown_feature_field() {
+    let validator = project_schema_validator();
+    let json = yaml_to_json(&ADOPTED_YAML.replace("  legacy_mode: true", "  bogus_mode: true"));
+    assert!(
+        !validator.is_valid(&json),
+        "unknown feature flag must be rejected"
+    );
+}
+
+#[test]
+fn milestones_schema_accepts_changed_files() {
+    let yaml = r#"
+project: adopted
+current:
+  id: 001-feature
+  number: 1
+  changed_files:
+    - app/Http/Controllers/UserController.php
+    - tests/Feature/UserTest.php
+history: []
+"#;
+    let schema_str =
+        std::fs::read_to_string(Path::new(SCHEMA_DIR).join("milestones-schema.json")).unwrap();
+    let schema: Value = serde_json::from_str(&schema_str).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let json = yaml_to_json(yaml);
+    let errors: Vec<String> = validator
+        .iter_errors(&json)
+        .map(|e| format!("{}: {e}", e.instance_path))
+        .collect();
+    assert!(errors.is_empty(), "changed_files must validate: {errors:?}");
+}
+
+#[test]
+fn llm_map_schema_accepts_code_layer_and_index_ref() {
+    let yaml = r#"
+schema_version: 1
+entries:
+  - path: app/Services/GreetingService.php
+    kind: file
+    layer: code
+    index_ref: php:App\Services\GreetingService
+    description: "Observed Laravel service"
+"#;
+    let schema_str =
+        std::fs::read_to_string(Path::new(SCHEMA_DIR).join("llm-map-schema.json")).unwrap();
+    let schema: Value = serde_json::from_str(&schema_str).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
+    let json = yaml_to_json(yaml);
+    let errors: Vec<String> = validator
+        .iter_errors(&json)
+        .map(|e| format!("{}: {e}", e.instance_path))
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "code layer with index_ref must validate: {errors:?}"
     );
 }

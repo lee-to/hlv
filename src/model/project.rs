@@ -31,6 +31,11 @@ pub struct ProjectMap {
     pub features: Features,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_graph: Option<ArtifactGraphConfig>,
+    /// Location of HLV-owned artifacts relative to the repository root
+    /// (e.g. ".hlv" for adopted projects). Informational — discovery is
+    /// filesystem-based; serialized only when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hlv_root: Option<String>,
 }
 
 // ── Artifact Dependency Graph ─────────────────────────
@@ -72,6 +77,13 @@ pub struct Features {
     pub hlv_markers: bool,
     #[serde(default = "default_true")]
     pub security_markers: bool,
+    /// Adopted (brownfield) project mode: observed legacy code is not
+    /// required to live under llm/ or carry @hlv markers.
+    #[serde(default)]
+    pub legacy_mode: bool,
+    /// Whether the generated signature index is ignored or committed.
+    #[serde(default)]
+    pub index_tracking: IndexTrackingPolicy,
 }
 
 impl Default for Features {
@@ -80,8 +92,18 @@ impl Default for Features {
             linear_architecture: true,
             hlv_markers: true,
             security_markers: true,
+            legacy_mode: false,
+            index_tracking: IndexTrackingPolicy::Ignored,
         }
     }
+}
+
+#[derive(Debug, Default, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum IndexTrackingPolicy {
+    #[default]
+    Ignored,
+    Tracked,
 }
 
 // ── Git Policy ──────────────────────────────────────────
@@ -93,6 +115,11 @@ pub struct GitPolicy {
     pub branch_per_milestone: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch_format: Option<String>,
+    /// Base ref for changed-file detection in adopted projects
+    /// (e.g. "main" or "origin/main"). Used as the merge-base anchor when
+    /// milestones.yaml does not record changed_files explicitly.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_ref: Option<String>,
     #[serde(default)]
     pub commit_convention: CommitConvention,
     #[serde(default)]
@@ -110,6 +137,7 @@ impl Default for GitPolicy {
         Self {
             branch_per_milestone: false,
             branch_format: None,
+            base_ref: None,
             commit_convention: CommitConvention::Conventional,
             commit_scopes: vec![],
             commit_template: None,
@@ -190,6 +218,20 @@ pub struct ProjectPaths {
     pub human: HumanPaths,
     pub validation: ValidationPaths,
     pub llm: LlmPaths,
+    /// Observed brownfield code roots (adopted projects). Paths are
+    /// relative to the repository root, not the HLV config root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<CodePaths>,
+}
+
+/// Observed source/test roots for adopted (brownfield) projects.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct CodePaths {
+    #[serde(default)]
+    pub src: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tests: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -591,6 +633,7 @@ type: some_new_type
                     tests: None,
                     map: Some("llm/map.yaml".to_string()),
                 },
+                code: None,
             },
             glossary_types: vec!["UserId".to_string()],
             constraints: vec![ConstraintEntry {
@@ -603,6 +646,7 @@ type: some_new_type
             git: GitPolicy::default(),
             features: Features::default(),
             artifact_graph: None,
+            hlv_root: None,
         };
 
         pm.save(&path).unwrap();
@@ -640,6 +684,7 @@ type: some_new_type
                     tests: None,
                     map: None,
                 },
+                code: None,
             },
             glossary_types: vec![],
             constraints: vec![],
@@ -648,6 +693,7 @@ type: some_new_type
             git: GitPolicy::default(),
             features: Features::default(),
             artifact_graph: None,
+            hlv_root: None,
         };
 
         pm.add_constraint(ConstraintEntry {
@@ -811,6 +857,7 @@ custom_field: hello
                     tests: None,
                     map: None,
                 },
+                code: None,
             },
             glossary_types: vec![],
             constraints: vec![],
@@ -821,8 +868,11 @@ custom_field: hello
                 linear_architecture: true,
                 hlv_markers: false,
                 security_markers: true,
+                legacy_mode: false,
+                index_tracking: IndexTrackingPolicy::Ignored,
             },
             artifact_graph: None,
+            hlv_root: None,
         };
 
         pm.save(&path).unwrap();

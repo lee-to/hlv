@@ -58,11 +58,10 @@ pub fn run_add(id: Option<&str>, root: Option<&str>, ws_path: Option<&str>) -> R
         None => std::env::current_dir()?,
     };
 
-    // Validate project root has project.yaml
-    let project_yaml = project_root.join("project.yaml");
-    if !project_yaml.exists() {
+    // Validate project root has project.yaml or .hlv/project.yaml
+    if !crate::has_project_config(&project_root) {
         anyhow::bail!(
-            "No project.yaml in {}. Run 'hlv init' first.",
+            "No project.yaml or .hlv/project.yaml in {}. Run 'hlv init' first.",
             project_root.display()
         );
     }
@@ -164,7 +163,7 @@ pub fn run_list(ws_path: Option<&str>) -> Result<()> {
     }
 
     for p in &config.projects {
-        let exists = p.root.join("project.yaml").exists();
+        let exists = crate::has_project_config(&p.root);
         let status = if exists { "ok" } else { "missing project.yaml" };
         println!("  • {} → {} ({})", p.id, p.root.display(), status);
     }

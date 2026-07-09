@@ -11,6 +11,7 @@ use crate::model::milestone::{
 use crate::model::project::ProjectMap;
 
 pub fn run_new(root: &Path, name: &str) -> Result<()> {
+    let root = &crate::config_root(root);
     style::header("milestone new");
 
     let mut map = load_or_create(root)?;
@@ -97,6 +98,7 @@ pub fn run_new(root: &Path, name: &str) -> Result<()> {
         stage: None,
         stages: Vec::new(),
         gate_results: Vec::new(),
+        changed_files: Vec::new(),
         git: None,
         labels: Vec::new(),
         meta: std::collections::HashMap::new(),
@@ -117,6 +119,7 @@ pub fn run_new(root: &Path, name: &str) -> Result<()> {
 }
 
 pub fn run_status(root: &Path) -> Result<()> {
+    let root = &crate::config_root(root);
     style::header("milestone status");
 
     let map = load(root)?;
@@ -171,6 +174,7 @@ pub fn run_status(root: &Path) -> Result<()> {
 }
 
 pub fn run_list(root: &Path) -> Result<()> {
+    let root = &crate::config_root(root);
     style::header("milestone list");
 
     let map = load(root)?;
@@ -211,6 +215,7 @@ pub fn run_list(root: &Path) -> Result<()> {
 }
 
 pub fn run_done(root: &Path) -> Result<()> {
+    let root = &crate::config_root(root);
     style::header("milestone done");
 
     let mut map = load(root)?;
@@ -289,6 +294,7 @@ pub fn run_done(root: &Path) -> Result<()> {
 }
 
 pub fn run_abort(root: &Path) -> Result<()> {
+    let root = &crate::config_root(root);
     style::header("milestone abort");
 
     let mut map = load(root)?;

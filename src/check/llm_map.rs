@@ -10,8 +10,18 @@ use crate::model::project::LlmPaths;
 /// 2. Reverse: every file in tracked dirs exists in map (MAP-020)
 /// 3. Path isolation: llm-layer entries must be inside configured paths (MAP-080/MAP-081)
 pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Diagnostic> {
+    check_llm_map_with_context(root, root, map_rel, llm_paths, false)
+}
+
+pub fn check_llm_map_with_context(
+    config_root: &Path,
+    repo_root: &Path,
+    map_rel: &str,
+    llm_paths: &LlmPaths,
+    legacy_mode: bool,
+) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
-    let full_path = root.join(map_rel);
+    let full_path = config_root.join(map_rel);
 
     if !full_path.exists() {
         diags.push(
@@ -44,7 +54,8 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
     let mut found = 0usize;
 
     for entry in &map.entries {
-        let p = root.join(&entry.path);
+        let p =
+            entry_root(config_root, repo_root, entry.layer.as_str(), legacy_mode).join(&entry.path);
         let exists = match entry.kind {
             MapEntryKind::File => p.is_file(),
             MapEntryKind::Dir => p.is_dir(),
@@ -109,7 +120,9 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
         }
     }
 
-    // --- Reverse check: every real file/dir in tracked dirs is in map ---
+    // --- Reverse check: every generated real file/dir in tracked dirs is in map.
+    // Observed `layer: code` directories in adopted projects are intentionally
+    // excluded; the signature index owns deeper legacy-code discovery.
     let map_rel_normalized = map_rel.trim_end_matches('/');
 
     let known_paths: HashSet<String> = map
@@ -125,19 +138,20 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
         .entries
         .iter()
         .filter(|e| e.kind == MapEntryKind::Dir)
+        .filter(|e| !(legacy_mode && e.layer == "code"))
         .map(|e| e.path.as_str())
         .collect();
 
     let mut unlisted: Vec<String> = Vec::new();
 
     for dir_path in &scan_dirs {
-        let full_dir = root.join(dir_path);
+        let full_dir = config_root.join(dir_path);
         if !full_dir.is_dir() {
             continue; // already reported by forward check
         }
         scan_unlisted(
             &full_dir,
-            root,
+            config_root,
             &known_paths,
             map_rel_normalized,
             &ignore_patterns,
@@ -166,6 +180,19 @@ pub fn check_llm_map(root: &Path, map_rel: &str, llm_paths: &LlmPaths) -> Vec<Di
     }
 
     diags
+}
+
+fn entry_root<'a>(
+    config_root: &'a Path,
+    repo_root: &'a Path,
+    layer: &str,
+    legacy_mode: bool,
+) -> &'a Path {
+    if legacy_mode && layer == "code" {
+        repo_root
+    } else {
+        config_root
+    }
 }
 
 /// Build compiled glob patterns from ignore list.

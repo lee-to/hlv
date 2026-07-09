@@ -44,6 +44,40 @@ fn load_milestones(dir: &Path) -> MilestoneMap {
     MilestoneMap::load(&dir.join("milestones.yaml")).unwrap()
 }
 
+#[test]
+fn milestone_current_changed_files_parse() {
+    let yaml = r#"
+project: test-project
+current:
+  id: 001-feature
+  number: 1
+  changed_files:
+    - src/main.rs
+    - tests/main_tests.rs
+history: []
+"#;
+    let map: MilestoneMap = serde_yaml::from_str(yaml).unwrap();
+    let current = map.current.unwrap();
+    assert_eq!(
+        current.changed_files,
+        vec!["src/main.rs", "tests/main_tests.rs"]
+    );
+}
+
+#[test]
+fn old_milestones_without_changed_files_still_parse() {
+    let yaml = r#"
+project: test-project
+current:
+  id: 001-feature
+  number: 1
+history: []
+"#;
+    let map: MilestoneMap = serde_yaml::from_str(yaml).unwrap();
+    let current = map.current.unwrap();
+    assert!(current.changed_files.is_empty());
+}
+
 // ═══════════════════════════════════════════════════════
 // milestone new
 // ═══════════════════════════════════════════════════════
