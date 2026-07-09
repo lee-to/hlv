@@ -5,8 +5,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
     if let Some(ref ms) = app.milestones {
         if let Some(ref current) = ms.current {
-            let oq_path = app
-                .project_root
+            let oq_path = crate::config_root(&app.project_root)
                 .join("human/milestones")
                 .join(&current.id)
                 .join("open-questions.md");

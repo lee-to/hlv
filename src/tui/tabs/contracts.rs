@@ -29,14 +29,14 @@ fn render_milestone(
         .bottom_margin(1);
 
     // Scan milestone contracts dir for .md files
-    let contracts_dir = app
-        .project_root
+    let config_root = crate::config_root(&app.project_root);
+    let contracts_dir = config_root
         .join("human/milestones")
         .join(&current.id)
         .join("contracts");
 
     // Load stage plans to map contracts → stages
-    let milestone_dir = app.project_root.join("human/milestones").join(&current.id);
+    let milestone_dir = config_root.join("human/milestones").join(&current.id);
     let stage_plans: Vec<StagePlan> = current
         .stages
         .iter()

@@ -4,6 +4,7 @@ use crate::tui::app::App;
 use crate::util::display_width::truncate_display_width;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Paragraph};
+use std::path::PathBuf;
 
 pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
     let constraints: Vec<ConstraintEntry> = match app.project.as_ref() {
@@ -31,13 +32,12 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
         }
     };
 
-    let root = app.project_root.clone();
     let mut lines: Vec<Line> = Vec::new();
     let mut total_rules = 0u32;
     let mut by_severity = [0u32; 4]; // critical, high, medium, low
 
     for entry in &constraints {
-        let file_path = root.join(&entry.path);
+        let file_path = constraint_file_path(app, entry);
 
         // Try rule-based first, then performance
         if let Ok(cf) = ConstraintFile::load(&file_path) {
@@ -146,5 +146,38 @@ fn severity_style(severity: &str) -> Style {
         "medium" => Style::default().fg(Color::Blue),
         "low" => Style::default().fg(Color::DarkGray),
         _ => Style::default(),
+    }
+}
+
+fn constraint_file_path(app: &App, entry: &ConstraintEntry) -> PathBuf {
+    crate::config_root(&app.project_root).join(&entry.path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constraint_file_path_uses_hlv_config_root_for_adopted_layout() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(".hlv/human/constraints")).unwrap();
+        std::fs::write(
+            root.join(".hlv/project.yaml"),
+            "schema_version: 1\nproject: adopted\nstatus: draft\nhlv_root: .hlv\npaths:\n  human:\n    glossary: human/glossary.yaml\n    constraints: human/constraints/\n  validation:\n    scenarios: validation/scenarios/\n    gates_policy: validation/gates-policy.yaml\n  llm:\n    map: llm/map.yaml\nfeatures:\n  legacy_mode: true\n",
+        )
+        .unwrap();
+
+        let app = App::new(root);
+        let entry = ConstraintEntry {
+            id: "security.global".to_string(),
+            path: "human/constraints/security.yaml".to_string(),
+            applies_to: Some("all".to_string()),
+        };
+
+        assert_eq!(
+            constraint_file_path(&app, &entry),
+            root.join(".hlv/human/constraints/security.yaml")
+        );
     }
 }
