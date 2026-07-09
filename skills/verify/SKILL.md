@@ -136,8 +136,8 @@ For `project.yaml`:
 - [ ] Each task in plan references existing contracts
 - [ ] `stack` (if present) passes STK-* checks: no empty ids, no duplicates, languages present
 - [ ] `glossary_types` match keys in `human/glossary.yaml`
-- [ ] Generated implementation paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.src` (`MAP-080`)
-- [ ] Generated test paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.tests` (`MAP-081`)
+- [ ] Generated implementation paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.src` when configured, or under `paths.code.src` for adopted projects without generated roots (`MAP-080`)
+- [ ] Generated test paths in `llm/map.yaml` and `artifact_graph.code_ownership` stay under `paths.llm.tests` when configured, or under `paths.code.tests` for adopted projects without generated roots (`MAP-081`)
 
 #### 1f. Stack consistency
 

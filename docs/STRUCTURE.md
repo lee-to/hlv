@@ -93,8 +93,6 @@ HLV.md                               # root-owned methodology rules
 .hlv/validation/
 .hlv/llm/
   map.yaml                           # includes layer: code entries for observed roots
-  src/                               # generated code home
-  tests/                             # generated tests home
 .hlv/index/
   signatures.yaml                    # generated signature index, usually ignored
 

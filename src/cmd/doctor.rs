@@ -165,7 +165,9 @@ fn check_project_paths(
     if let Some(path) = project.paths.validation.verify_report.as_deref() {
         ensure_file_parent(root, path, fix, diagnostics, fixed)?;
     }
-    ensure_dir(root, &project.paths.llm.src, fix, diagnostics, fixed)?;
+    if let Some(path) = project.paths.llm.src.as_deref() {
+        ensure_dir(root, path, fix, diagnostics, fixed)?;
+    }
     if let Some(path) = project.paths.llm.tests.as_deref() {
         ensure_dir(root, path, fix, diagnostics, fixed)?;
     }
@@ -243,14 +245,13 @@ fn ensure_file_parent(
 }
 
 fn check_llm_paths(project: &ProjectMap, diagnostics: &mut Vec<Diagnostic>) {
-    if !normalize_path(&project.paths.llm.src).starts_with("llm/") {
-        diagnostics.push(
-            Diagnostic::error(
-                "DOC-030",
-                format!("paths.llm.src is outside llm/: {}", project.paths.llm.src),
-            )
-            .with_file("project.yaml"),
-        );
+    if let Some(src) = project.paths.llm.src.as_deref() {
+        if !normalize_path(src).starts_with("llm/") {
+            diagnostics.push(
+                Diagnostic::error("DOC-030", format!("paths.llm.src is outside llm/: {src}"))
+                    .with_file("project.yaml"),
+            );
+        }
     }
     if let Some(tests) = project.paths.llm.tests.as_deref() {
         if !normalize_path(tests).starts_with("llm/") {

@@ -161,10 +161,10 @@ fn registry() -> &'static [DiagnosticExplanation] {
         },
         DiagnosticExplanation {
             code: "MAP-080",
-            title: "Generated source outside paths.llm.src",
-            meaning: "Generated implementation ownership points outside the configured LLM source directory.",
-            common_causes: &["map.yaml entry uses layer: llm for app source", "artifact_graph code-* path points to a non-LLM directory", "paths.llm.src is configured incorrectly"],
-            fixes: &["move generated source under paths.llm.src", "or update paths.llm.src and map.yaml consistently"],
+            title: "Generated source path is invalid",
+            meaning: "Generated implementation ownership points outside the configured LLM source directory, or a generated LLM source directory is missing while layer: llm entries exist.",
+            common_causes: &["map.yaml entry uses layer: llm for adopted app source", "artifact_graph code-* path points to a non-LLM directory", "paths.llm.src is missing or configured incorrectly"],
+            fixes: &["move generated source under paths.llm.src", "use layer: code for adopted source files", "or update paths.llm.src and map.yaml consistently"],
         },
         DiagnosticExplanation {
             code: "MAP-081",

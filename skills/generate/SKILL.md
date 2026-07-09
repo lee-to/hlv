@@ -40,7 +40,7 @@ Transform free-form human artifacts into structured contracts, validation specif
 11. Glossary: read from `human/glossary.yaml`, update it with new domain types discovered in this milestone
 12. If no `current` in milestones.yaml → tell the user to run `hlv milestone new <name>` first
 
-If `project.yaml → features.legacy_mode` is `true`, also read `paths.code` and keep existing code in place. Use the signature index (`features.index_tracking`, `hlv index show/list --json`) as compact context for observed legacy symbols; do not copy legacy code into `paths.llm.src`.
+If `project.yaml → features.legacy_mode` is `true`, also read `paths.code` and keep existing code in place. Use the signature index (`features.index_tracking`, `hlv index show/list --json`) as compact context for observed legacy symbols; do not copy legacy code into `.hlv/llm/`. Adopted projects may omit `paths.llm.src`; in that case generated/changed implementation tasks should target the appropriate `paths.code` root.
 
 ### Adopt Mode
 
@@ -293,12 +293,12 @@ Stage 2 uses types from Stage 1
 
 TASK-001 <name>
   contracts: [contract.name]
-  output: {paths.llm.src}features/<dir>/
+  output: {paths.llm.src or selected paths.code.src}features/<dir>/
 
 TASK-002 <name>
   depends_on: [TASK-001]
   contracts: [contract.name, other.contract]
-  output: {paths.llm.tests}integration/
+  output: {paths.llm.tests or selected paths.code.tests}integration/
 
 ## Remediation
 (filled by /validate when gates fail)
@@ -367,7 +367,7 @@ Update `project.yaml` (schema: `schema/project-schema.json`) with stack info if 
   ```
   Valid component types: `service`, `library`, `cli`, `worker`, `database`, `cache`, `queue`, `gateway`. Valid dependency types: `framework`, `library`, `runtime`, `tool`.
 
-Also update `project.yaml -> artifact_graph.code_ownership` when generated code/test/doc ownership can be inferred from contracts, plans, or explicit artifact text. Keep document-to-document relations in Markdown frontmatter; keep path-based code ownership in `project.yaml`. Any `code-*` or `implements` ownership path must stay under `project.yaml -> paths.llm.src`; any `tests-*` or `verifies` ownership path must stay under `paths.llm.tests`, otherwise `hlv check` emits `MAP-080`/`MAP-081`.
+Also update `project.yaml -> artifact_graph.code_ownership` when generated code/test/doc ownership can be inferred from contracts, plans, or explicit artifact text. Keep document-to-document relations in Markdown frontmatter; keep path-based code ownership in `project.yaml`. In greenfield projects, `code-*` or `implements` ownership paths must stay under `project.yaml -> paths.llm.src`, and `tests-*` or `verifies` ownership paths must stay under `paths.llm.tests`; in adopted projects without `paths.llm.src`, use `paths.code` roots and `layer: code` map entries.
 
 After adding or changing artifact frontmatter, run `hlv artifacts sync` to materialize missing `code-*`, `tests-*`, `docs-*`, and `clients-*` ownership stubs in `project.yaml`, then fill concrete paths when they are known.
 

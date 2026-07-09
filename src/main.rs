@@ -22,7 +22,7 @@ enum Commands {
         /// Owner team
         #[arg(long)]
         owner: Option<String>,
-        /// Agent name (creates .{agent}/skills/)
+        /// Agent name(s), comma-separated (creates .{agent}/skills/)
         #[arg(long)]
         agent: Option<String>,
         /// Gate profile: minimal, standard, full (prompts if omitted)

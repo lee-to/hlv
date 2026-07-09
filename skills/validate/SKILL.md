@@ -29,7 +29,7 @@ For adopted projects, run gates against the configured project commands and chan
 ## Prerequisites
 
 - All tasks in current stage completed
-- Code and inline tests generated in `paths.llm.src` from `project.yaml` (integration tests in `paths.llm.tests`)
+- Code and inline tests live in configured project paths: `paths.llm.src/tests` for greenfield/generated projects, or `paths.code.src/tests` for adopted projects without `paths.llm.src`.
 - `validation/gates-policy.yaml` contains gate definitions
 - `milestones.yaml` exists with current stage status `implemented`
 
@@ -46,8 +46,8 @@ For adopted projects, run gates against the configured project commands and chan
 ```
 milestones.yaml               # entry point — read FIRST
 project.yaml                  # global config (stack for context)
-{paths.llm.src}               # generated code (unit tests inline in same files) — read from project.yaml
-{paths.llm.tests}             # integration tests only — read from project.yaml
+{paths.llm.src or paths.code.src}     # code (unit tests inline in same files) — read from project.yaml
+{paths.llm.tests or paths.code.tests} # integration tests only — read from project.yaml
 
 validation/
   gates-policy.yaml            # thresholds and criteria
@@ -73,11 +73,11 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
 1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues before executing gates.
 2. Read `project.yaml` (global config: stack, paths)
    - Note `validation.strictness` when present (`relaxed`, `standard`, `strict`). Default is `standard`.
-3. **Bind LLM paths from `project.yaml → paths.llm`**:
-   - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
-   - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
+3. **Bind code paths from `project.yaml`**:
+   - `LLM_SRC = paths.llm.src` and `LLM_TESTS = paths.llm.tests` when present.
+   - In adopt mode without `paths.llm.src`, use `paths.code.src` and `paths.code.tests`; `.hlv/llm/` is metadata only.
    - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
-   All gate execution, code scanning, and marker checks MUST target these directories — not hardcoded paths.
+   All gate execution, code scanning, and marker checks MUST target configured project roots — not hardcoded paths.
 4. Run `hlv check --strict` before release validation. Fix `MAP-080`/`MAP-081` path isolation errors and other strict diagnostics before executing gates.
 5. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
 6. **STATUS GATE (hard stop)**:
@@ -162,7 +162,7 @@ gate_results:
 > **Conditional: `features.hlv_markers: true`**
 > If `hlv_markers` is `false` in project.yaml, skip the `@hlv` marker check below. `hlv check` will not produce CTR-010 diagnostics. Still run `check_command`-based rules (CST-050/CST-060) as those are independent of markers.
 
-Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in `paths.llm.src` or `paths.llm.tests` (from `project.yaml`). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
+Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in the configured code/test roots (`paths.llm.*` for greenfield, `paths.code.*` for adopted projects without generated roots). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
 
 `hlv check` also executes `check_command` for rules that define one (CST-050/CST-060), unless the project is explicitly checked in `relaxed` mode. Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
 
@@ -218,11 +218,11 @@ Remediation tasks go into the `## Remediation` section of the current `{MID}/sta
 
 FIX-OBS-001 Add metrics/traces/structured logging
   contracts: [payment.process, payment.refund]
-  output: {paths.llm.src}features/observability/
+  output: {paths.llm.src or selected paths.code.src}features/observability/
 
 FIX-MUT-001 Strengthen assertions for 3 mutation survivors
   contracts: [payment.process]
-  output: {paths.llm.src}features/payment_process/
+  output: {paths.llm.src or selected paths.code.src}features/payment_process/
 ```
 
 Human decisions → add to `{MID}/open-questions.md`.

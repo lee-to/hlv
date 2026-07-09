@@ -143,7 +143,7 @@ pub fn run_auto(
     } else if greenfield {
         false
     } else {
-        !manifests.is_empty()
+        prompt_adopt_mode(root, &manifests)?
     };
 
     if adopt_mode {
@@ -432,34 +432,27 @@ pub fn run_with_options(
             pm.project
         };
 
-        // Detect agent from existing .{agent}/skills/ directory
-        let agent_name = if let Some(a) = agent {
-            a.to_string()
+        // Detect agents from existing .{agent}/skills/ directories.
+        let agent_names = if let Some(a) = agent {
+            parse_agent_names(a)?
         } else {
-            detect_agent(root)?
+            detect_agents(root)?
         };
-
-        let agent_dir = format!(".{agent_name}");
-        let skills_dir = format!("{agent_dir}/skills");
+        let skills_dirs = skills_dirs(&agent_names);
 
         style::header("init");
         style::hint(&format!(
-            "project.yaml exists — updating skills and HLV.md (agent: {})",
-            agent_name.bold(),
+            "project.yaml exists — updating skills and HLV.md (agents: {})",
+            agent_names.join(", ").bold(),
         ));
 
-        // Update embedded skill tree (overwrite if content changed, add new files)
-        for file in all_files(&EMBEDDED_SKILLS) {
-            let rel = file.path().to_string_lossy().replace('\\', "/");
-            let content = file.contents_utf8().unwrap_or("");
-            write_or_update(root, &format!("{skills_dir}/{rel}"), content)?;
-        }
+        write_embedded_skills(root, &skills_dirs, true)?;
 
         // HLV.md is always updated (generated, not user-editable)
         write_or_update(
             root,
             "HLV.md",
-            &hlv_template(&project_name, &agent_name, &skills_dir, &project_context),
+            &hlv_template(&project_name, &skills_dirs, &project_context),
         )?;
 
         // Schemas are always updated (HLV-owned — config root)
@@ -480,17 +473,21 @@ pub fn run_with_options(
     }
 
     // Fresh init — resolve missing args interactively
+    let project_default = default_project_name(root);
     let project_name = match project {
         Some(p) => p.to_string(),
-        None => prompt("Project name")?,
+        None => prompt_with_default("Project name", &project_default)?,
     };
     let owner_name = match owner {
         Some(o) => o.to_string(),
-        None => prompt("Owner (team or person)")?,
+        None => prompt_with_default("Owner (team or person)", &project_name)?,
     };
-    let agent_name = match agent {
-        Some(a) => a.to_string(),
-        None => prompt_with_default("Agent name", "claude")?,
+    let agent_names = match agent {
+        Some(a) => parse_agent_names(a)?,
+        None => parse_agent_names(&prompt_with_default(
+            "Agent names (comma-separated)",
+            "claude",
+        )?)?,
     };
 
     let gate_profile = match profile {
@@ -524,30 +521,32 @@ pub fn run_with_options(
         "Feature flags selected"
     );
 
-    let agent_dir = format!(".{agent_name}");
-    let skills_dir = format!("{agent_dir}/skills");
+    let skills_dirs = skills_dirs(&agent_names);
 
     style::header("init");
     println!(
-        "  Initializing: {} ({}) agent: {} profile: {}",
+        "  Initializing: {} ({}) agents: {} profile: {}",
         project_name.bold(),
         owner_name.dimmed(),
-        agent_name.bold(),
+        agent_names.join(", ").bold(),
         gate_profile.label().bold(),
     );
 
     // Create HLV-owned directories under the config root
-    let dirs = vec![
+    let mut dirs = vec![
         "human/artifacts".to_string(),
         "human/constraints".to_string(),
         "human/milestones".to_string(),
         "schema".to_string(),
         "validation/test-specs".to_string(),
         "validation/scenarios".to_string(),
-        "llm/src".to_string(),
-        "llm/tests".to_string(),
+        "llm".to_string(),
         "index".to_string(),
     ];
+    if !project_context.is_adopted() {
+        dirs.push("llm/src".to_string());
+        dirs.push("llm/tests".to_string());
+    }
     for d in &dirs {
         let dir = config_root.join(d);
         fs::create_dir_all(&dir)?;
@@ -625,19 +624,14 @@ pub fn run_with_options(
     write_template(
         root,
         "HLV.md",
-        &hlv_template(&project_name, &agent_name, &skills_dir, &project_context),
+        &hlv_template(&project_name, &skills_dirs, &project_context),
     )?;
     for (path, content) in schemas {
         write_template(config_root, path, content)?;
     }
     write_template(root, "AGENTS.md", &agents_template(&project_name))?;
 
-    // Write embedded skill tree
-    for file in all_files(&EMBEDDED_SKILLS) {
-        let rel = file.path().to_string_lossy().replace('\\', "/");
-        let content = file.contents_utf8().unwrap_or("");
-        write_template(root, &format!("{skills_dir}/{rel}"), content)?;
-    }
+    write_embedded_skills(root, &skills_dirs, false)?;
 
     if project_context.is_adopted() {
         ensure_index_gitignore(root)?;
@@ -659,18 +653,20 @@ pub fn run_with_options(
     Ok(())
 }
 
-/// Prompt user for a value, reading from stdin.
-fn prompt(label: &str) -> Result<String> {
-    print!("  {} {}: ", "?".cyan().bold(), label);
-    io::stdout().flush()?;
-    let mut line = String::new();
-    io::stdin()
-        .lock()
-        .read_line(&mut line)
-        .context("failed to read input")?;
-    let value = line.trim().to_string();
-    anyhow::ensure!(!value.is_empty(), "{label} cannot be empty");
-    Ok(value)
+fn default_project_name(root: &Path) -> String {
+    root.file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.trim().is_empty() && *name != ".")
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            std::env::current_dir().ok().and_then(|dir| {
+                dir.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(str::to_owned)
+            })
+        })
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| "project".to_string())
 }
 
 /// Prompt user with a default value shown in brackets.
@@ -712,19 +708,108 @@ fn prompt_yes_no(label: &str, default: bool) -> Result<bool> {
     }
 }
 
-/// Detect agent name from existing `.{agent}/skills/` directory.
-fn detect_agent(root: &Path) -> Result<String> {
+fn prompt_adopt_mode(root: &Path, manifests: &[DetectedAdoptManifest]) -> Result<bool> {
+    let default = recommended_adopt_mode(root, manifests);
+    println!("  {} Project layout", "?".cyan().bold());
+    if !manifests.is_empty() {
+        let labels = manifests
+            .iter()
+            .map(|manifest| format!("{} ({})", manifest.kind.label(), manifest.path))
+            .collect::<Vec<_>>()
+            .join(", ");
+        println!("    Detected existing project manifest(s): {labels}.");
+    } else if default {
+        println!("    Existing files were found in this directory.");
+    }
+    println!("    Adopt mode stores HLV config in .hlv/ and leaves existing code/files in place.");
+    println!(
+        "    Greenfield mode stores HLV config at the repository root for a new HLV-owned project."
+    );
+    prompt_yes_no("Use adopt mode?", default)
+}
+
+fn recommended_adopt_mode(root: &Path, manifests: &[DetectedAdoptManifest]) -> bool {
+    !manifests.is_empty() || has_existing_project_content(root)
+}
+
+fn has_existing_project_content(root: &Path) -> bool {
+    let entries = match fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(_) => return false,
+    };
+
+    entries.filter_map(Result::ok).any(|entry| {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        !matches!(name.as_ref(), ".git" | ".hlv")
+    })
+}
+
+fn parse_agent_names(raw: &str) -> Result<Vec<String>> {
+    let mut agents = Vec::new();
+    for value in raw.split(',') {
+        let name = value.trim().trim_start_matches('.');
+        if name.is_empty() {
+            continue;
+        }
+        anyhow::ensure!(
+            name.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+            "Invalid agent name '{name}'. Use letters, numbers, '-' or '_'."
+        );
+        if !agents.iter().any(|agent| agent == name) {
+            agents.push(name.to_string());
+        }
+    }
+    anyhow::ensure!(
+        !agents.is_empty(),
+        "At least one agent name is required. Example: --agent claude,codex"
+    );
+    Ok(agents)
+}
+
+fn skills_dirs(agent_names: &[String]) -> Vec<String> {
+    agent_names
+        .iter()
+        .map(|agent| format!(".{agent}/skills"))
+        .collect()
+}
+
+/// Detect agent names from existing `.{agent}/skills/` directories.
+fn detect_agents(root: &Path) -> Result<Vec<String>> {
+    let mut agents = Vec::new();
     for entry in fs::read_dir(root)? {
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if name.starts_with('.') && name.len() > 1 && entry.path().join("skills").is_dir() {
-            return Ok(name[1..].to_string());
+            agents.push(name[1..].to_string());
         }
+    }
+    agents.sort();
+    agents.dedup();
+    if !agents.is_empty() {
+        return Ok(agents);
     }
     anyhow::bail!(
         "Cannot detect agent: no .{{agent}}/skills/ directory found. Pass --agent explicitly."
     )
+}
+
+fn write_embedded_skills(root: &Path, skills_dirs: &[String], update: bool) -> Result<()> {
+    for skills_dir in skills_dirs {
+        for file in all_files(&EMBEDDED_SKILLS) {
+            let rel = file.path().to_string_lossy().replace('\\', "/");
+            let content = file.contents_utf8().unwrap_or("");
+            let target = format!("{skills_dir}/{rel}");
+            if update {
+                write_or_update(root, &target, content)?;
+            } else {
+                write_template(root, &target, content)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn all_files<'a>(dir: &'a Dir<'a>) -> Vec<&'a include_dir::File<'a>> {
@@ -1243,8 +1328,6 @@ paths:
     traceability: human/traceability.yaml
     gates_policy: validation/gates-policy.yaml
   llm:
-    src: llm/src/
-    tests: llm/tests/
     map: llm/map.yaml
   code:
     src:
@@ -1386,12 +1469,7 @@ For adopted projects:
     )
 }
 
-fn hlv_template(
-    project: &str,
-    _agent: &str,
-    skills_dir: &str,
-    context: &crate::ProjectContext,
-) -> String {
+fn hlv_template(project: &str, skills_dirs: &[String], context: &crate::ProjectContext) -> String {
     let project_map_path = if context.is_adopted() {
         ".hlv/project.yaml"
     } else {
@@ -1450,8 +1528,7 @@ AGENTS.md                  ← project-specific rules (user-editable)
   ir-policy.yaml           ← IR versioning
   adversarial-guardrails.yaml
 .hlv/llm/
-  map.yaml                 ← file map (hlv check validates all entries exist)
-  src/                     ← generated code
+  map.yaml                 ← file map; layer: code entries point at repo roots
 app/, src/, tests/, ...    ← observed legacy roots from paths.code
 ```
 "#
@@ -1487,6 +1564,21 @@ llm/
   src/                     ← generated code
 ```
 "#
+    };
+    let skills_location = if skills_dirs.len() == 1 {
+        format!(
+            "Skills live in `{}/`. Each skill is a full prompt for a specific phase.",
+            skills_dirs[0]
+        )
+    } else {
+        let dirs = skills_dirs
+            .iter()
+            .map(|dir| format!("- `{dir}/`"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!(
+            "Skills are installed for multiple agents:\n\n{dirs}\n\nEach skill is a full prompt for a specific phase."
+        )
     };
     format!(
         r#"# HLV.md — HLV methodology rules for {project}
@@ -1588,7 +1680,7 @@ Every error from the contract's Errors table has an explicit code path. No catch
 
 ## 4. Skills (Commands)
 
-Skills live in `{skills_dir}/`. Each skill is a full prompt for a specific phase.
+{skills_location}
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
@@ -1660,7 +1752,7 @@ These apply to ALL contracts unless explicitly excepted.
         constraints_path = constraints_path,
         adopted_section = adopted_section,
         layout_tree = layout_tree,
-        skills_dir = skills_dir,
+        skills_location = skills_location,
     )
 }
 
@@ -2047,22 +2139,44 @@ mod tests {
         assert_eq!(GateProfile::Full.label(), "full");
     }
 
-    // --- detect_agent ---
+    #[test]
+    fn default_project_name_uses_target_directory_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("my-service");
+        fs::create_dir_all(&root).unwrap();
+
+        assert_eq!(default_project_name(&root), "my-service");
+    }
+
+    // --- agent names ---
 
     #[test]
-    fn detect_agent_found() {
-        let dir = tempfile::tempdir().unwrap();
-        let root = dir.path();
-        fs::create_dir_all(root.join(".claude/skills")).unwrap();
-
-        let agent = detect_agent(root).unwrap();
-        assert_eq!(agent, "claude");
+    fn parse_agent_names_accepts_comma_separated_values() {
+        let agents = parse_agent_names("claude, codex, .cursor,claude").unwrap();
+        assert_eq!(agents, vec!["claude", "codex", "cursor"]);
     }
 
     #[test]
-    fn detect_agent_not_found() {
+    fn parse_agent_names_rejects_path_values() {
+        let result = parse_agent_names("claude,../bad");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_agents_found() {
         let dir = tempfile::tempdir().unwrap();
-        let result = detect_agent(dir.path());
+        let root = dir.path();
+        fs::create_dir_all(root.join(".claude/skills")).unwrap();
+        fs::create_dir_all(root.join(".codex/skills")).unwrap();
+
+        let agents = detect_agents(root).unwrap();
+        assert_eq!(agents, vec!["claude", "codex"]);
+    }
+
+    #[test]
+    fn detect_agents_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = detect_agents(dir.path());
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -2071,7 +2185,7 @@ mod tests {
     }
 
     #[test]
-    fn detect_agent_ignores_dot_only() {
+    fn detect_agents_ignores_dot_only() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         // "./" directory shouldn't match
@@ -2079,7 +2193,7 @@ mod tests {
         // Regular hidden dir without skills subdir
         fs::create_dir_all(root.join(".git")).unwrap();
 
-        let result = detect_agent(root);
+        let result = detect_agents(root);
         assert!(result.is_err());
     }
 

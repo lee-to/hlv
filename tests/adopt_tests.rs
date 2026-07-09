@@ -32,8 +32,7 @@ fn write_minimal_adopted_project(root: &Path) {
     let hlv = root.join(".hlv");
     fs::create_dir_all(hlv.join("human/constraints")).unwrap();
     fs::create_dir_all(hlv.join("validation/scenarios")).unwrap();
-    fs::create_dir_all(hlv.join("llm/src")).unwrap();
-    fs::create_dir_all(hlv.join("llm/tests")).unwrap();
+    fs::create_dir_all(hlv.join("llm")).unwrap();
     fs::write(
         hlv.join("human/glossary.yaml"),
         "schema_version: 1\ntypes: {}\nenums: {}\n",
@@ -63,8 +62,6 @@ paths:
     gates_policy: validation/gates-policy.yaml
     scenarios: validation/scenarios/
   llm:
-    src: llm/src/
-    tests: llm/tests/
     map: llm/map.yaml
 git:
   commit_convention: conventional
@@ -232,6 +229,8 @@ fn adopt_init_writes_hlv_owned_files_under_hlv_dir() {
         .join(".hlv/validation/gates-policy.yaml")
         .exists());
     assert!(tmp.path().join(".hlv/llm/map.yaml").exists());
+    assert!(!tmp.path().join(".hlv/llm/src").exists());
+    assert!(!tmp.path().join(".hlv/llm/tests").exists());
     assert!(tmp.path().join(".hlv/index").is_dir());
     assert!(tmp.path().join(".hlv/schema/project-schema.json").exists());
     assert!(tmp
@@ -304,6 +303,50 @@ fn init_defaults_to_adopt_when_manifest_is_present() {
 
     assert!(tmp.path().join(".hlv/project.yaml").exists());
     assert!(!tmp.path().join("project.yaml").exists());
+}
+
+#[test]
+fn init_defaults_to_adopt_when_existing_context_is_present() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join(".ai-factory")).unwrap();
+    fs::write(
+        tmp.path().join(".ai-factory/DESCRIPTION.md"),
+        "# Existing project context\n",
+    )
+    .unwrap();
+
+    hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("context-adopt"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        false,
+        false,
+    )
+    .unwrap();
+
+    assert!(tmp.path().join(".hlv/project.yaml").exists());
+    assert!(!tmp.path().join("project.yaml").exists());
+}
+
+#[test]
+fn init_defaults_to_greenfield_for_empty_directory() {
+    let tmp = TempDir::new().unwrap();
+
+    hlv::cmd::init::run_auto(
+        tmp.path().to_str().unwrap(),
+        Some("new-greenfield"),
+        Some("team"),
+        Some("claude"),
+        Some("minimal"),
+        false,
+        false,
+    )
+    .unwrap();
+
+    assert!(tmp.path().join("project.yaml").exists());
+    assert!(!tmp.path().join(".hlv/project.yaml").exists());
 }
 
 #[test]
@@ -780,8 +823,6 @@ paths:
     gates_policy: validation/gates-policy.yaml
     scenarios: validation/scenarios/
   llm:
-    src: llm/src/
-    tests: llm/tests/
     map: llm/map.yaml
   code:
     src: [app/]

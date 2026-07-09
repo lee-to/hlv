@@ -74,7 +74,7 @@ fn scan_roots(context: &crate::ProjectContext, project: &ProjectMap) -> Vec<Path
             })
             .unwrap_or_default()
     } else {
-        vec![context.generated_code_path(project)]
+        context.generated_code_path(project).into_iter().collect()
     }
 }
 

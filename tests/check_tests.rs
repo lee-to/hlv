@@ -1923,8 +1923,7 @@ paths:
     traceability: human/traceability.yaml
     gates_policy: validation/gates-policy.yaml
   llm:
-    src: llm/src/
-    tests: llm/tests/
+    map: llm/map.yaml
   code:
     src: [app/]
     tests: [tests/]
@@ -1936,7 +1935,7 @@ features:
     let diags = check_project_map(&hlv);
     assert!(
         !has_error(&diags, "PRJ-080") && !has_error(&diags, "PRJ-081"),
-        "llm/-scoped paths should pass in legacy mode: {:?}",
+        "generated llm roots are optional in legacy mode: {:?}",
         diags
     );
     assert!(
@@ -2433,6 +2432,27 @@ fn init_creates_scaffold() {
         .path()
         .join("human/milestones/001-init/artifacts")
         .is_dir());
+}
+
+#[test]
+fn init_installs_skills_for_multiple_agents() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().to_str().unwrap();
+    hlv::cmd::init::run_with_milestone(
+        path,
+        Some("myproject"),
+        Some("myteam"),
+        Some("claude,codex"),
+        Some("init"),
+        Some("minimal"),
+    )
+    .unwrap();
+
+    assert!(tmp.path().join(".claude/skills/generate/SKILL.md").exists());
+    assert!(tmp.path().join(".codex/skills/generate/SKILL.md").exists());
+    let hlv_md = fs::read_to_string(tmp.path().join("HLV.md")).unwrap();
+    assert!(hlv_md.contains("`.claude/skills/`"));
+    assert!(hlv_md.contains("`.codex/skills/`"));
 }
 
 #[test]
@@ -3155,7 +3175,7 @@ fn pln_with_fixture_milestone_project() {
 
 fn default_llm_paths() -> LlmPaths {
     LlmPaths {
-        src: "llm/src/".to_string(),
+        src: Some("llm/src/".to_string()),
         tests: Some("llm/tests/".to_string()),
         map: Some("llm/map.yaml".to_string()),
     }
@@ -3163,7 +3183,7 @@ fn default_llm_paths() -> LlmPaths {
 
 fn flat_llm_paths() -> LlmPaths {
     LlmPaths {
-        src: "src/".to_string(),
+        src: Some("src/".to_string()),
         tests: Some("tests/".to_string()),
         map: Some("map.yaml".to_string()),
     }
@@ -4826,7 +4846,7 @@ fn minimal_project_with_constraints(
                 verify_report: None,
             },
             llm: LlmPaths {
-                src: "llm/src/".to_string(),
+                src: Some("llm/src/".to_string()),
                 tests: None,
                 map: None,
             },

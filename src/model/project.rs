@@ -259,7 +259,8 @@ pub struct ValidationPaths {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct LlmPaths {
-    pub src: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tests: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -629,7 +630,7 @@ type: some_new_type
                     verify_report: None,
                 },
                 llm: LlmPaths {
-                    src: "llm/src/".to_string(),
+                    src: Some("llm/src/".to_string()),
                     tests: None,
                     map: Some("llm/map.yaml".to_string()),
                 },
@@ -680,7 +681,7 @@ type: some_new_type
                     verify_report: None,
                 },
                 llm: LlmPaths {
-                    src: "llm/".to_string(),
+                    src: Some("llm/".to_string()),
                     tests: None,
                     map: None,
                 },
@@ -853,7 +854,7 @@ custom_field: hello
                     verify_report: None,
                 },
                 llm: LlmPaths {
-                    src: "llm/".to_string(),
+                    src: Some("llm/".to_string()),
                     tests: None,
                     map: None,
                 },

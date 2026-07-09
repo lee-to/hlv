@@ -376,7 +376,7 @@ Schema: `schema/adversarial-guardrails-schema.json`.
 
 Authoritative index of all project files and directories. **The single source of truth for file purpose.** File names are arbitrary (`01.rs`, `handler.rs`, `f3a.rs` are all acceptable), so the LLM finds code strictly by descriptions in `map.yaml`, not by file names. Descriptions MUST be sufficient to choose a file without opening it.
 
-`hlv check` validates that every entry from the map exists on disk. If the LLM adds an entry but does not create the file, `hlv check` emits `MAP-010`. It also checks that `layer: llm` implementation entries stay under `project.yaml -> paths.llm.src` (`MAP-080`) and test entries stay under `paths.llm.tests` (`MAP-081`).
+`hlv check` validates that every entry from the map exists on disk. If the LLM adds an entry but does not create the file, `hlv check` emits `MAP-010`. It also checks that `layer: llm` implementation entries stay under `project.yaml -> paths.llm.src` when configured (`MAP-080`) and test entries stay under `paths.llm.tests` when configured (`MAP-081`). Adopted projects may omit generated roots and use `layer: code` entries for observed source roots.
 
 | Field | Purpose |
 |------|-----------|
@@ -426,8 +426,8 @@ Diagnostic codes:
 | `MAP-003` | info | Map is empty (no entries) |
 | `MAP-010` | error | A map entry does not exist on disk |
 | `MAP-020` | warning | A file on disk is not listed in the map |
-| `MAP-080` | error | A generated implementation path is outside `paths.llm.src` |
-| `MAP-081` | error | A generated test path is outside `paths.llm.tests` |
+| `MAP-080` | error | A generated implementation path is outside `paths.llm.src`, or `paths.llm.src` is missing while `layer: llm` implementation entries exist |
+| `MAP-081` | error | A generated test path is outside `paths.llm.tests`, or `paths.llm.tests` is missing while `layer: llm` test entries exist |
 | `MAP-100` | info | Forward: N/M entries exist on disk |
 | `MAP-101` | info | Reverse: summary result (all ok or N files missing from the map) |
 
@@ -450,7 +450,7 @@ human/constraints/*.yaml                (global constraints)
        │
        ▼
 llm/map.yaml                            (LLM updates - full file index)
-llm/src/                                (LLM agents generate code + inline tests)
+paths.llm.src or paths.code.src         (implementation code + inline tests)
        │
        ▼
 validation/gates-policy.yaml ──► gates (profile-dependent) ──► Release decision
@@ -677,7 +677,7 @@ Important notes:
 | `PRJ-014` | error | Referenced `gates-policy.yaml` path does not exist |
 | `PRJ-030` | warning | `glossary_types` entry not found in glossary |
 | `PRJ-040` | error | Referenced constraint file path does not exist |
-| `PRJ-080` | error | `paths.llm.src` is outside `llm/` |
+| `PRJ-080` | error | `paths.llm.src` is missing for a greenfield project or is outside `llm/` when configured |
 | `PRJ-081` | error | `paths.llm.tests` is outside `llm/` |
 | `PRJ-090` | error | `features.legacy_mode` is true but `paths.code.src` is missing or empty |
 | `PRJ-091` | error | A `paths.code.src` directory does not exist |
@@ -778,8 +778,8 @@ Important notes:
 | `MAP-003` | info | Map has no entries |
 | `MAP-010` | error | Map entry does not exist on disk |
 | `MAP-020` | warning | File on disk is missing from map |
-| `MAP-080` | error | Generated implementation path is outside `paths.llm.src` |
-| `MAP-081` | error | Generated test path is outside `paths.llm.tests` |
+| `MAP-080` | error | Generated implementation path is outside `paths.llm.src`, or generated root is missing |
+| `MAP-081` | error | Generated test path is outside `paths.llm.tests`, or generated test root is missing |
 | `MAP-100` | info | Forward-check summary (`found/total`) |
 | `MAP-101` | info | Reverse-check summary |
 

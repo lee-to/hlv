@@ -248,13 +248,19 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
         root
     };
 
+    if let Some(src_path) = project
+        .paths
+        .llm
+        .src
+        .as_deref()
+        .or_else(|| legacy_marker_scope.is_some().then_some(""))
     {
         let tests_path = project.paths.llm.tests.as_deref();
         all_diags.extend(check::code_trace::check_code_trace_with_scope(
             check::code_trace::CodeTraceScope {
                 artifact_root: root,
                 scan_root: marker_scan_root,
-                src_path: &project.paths.llm.src,
+                src_path,
                 tests_path,
                 changed_files: legacy_marker_scope,
             },
@@ -264,12 +270,20 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
         ));
     }
 
-    all_diags.extend(check::sec_markers::check_sec_markers_with_scope(
-        marker_scan_root,
-        &project.paths.llm.src,
-        project.features.security_markers,
-        legacy_marker_scope,
-    ));
+    if let Some(src_path) = project
+        .paths
+        .llm
+        .src
+        .as_deref()
+        .or_else(|| legacy_marker_scope.is_some().then_some(""))
+    {
+        all_diags.extend(check::sec_markers::check_sec_markers_with_scope(
+            marker_scan_root,
+            src_path,
+            project.features.security_markers,
+            legacy_marker_scope,
+        ));
+    }
 
     if let Some(ref map_path) = project.paths.llm.map {
         all_diags.extend(check::llm_map::check_llm_map_with_context(

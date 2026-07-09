@@ -708,7 +708,7 @@ paths:
     test_specs: validation/test-specs/
     traceability: human/traceability.yaml
   llm:
-    src: llm/src/
+    map: llm/map.yaml
   code:
     src: [app/, routes/]
     tests: [tests/]

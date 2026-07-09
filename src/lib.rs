@@ -85,8 +85,11 @@ impl ProjectContext {
     /// Resolve the configured generated source root. In adopted projects this
     /// remains under the HLV config root for compatibility with the existing
     /// `paths.llm` contract.
-    pub fn generated_code_path(&self, project: &crate::model::project::ProjectMap) -> PathBuf {
-        self.hlv_path(&project.paths.llm.src)
+    pub fn generated_code_path(
+        &self,
+        project: &crate::model::project::ProjectMap,
+    ) -> Option<PathBuf> {
+        project.paths.llm.src.as_ref().map(|p| self.hlv_path(p))
     }
 
     /// Resolve the configured generated test root, if present.
@@ -283,7 +286,7 @@ paths:
         .unwrap();
 
         assert_eq!(
-            context.generated_code_path(&project),
+            context.generated_code_path(&project).unwrap(),
             tmp.path().join(".hlv/llm/src/")
         );
         assert_eq!(

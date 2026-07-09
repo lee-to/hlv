@@ -12,8 +12,6 @@ paths:
     scenarios: validation/scenarios/
     gates_policy: validation/gates-policy.yaml
   llm:
-    src: llm/src/
-    tests: llm/tests/
     map: llm/map.yaml
   code:
     src:

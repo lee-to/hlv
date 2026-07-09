@@ -64,7 +64,7 @@ paths:
     gates_policy: validation/gates-policy.yaml
     scenarios: validation/scenarios/
   llm:
-    src: llm/src/
+    map: llm/map.yaml
 "#;
     let p: ProjectMap = serde_yaml::from_str(yaml).unwrap();
     assert!(
@@ -537,7 +537,7 @@ paths:
     gates_policy: validation/gates-policy.yaml
     scenarios: validation/scenarios/
   llm:
-    src: llm/src/
+    map: llm/map.yaml
   code:
     src: [app/, routes/]
     tests: [tests/]
@@ -575,6 +575,7 @@ fn adopt_fields_parse_from_adopted_yaml() {
     assert!(p.features.legacy_mode);
     assert_eq!(p.features.index_tracking, IndexTrackingPolicy::Ignored);
     assert_eq!(p.hlv_root.as_deref(), Some(".hlv"));
+    assert!(p.paths.llm.src.is_none());
     let code = p.paths.code.as_ref().expect("paths.code");
     assert_eq!(code.src, vec!["app/", "routes/"]);
     assert_eq!(code.tests.as_deref(), Some(&["tests/".to_string()][..]));

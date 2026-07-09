@@ -26,7 +26,7 @@ If `features.legacy_mode` is `true`, also read `paths.code` and query the signat
 
 ### Adopt Mode
 
-When `legacy_mode` is enabled, treat `paths.code` as observed brownfield code and `paths.llm` as the generated-work area. Do not relocate legacy files into `llm/src`. Before editing a legacy file, use the signature index to identify the relevant symbols, then apply the normal contract-driven workflow to the changed files.
+When `legacy_mode` is enabled, treat `paths.code` as observed brownfield code and `.hlv/llm/` as HLV metadata. Do not relocate legacy files into `llm/src` or `.hlv/llm/src`. Before editing a legacy file, use the signature index to identify the relevant symbols, then apply the normal contract-driven workflow to the changed files.
 
 ## CRITICAL: Code Architecture Philosophy
 
@@ -45,7 +45,7 @@ This changes everything about how code is structured:
 
 4. **Domain types are the shared language.** `domain/types` is the ONLY shared code between features. Everything else is self-contained. Duplication across features is PREFERRED over coupling. **Duplication is normal until it hurts**: copy-paste between features is not refactored until it causes real problems (behavioral divergence, forgotten updates when contracts change).
 
-5. **Tests live next to code.** Tests are in the same file as the code (`#[cfg(test)] mod tests {}` in Rust, equivalents in other languages). Every test traces back to a contract invariant, error case, or NFR via `@hlv` marker. No "just in case" tests. No test helpers that hide behavior. Test code is as explicit as production code. `hlv check` verifies every error code, invariant, and constraint rule has an `@hlv <ID>` marker in code. The integration-tests directory (`paths.llm.tests` from `project.yaml`) is only for cross-contract scenarios.
+5. **Tests live next to code.** Tests are in the same file as the code (`#[cfg(test)] mod tests {}` in Rust, equivalents in other languages). Every test traces back to a contract invariant, error case, or NFR via `@hlv` marker. No "just in case" tests. No test helpers that hide behavior. Test code is as explicit as production code. `hlv check` verifies every error code, invariant, and constraint rule has an `@hlv <ID>` marker in code. A separate configured integration-tests directory, when present, is only for cross-contract scenarios.
 
 6. **File names are arbitrary. `map.yaml` is the navigator.** Files can be named `01.rs`, `handler.rs`, `f3a.rs` — any name is valid. The file map (`paths.llm.map` from `project.yaml`) is the single source of truth about what each file does. LLM finds code by reading descriptions in `map.yaml`, not by file names. Descriptions MUST be sufficient to choose a file without reading it. Each file does one thing, <300 lines, fully replaceable by an LLM without understanding neighboring files.
 
@@ -101,17 +101,15 @@ validation/
 
 1. Read `project.yaml` (global config: stack, paths)
    - Note `validation.strictness` when present (`relaxed`, `standard`, `strict`). Default is `standard`.
-2. **Bind LLM paths from `project.yaml → paths.llm`** — these are the ONLY directories where generated code may be placed:
-   - `LLM_SRC  = paths.llm.src`   (e.g. `llm/src/`)
-   - `LLM_TESTS = paths.llm.tests` (e.g. `llm/tests/`)
+2. **Bind implementation paths from `project.yaml`**:
+   - Greenfield/generated projects: `LLM_SRC = paths.llm.src` and `LLM_TESTS = paths.llm.tests` when configured.
+   - Adopted projects without `paths.llm.src`: use `paths.code.src` / `paths.code.tests` as the editable project code roots; do not create `.hlv/llm/src`.
    - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
-   **All subsequent steps MUST use these variables. Never assume `llm/src/` — always use the configured path.**
+   **All subsequent steps MUST use these variables. Never assume `llm/src/` — always use the configured project paths.**
 
    > **HARD CONSTRAINT — Output directory isolation**
-   > ALL generated code and test files MUST be written exclusively inside `LLM_SRC` and `LLM_TESTS`.
-   > Even if the project has existing code elsewhere (e.g., `apps/backend/src/`, `src/`, `packages/`),
-   > you MUST NOT write there. The existing project structure outside LLM paths is READ-ONLY context.
-   > Violation of this rule means generated code is invisible to `hlv check`, `map.yaml`, and `/validate`.
+   > In greenfield mode, generated code and tests MUST stay inside configured `paths.llm` roots.
+   > In adopt mode, existing project code roots from `paths.code` are editable; `.hlv/llm/` is metadata, not source code.
    > `hlv check` enforces this mechanically with `MAP-080` for implementation paths outside `LLM_SRC` and `MAP-081` for test paths outside `LLM_TESTS`.
 
 3. Read `milestones.yaml` → get `current.id` and `current.stage` (current stage number)
@@ -172,7 +170,7 @@ Each agent when executing a task:
    - Stack (`project.yaml → stack.components`) — target language, framework, dependencies
    - Test spec (`{MID}/test-specs/<contract>.md`)
    - Dependent code (output of previous tasks)
-4. **Generate (linear, inline, TDD)** — all files MUST be created inside `LLM_SRC` (code) or `LLM_TESTS` (integration tests). Do NOT write to any other directory, even if it already contains project code:
+4. **Generate (linear, inline, TDD)** — create files inside the bound implementation/test roots. In greenfield this is `LLM_SRC`/`LLM_TESTS`; in adopt mode this may be the existing `paths.code` roots:
    - **Code structure** *(when `features.linear_architecture: true`)*: write linearly — input → validation → logic → output → errors. No layers (controller/service/repository). One file per logical unit. File names are arbitrary (e.g., `01.rs`, `create.rs`) — describe each file in `LLM_MAP`. *(When `false`: use your preferred architecture style — layered, hexagonal, etc.)*
    - **Tests inline**: unit tests go in the same file as code (`#[cfg(test)] mod tests`). Separate `LLM_TESTS` directory only for integration tests.
    - **`@ctx` comments**: add LLM navigation markers — `// @ctx: stock check for order.create`. Not human docs, but LLM orientation.
@@ -310,12 +308,12 @@ The user can also manage gates manually via CLI or dashboard (`hlv dashboard` �
 
 ## Output
 
-All generated code MUST go inside the paths configured in `project.yaml → paths.llm`:
-- **Source code** → `LLM_SRC` (bound in Step 1 from `paths.llm.src`)
-- **Integration tests** → `LLM_TESTS` (bound in Step 1 from `paths.llm.tests`)
+Generated code MUST go inside the paths configured in `project.yaml`:
+- **Source code** → `LLM_SRC` when `paths.llm.src` exists, otherwise the selected `paths.code.src` root in adopt mode.
+- **Integration tests** → `LLM_TESTS` when `paths.llm.tests` exists, otherwise the selected `paths.code.tests` root in adopt mode.
 - **File map** → `LLM_MAP` (bound in Step 1 from `paths.llm.map`)
 
-**Never hardcode `llm/src/` or `llm/tests/`** — always use the configured paths. Never create `src/` or `tests/` in the project root.
+**Never hardcode `llm/src/` or `llm/tests/`** — always use the configured paths. In adopt mode, never create `.hlv/llm/src` for project source code.
 
 Example layout when `paths.llm.src: llm/src/`, `paths.llm.tests: llm/tests/`, `paths.llm.map: llm/map.yaml`:
 

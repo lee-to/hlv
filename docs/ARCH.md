@@ -55,7 +55,7 @@ Two-level model for incremental work:
 - `human/glossary.yaml` - domain types (shared language across milestones)
 - `human/constraints/` - security, performance, compliance
 - `validation/gates-policy.yaml` - validation criteria (profile-dependent: `minimal`/`standard`/`full`)
-- `llm/src/`, `llm/map.yaml` - accumulated code
+- `llm/map.yaml` - source index; generated code uses configured `paths.llm` roots in greenfield projects, while adopted projects use `paths.code`
 
 ### Level 2: Milestones (each one is a mini-project)
 Every change is a standalone work unit:
@@ -412,13 +412,13 @@ fn test_no_sql_injection() { ... }
 
 | Skill | Purpose | Input | Output |
 |-------|-----------|-------|--------|
-| `/init` | Scaffold a new HLV project | `--project`, `--owner`, `--agent` | Directories, templates, `project.yaml`, `milestones.yaml`, `.{agent}/skills/` |
+| `/init` | Scaffold a new HLV project | `--project`, `--owner`, `--agent` (comma-separated) | Directories, templates, `project.yaml`, `milestones.yaml`, `.{agent}/skills/` |
 | `/artifacts` | Interactive interview -> populate artifacts | artifacts dir | artifacts (tasks, infra, decisions, research) |
 | `/generate` | Artifacts -> Contracts + Validation + Plan + Gates coverage | artifacts | contracts, test-specs, `plan.md` + `stage_N.md`, traceability |
 | `/questions` | Interactive resolution of open questions with recommendations | `open-questions.md`, artifacts | `open-questions.md` |
 | `/verify` | Structure + semantics + coverage + gates<->contracts cross-check | Contracts, test specs, plan, gates-policy | `validation/verify-report.md` |
-| `/implement` | Stage -> Code + Tests (parallel agents). Also executes remediation tasks | `stage_N.md`, contracts | `llm/src/`, `llm/tests/` |
-| `/validate` | Run gates -> diagnostics -> FIX tasks or release. Two-phase: milestone gates -> global scenarios | `llm/src/`, `llm/tests/`, gate policies | `validation/validate-report.md`, FIX tasks |
+| `/implement` | Stage -> Code + Tests (parallel agents). Also executes remediation tasks | `stage_N.md`, contracts | Configured code/test roots |
+| `/validate` | Run gates -> diagnostics -> FIX tasks or release. Two-phase: milestone gates -> global scenarios | Configured code/test roots, gate policies | `validation/validate-report.md`, FIX tasks |
 
 All skills work through milestones (`milestones.yaml` with the `current` section).
 
@@ -532,7 +532,7 @@ Adopt mode attaches HLV to an existing repository without moving code:
 
 `hlv explain <DIAG_CODE>` reads a central diagnostic registry instead of scraping docs. Unknown codes show nearby registered codes from the same prefix.
 
-`hlv check` also enforces generated path isolation: `llm/map.yaml` and `project.yaml -> artifact_graph.code_ownership` implementation paths must stay under `paths.llm.src` (`MAP-080`), and test paths must stay under `paths.llm.tests` (`MAP-081`).
+`hlv check` also enforces generated path isolation: `llm/map.yaml` and `project.yaml -> artifact_graph.code_ownership` implementation paths must stay under `paths.llm.src` when configured (`MAP-080`), and test paths must stay under `paths.llm.tests` when configured (`MAP-081`). Adopted projects may omit generated roots and use `paths.code`/`layer: code` for observed source roots.
 
 ---
 

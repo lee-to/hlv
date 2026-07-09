@@ -110,7 +110,6 @@
         },
         "llm": {
           "type": "object",
-          "required": ["src"],
           "properties": {
             "src": { "type": "string" },
             "tests": { "type": "string" },

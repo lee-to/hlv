@@ -107,7 +107,7 @@ fn check_artifact_path_isolation(project: &ProjectMap) -> Vec<Diagnostic> {
         return diags;
     };
 
-    let llm_src = normalize_path_root(&project.paths.llm.src);
+    let llm_src = project.paths.llm.src.as_deref().map(normalize_path_root);
     let llm_tests = project.paths.llm.tests.as_deref().map(normalize_path_root);
 
     for (node_id, entry) in &config.code_ownership {
@@ -116,17 +116,30 @@ fn check_artifact_path_isolation(project: &ProjectMap) -> Vec<Diagnostic> {
 
         for path in &entry.paths {
             let normalized = normalize_ownership_path(path);
-            if source_owned && !is_under_path(&normalized, &llm_src) {
-                diags.push(
-                    Diagnostic::error(
-                        "MAP-080",
-                        format!(
-                            "generated implementation path is outside paths.llm.src: {} (expected prefix: {})",
-                            path, project.paths.llm.src
-                        ),
-                    )
-                    .with_file("project.yaml"),
-                );
+            if source_owned {
+                match &llm_src {
+                    Some(prefix) if is_under_path(&normalized, prefix) => {}
+                    Some(prefix) => diags.push(
+                        Diagnostic::error(
+                            "MAP-080",
+                            format!(
+                                "generated implementation path is outside paths.llm.src: {} (expected prefix: {})",
+                                path, prefix
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                    None => diags.push(
+                        Diagnostic::error(
+                            "MAP-080",
+                            format!(
+                                "generated implementation path is configured but paths.llm.src is missing: {}",
+                                path
+                            ),
+                        )
+                        .with_file("project.yaml"),
+                    ),
+                }
             }
 
             if test_owned {

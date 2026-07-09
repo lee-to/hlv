@@ -34,6 +34,11 @@ hlv init -> hlv milestone new "feature"
 ```bash
 hlv init --project payments --owner backend-team
 # init asks for:
+#   - project name (defaults to current directory name)
+#   - owner (defaults to the project name)
+#   - project layout: adopt mode (.hlv/ config, existing code/files stay in place)
+#     or greenfield mode (root-level HLV config for a new HLV-owned project)
+#   - agent names, comma-separated (default: claude)
 #   - gate profile (minimal/standard/full)
 #   - first milestone name
 #   - feature flags: linear architecture (Y/n), @hlv markers (Y/n), @hlv:sec security markers (Y/n)
@@ -50,7 +55,9 @@ hlv index build
 hlv check
 ```
 
-Adopt mode writes HLV config under `.hlv/` and leaves existing Laravel, Go, Node/TypeScript, Python, Rust, or mixed code in place. `paths.code` points at observed source/test roots. Use `hlv index show --json <symbol>` or `hlv index list --json --file <path>` for compact legacy-code context. Untouched legacy code is observed, not retroactively forced to carry markers; new or changed milestone work follows the normal artifacts -> contracts -> implementation -> validation flow.
+Adopt mode writes HLV config under `.hlv/` and leaves existing Laravel, Go, Node/TypeScript, Python, Rust, or mixed code in place. `paths.code` points at observed source/test roots. `.hlv/llm/` contains HLV metadata such as `map.yaml`; it is not a home for adopted project source code. Use `hlv index show --json <symbol>` or `hlv index list --json --file <path>` for compact legacy-code context. Untouched legacy code is observed, not retroactively forced to carry markers; new or changed milestone work follows the normal artifacts -> contracts -> implementation -> validation flow.
+
+Plain `hlv init` prompts for the layout. It defaults to adopt mode when existing project manifests or repository context files are detected, and defaults to greenfield mode in an empty directory. Use `--adopt` or `--greenfield` to skip the layout prompt.
 
 ### 2. Fill in the context
 

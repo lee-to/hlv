@@ -70,16 +70,26 @@ pub fn check_project_map(root: &Path) -> Vec<Diagnostic> {
         );
     }
 
-    // paths.llm.* is the generated/agent-owned namespace and must stay under
-    // llm/ in every mode; only paths.code.* may point at brownfield roots.
-    if !project.paths.llm.src.starts_with("llm/") {
+    // paths.llm.* is the generated/agent-owned namespace. It is required for
+    // greenfield projects and optional in adopt mode, where observed code roots
+    // live under paths.code.
+    if let Some(src) = project.paths.llm.src.as_deref() {
+        if !src.starts_with("llm/") {
+            diags.push(
+                Diagnostic::error(
+                    "PRJ-080",
+                    format!(
+                        "paths.llm.src is '{src}' but must be under llm/ (e.g. llm/src/). Generated code must not pollute the project root.",
+                    ),
+                )
+                .with_file("project.yaml"),
+            );
+        }
+    } else if !project.features.legacy_mode {
         diags.push(
             Diagnostic::error(
                 "PRJ-080",
-                format!(
-                    "paths.llm.src is '{}' but must be under llm/ (e.g. llm/src/). Generated code must not pollute the project root.",
-                    project.paths.llm.src
-                ),
+                "paths.llm.src is required for greenfield projects.",
             )
             .with_file("project.yaml"),
         );

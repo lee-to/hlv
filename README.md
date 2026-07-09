@@ -80,7 +80,7 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 
 | Command | What it does |
 |---------|-------------|
-| `hlv init` | Scaffold the full HLV directory structure (asks for feature flags) |
+| `hlv init` | Scaffold HLV and ask for project layout, profile, and feature flags |
 | `hlv init --adopt` | Attach HLV to an existing Laravel, Go, Node/TypeScript, Python, or Rust codebase under `.hlv/` |
 | `hlv doctor` | Preflight paths, schema compatibility, command portability, cwd values, and rendering |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
@@ -159,7 +159,7 @@ features:
   index_tracking: ignored      # ignored or tracked for .hlv/index/
 ```
 
-Greenfield marker/style booleans default to `true`. Adopted projects default marker enforcement to `false` for untouched legacy code and store observed roots in `paths.code`; new or changed milestone work still goes through contracts, implementation, and validation.
+Greenfield marker/style booleans default to `true`. Adopted projects default marker enforcement to `false` for untouched legacy code and store observed roots in `paths.code`; new or changed milestone work still goes through contracts, implementation, and validation. Plain `hlv init` defaults the project name from the current directory, defaults owner to the project name, accepts comma-separated agent names, and asks whether to use adopt mode.
 
 ## Your best practices are LLM anti-patterns
 

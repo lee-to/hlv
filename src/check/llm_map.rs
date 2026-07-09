@@ -83,7 +83,7 @@ pub fn check_llm_map_with_context(
     ));
 
     // --- Path isolation: llm-layer entries must be inside configured paths (MAP-080/MAP-081) ---
-    let llm_src = normalize(&llm_paths.src);
+    let llm_src = llm_paths.src.as_deref().map(normalize);
     let llm_tests = llm_paths.tests.as_deref().map(normalize);
 
     for entry in &map.entries {
@@ -91,7 +91,7 @@ pub fn check_llm_map_with_context(
             continue;
         }
         let norm_path = normalize(&entry.path);
-        let inside_src = is_under(&norm_path, &llm_src);
+        let inside_src = llm_src.as_ref().is_some_and(|s| is_under(&norm_path, s));
         let inside_tests = llm_tests.as_ref().is_some_and(|t| is_under(&norm_path, t));
 
         if !inside_src && !inside_tests {
@@ -105,7 +105,14 @@ pub fn check_llm_map_with_context(
                     "test",
                 )
             } else {
-                ("MAP-080", llm_paths.src.as_str(), "implementation")
+                (
+                    "MAP-080",
+                    llm_paths
+                        .src
+                        .as_deref()
+                        .unwrap_or("<paths.llm.src is not configured>"),
+                    "implementation",
+                )
             };
             diags.push(
                 Diagnostic::error(
@@ -300,7 +307,7 @@ mod tests {
 
     fn default_llm_paths() -> LlmPaths {
         LlmPaths {
-            src: "llm/src/".to_string(),
+            src: Some("llm/src/".to_string()),
             tests: Some("llm/tests/".to_string()),
             map: Some("llm/map.yaml".to_string()),
         }
@@ -309,7 +316,7 @@ mod tests {
     /// Convenience: paths where src root IS the map root (flat layout).
     fn flat_llm_paths() -> LlmPaths {
         LlmPaths {
-            src: "src/".to_string(),
+            src: Some("src/".to_string()),
             tests: Some("tests/".to_string()),
             map: Some("map.yaml".to_string()),
         }
@@ -651,7 +658,7 @@ entries:
         .unwrap();
 
         let paths = LlmPaths {
-            src: "llm/src/".to_string(),
+            src: Some("llm/src/".to_string()),
             tests: Some("llm/tests/".to_string()),
             map: Some("map.yaml".to_string()),
         };
@@ -754,7 +761,7 @@ entries:
         .unwrap();
 
         let paths = LlmPaths {
-            src: "apps/backend/src/".to_string(),
+            src: Some("apps/backend/src/".to_string()),
             tests: Some("apps/backend/test/".to_string()),
             map: Some("map.yaml".to_string()),
         };
