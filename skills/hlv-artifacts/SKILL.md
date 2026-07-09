@@ -1,5 +1,5 @@
 ---
-name: artifacts
+name: hlv-artifacts
 description: Interactive interview to fill artifacts directory. Walks through domain, features, infrastructure, decisions, and unknowns. Use at project start or when adding features.
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Grep
@@ -24,6 +24,19 @@ You are conducting a structured interview to extract the user's knowledge about 
 
 ❌ Wrong: `git checkout main && git pull`
 ✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ## Two-Level Artifacts
 
@@ -341,7 +354,7 @@ Ask the user which type each decision is, or infer from context.
 - <if any>
 ```
 
-If no decisions exist yet, skip file creation and tell the user: "No decisions to record yet — that's fine. They'll come up naturally during /generate."
+If no decisions exist yet, skip file creation and tell the user: "No decisions to record yet — that's fine. They'll come up naturally during /hlv-generate."
 
 ---
 
@@ -384,7 +397,7 @@ For significant unknowns that don't fit elsewhere, create `human/milestones/{id}
 Print a summary:
 
 ```
-=== /artifacts complete (milestone: {id}) ===
+=== /hlv-artifacts complete (milestone: {id}) ===
 
 Global artifacts in human/artifacts/:
   context.md               — domain, users, business context
@@ -402,7 +415,7 @@ Open Questions: <N> total
   - <question 1>
   - <question 2>
 
-Next step: run /generate to create formal contracts from these artifacts.
+Next step: run /hlv-generate to create formal contracts from these artifacts.
 ```
 
 ## Tips for a Good Interview

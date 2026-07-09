@@ -44,7 +44,7 @@ pub fn run(project_root: &Path, visual: bool, json: bool) -> Result<()> {
         .join("traceability.yaml");
     if !trace_path.exists() {
         style::hint(&format!(
-            "No traceability map found for milestone '{}'.\nRun /generate to create one.",
+            "No traceability map found for milestone '{}'.\nRun /hlv-generate to create one.",
             current.id
         ));
         return Ok(());

@@ -1,6 +1,6 @@
 ---
-name: questions
-description: Interactive session to resolve open questions. Walks through each question, gives a recommendation, asks the user, and updates the file. Use after /generate when open questions exist.
+name: hlv-questions
+description: Interactive session to resolve open questions. Walks through each question, gives a recommendation, asks the user, and updates the file. Use after /hlv-generate when open questions exist.
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Grep
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 # HLV Questions — Interactive Open Questions Resolution
 
-You are helping the user resolve open questions that block `/verify`. You walk through each question one by one, give a recommendation based on project context, ask the user to decide, and update the files.
+You are helping the user resolve open questions that block `/hlv-verify`. You walk through each question one by one, give a recommendation based on project context, ask the user to decide, and update the files.
 
 ## Prerequisites
 
@@ -27,6 +27,19 @@ You are helping the user resolve open questions that block `/verify`. You walk t
 
 ❌ Wrong: `git checkout main && git pull`
 ✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ## Locate Files
 
@@ -46,7 +59,7 @@ You are helping the user resolve open questions that block `/verify`. You walk t
    - **Skip** — come back later → leave `[ ]`, move to next
 5. **Never invent requirements.** Your recommendation is a suggestion. The user decides. If they disagree with your recommendation, use their answer.
 6. **Update files immediately.** After each answer, update `open-questions.md` right away. Don't batch.
-7. **Update contracts if needed.** When an answer changes contract behavior (new field, new error case, changed invariant), note it and tell the user which contracts need updating. Do NOT update contracts in this skill — that's `/generate`'s job.
+7. **Update contracts if needed.** When an answer changes contract behavior (new field, new error case, changed invariant), note it and tell the user which contracts need updating. Do NOT update contracts in this skill — that's `/hlv-generate`'s job.
 
 ## Flow
 
@@ -126,7 +139,7 @@ The open-questions.md file is already updated in Step 3 (each answer is written 
   Answered:  <N>
   Deferred:  <K>
   Skipped:   <M>
-  Remaining: <R> open (blockers for /verify)
+  Remaining: <R> open (blockers for /hlv-verify)
 
   Contracts affected by answers:
     - <contract.id>: <what changed — e.g. "new phone format constraint">
@@ -135,24 +148,24 @@ The open-questions.md file is already updated in Step 3 (each answer is written 
 
 If remaining == 0:
 ```
-All questions resolved. Run /generate to update contracts with the new answers, then /verify.
+All questions resolved. Run /hlv-generate to update contracts with the new answers, then /hlv-verify.
 ```
 
 If remaining > 0:
 ```
-<R> questions still open — these block /verify. Run /questions again when ready.
+<R> questions still open — these block /hlv-verify. Run /hlv-questions again when ready.
 ```
 
 ## Tips
 
 - **Group related questions.** If multiple questions are about the same topic, mention that context carries over.
 - **Speed is good.** Most questions have obvious answers. Don't over-explain — give a quick recommendation and let the user confirm or override.
-- **Defer is fine.** Not everything needs an answer now. Infrastructure details can wait until `/implement`. UX copy can wait until after MVP. Help the user understand what's truly blocking and what can be deferred.
+- **Defer is fine.** Not everything needs an answer now. Infrastructure details can wait until `/hlv-implement`. UX copy can wait until after MVP. Help the user understand what's truly blocking and what can be deferred.
 - **Watch for cascading answers.** One answer may resolve or change another question. If you notice this, tell the user: "Your answer to Q3 also answers Q7 — should I mark it resolved too?"
 
 ## Cleanup
 
 After the skill completes:
 1. Run `hlv check` to validate the project structure.
-2. If answers affect contracts, suggest running `/generate` to update them.
+2. If answers affect contracts, suggest running `/hlv-generate` to update them.
 3. Suggest `/clear` to free context before the next skill.

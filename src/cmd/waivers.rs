@@ -49,6 +49,7 @@ pub fn audit_waivers(root: &Path) -> Result<WaiverAudit> {
         CheckOptions {
             strict: false,
             with_waivers: false,
+            emit_gate_progress: false,
         },
     )?;
     let active_keys: std::collections::BTreeSet<(String, String)> = report

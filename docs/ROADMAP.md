@@ -136,12 +136,12 @@ All commands (`check`, `status`, `workflow`, `plan`, `trace`, `gates`, `dashboar
 
 ### Skills
 All 6 skills were updated for milestone mode:
-- `/artifacts` -> output to `human/milestones/{id}/artifacts/`
-- `/generate` -> stage decomposition, `plan.md` + `stage_N.md`
-- `/verify` -> milestone contracts vs global glossary/constraints
-- `/implement` -> stage-aware execution, reads `stage_N.md`
-- `/validate` -> two-phase (`milestone` gates -> global scenarios)
-- `/questions` -> per-milestone `open-questions.md`
+- `/hlv-artifacts` -> output to `human/milestones/{id}/artifacts/`
+- `/hlv-generate` -> stage decomposition, `plan.md` + `stage_N.md`
+- `/hlv-verify` -> milestone contracts vs global glossary/constraints
+- `/hlv-implement` -> stage-aware execution, reads `stage_N.md`
+- `/hlv-validate` -> two-phase (`milestone` gates -> global scenarios)
+- `/hlv-questions` -> per-milestone `open-questions.md`
 
 ---
 
@@ -153,5 +153,5 @@ All 6 skills were updated for milestone mode:
 | `hlv export --json` | Export data to JSON for CI/CD integrations |
 | Cross-compilation | Binaries for Linux, Windows, macOS (arm64 + x86) |
 | CI integration | GitHub Actions: `hlv check` in the pipeline |
-| `/verify` integration | ✅ Replace the bash script with `hlv check` inside the `/verify` skill |
+| `/hlv-verify` integration | ✅ Replace the bash script with `hlv check` inside the `/hlv-verify` skill |
 | `hlv watch --dashboard` | TUI dashboard with live updates when files change |

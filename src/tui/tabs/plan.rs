@@ -32,7 +32,7 @@ fn render_milestone(
 
     if current.stages.is_empty() {
         lines.push(Line::from(Span::styled(
-            "No stages yet. Run /generate to create them.",
+            "No stages yet. Run /hlv-generate to create them.",
             Style::default().fg(Color::DarkGray),
         )));
     } else {

@@ -42,7 +42,7 @@ The single project map. Every LLM agent MUST start by reading this file.
 | `constraints` | References to global constraints |
 | `validation` | Verification state: `verify_status`, `verify_date`, `issues` |
 
-Format: YAML. Schema: `schema/project-schema.json`. Updated automatically after `/generate` and `/verify`.
+Format: YAML. Schema: `schema/project-schema.json`. Updated automatically after `/hlv-generate` and `/hlv-verify`.
 
 Adopted projects use `.hlv/project.yaml`, set `hlv_root: .hlv`, set `features.legacy_mode: true`, and keep existing code in `paths.code` instead of moving it under `llm/src/`.
 
@@ -93,13 +93,13 @@ Format: Markdown. Rust model: not parsed as a struct (overview only).
 
 ### `human/milestones/{id}/stage_N.md` - stage tasks
 
-Self-contained file. `/implement` reads only this file + the contracts.
+Self-contained file. `/hlv-implement` reads only this file + the contracts.
 
 | Section | Purpose |
 |--------|-----------|
 | Contracts | List of contracts for this stage |
 | Tasks | TASK-NNN with contracts, `depends_on`, output |
-| Remediation | FIX tasks from `/validate` (filled when failures occur) |
+| Remediation | FIX tasks from `/hlv-validate` (filled when failures occur) |
 
 Tasks without dependencies run in parallel (topological sort).
 
@@ -237,7 +237,7 @@ Schema: `schema/traceability-schema.json`. Machine-verifiable through `traceabil
 
 ## Validation Layer (`validation/`)
 
-Proof layer. Generated from contracts by `/generate`. Not written by hand, except for static policy files.
+Proof layer. Generated from contracts by `/hlv-generate`. Not written by hand, except for static policy files.
 
 ### `validation/test-specs/*.md` - test specifications
 
@@ -302,14 +302,14 @@ Release gates and thresholds. The gate set depends on the project profile (`hlv 
 | `standard` | + `integration_tests`, `property_based_tests` |
 | `full` | + `performance`, `mutation_testing`, `observability` |
 
-`/generate` may adapt the profile based on artifact analysis. Gates can be changed via `hlv gates` or the dashboard.
+`/hlv-generate` may adapt the profile based on artifact analysis. Gates can be changed via `hlv gates` or the dashboard.
 
 Each gate has these fields:
 - `id` - unique ID (`GATE-*-NNN`)
 - `type` - gate type (`contract_tests`, `security`, etc.)
 - `mandatory` - whether it blocks the release
 - `enabled` - on/off (default: `true`)
-- `command` - portable executable + arguments string (filled by `/implement`)
+- `command` - portable executable + arguments string (filled by `/hlv-implement`)
 - `cwd` - working directory relative to the project root (for example `llm`; absolute paths and `..` components are rejected)
 - `pass_criteria` - pass thresholds
 
@@ -390,8 +390,8 @@ Authoritative index of all project files and directories. **The single source of
 
 Lifecycle:
 - `/init` creates the map skeleton (base directories and policy files) and default ignore patterns
-- `/generate` adds generated contracts, test specs, scenarios
-- `/implement` - agents add every created code/test file; if the stack generates new artifacts, they add ignore patterns
+- `/hlv-generate` adds generated contracts, test specs, scenarios
+- `/hlv-implement` - agents add every created code/test file; if the stack generates new artifacts, they add ignore patterns
 - An empty map (`entries: []`) is allowed - `hlv check` emits info, not an error
 
 Format: YAML. Schema: `schema/llm-map-schema.json`. Path is defined in `project.yaml -> paths.llm.map`.
@@ -594,7 +594,7 @@ Integrity checks for constraint files, executed by `hlv check`.
 | `CST-050` | varies | Runs `check_command` for a constraint rule. Severity is determined by `error_level` override, or mapped from rule severity (`critical`/`high` -> error, `medium`/`low` -> warning) |
 | `CST-060` | error | Runs file-level `check_command` on the constraint file. Failure is always an error |
 
-These checks run automatically as part of `hlv check` and block `/verify` when reported as errors.
+These checks run automatically as part of `hlv check` and block `/hlv-verify` when reported as errors.
 
 ---
 
@@ -644,7 +644,7 @@ hlv waivers audit
 
 ### `hlv doctor` and `hlv explain`
 
-`hlv doctor` validates the local project environment before `/generate`, `/implement`, or `/validate`. It is special-cased before normal project-root discovery, so it can report missing `project.yaml` as `DOC-001` instead of failing early.
+`hlv doctor` validates the local project environment before `/hlv-generate`, `/hlv-implement`, or `/hlv-validate`. It is special-cased before normal project-root discovery, so it can report missing `project.yaml` as `DOC-001` instead of failing early.
 
 ```bash
 hlv doctor

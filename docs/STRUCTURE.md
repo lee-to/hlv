@@ -27,10 +27,10 @@ human/
         <feature>.md                 #     feature description
         unknowns.md                  #     open questions and risks
         <decision>.md                #     milestone-specific decisions
-      contracts/                     #   contracts (created by /generate)
+      contracts/                     #   contracts (created by /hlv-generate)
         <contract-id>.md             #     markdown specification
         <contract-id>.yaml           #     machine-readable IR
-      test-specs/                    #   test specifications (created by /generate)
+      test-specs/                    #   test specifications (created by /hlv-generate)
         <contract-id>.md
       plan.md                        #   scope, stage table
       stage_N.md                     #   tasks for each stage

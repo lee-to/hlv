@@ -138,7 +138,7 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
             }
 
             if current.stages.is_empty() {
-                style::detail("Stage", "none (run /generate)");
+                style::detail("Stage", "none (run /hlv-generate)");
             } else {
                 let validated = current
                     .stages

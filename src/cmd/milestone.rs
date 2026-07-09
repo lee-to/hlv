@@ -111,7 +111,7 @@ pub fn run_new(root: &Path, name: &str) -> Result<()> {
         println!();
     }
     style::ok(&format!("Milestone {} created", slug.bold()));
-    style::hint("Next: run /artifacts to collect requirements, then /generate");
+    style::hint("Next: run /hlv-artifacts to collect requirements, then /hlv-generate");
     if !style::is_quiet() {
         println!();
     }
@@ -161,7 +161,7 @@ pub fn run_status(root: &Path) -> Result<()> {
                     );
                 }
             } else {
-                style::hint("No stages yet. Run /generate to create them.");
+                style::hint("No stages yet. Run /hlv-generate to create them.");
             }
         }
         None => {

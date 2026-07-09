@@ -22,9 +22,9 @@ Every change is a separate milestone with its own contracts, stages, and tests. 
 
 ```
 hlv init -> hlv milestone new "feature"
-    -> /artifacts -> /generate -> /verify
-    -> /implement (stage 1) -> /validate
-    -> /implement (stage 2) -> /validate
+    -> /hlv-artifacts -> /hlv-generate -> /hlv-verify
+    -> /hlv-implement (stage 1) -> /hlv-validate
+    -> /hlv-implement (stage 2) -> /hlv-validate
     -> hlv milestone done
     -> hlv milestone new "next-feature" -> ...
 ```
@@ -62,29 +62,29 @@ Plain `hlv init` prompts for the layout. It defaults to adopt mode when existing
 ### 2. Fill in the context
 
 ```bash
-/artifacts     # interview -> human/milestones/001-order-create/artifacts/
+/hlv-artifacts     # interview -> human/milestones/001-order-create/artifacts/
 ```
 
 ### 3. Generate contracts
 
 ```bash
-/generate      # artifacts -> contracts, test-specs, plan.md + stage_N.md
+/hlv-generate      # artifacts -> contracts, test-specs, plan.md + stage_N.md
 ```
 
 ### 4. Check
 
 ```bash
 hlv check      # structural validation
-/verify        # semantic validation
+/hlv-verify        # semantic validation
 ```
 
 ### 5. Implement by stages
 
 ```bash
-/implement     # executes the current stage (stage_1.md)
-/validate      # checks gates for stage 1
-/implement     # next stage (stage_2.md)
-/validate      # checks gates for stage 2
+/hlv-implement     # executes the current stage (stage_1.md)
+/hlv-validate      # checks gates for stage 1
+/hlv-implement     # next stage (stage_2.md)
+/hlv-validate      # checks gates for stage 2
 ```
 
 ### 6. Finish the milestone
@@ -113,14 +113,14 @@ This is the most important step. You dump everything you know about the task int
 
 **Option 1: Manually.** Create files in `human/milestones/{id}/artifacts/` however you want - markdown, plain text, screenshots, SQL dumps. No format requirements.
 
-**Option 2: `/artifacts` - interactive interview.** The LLM asks questions, you answer, and it writes the answers into the right files.
+**Option 2: `/hlv-artifacts` - interactive interview.** The LLM asks questions, you answer, and it writes the answers into the right files.
 
 ```
-/artifacts                   # new milestone - full interview
-/artifacts                   # existing milestone - only new/changed information
+/hlv-artifacts                   # new milestone - full interview
+/hlv-artifacts                   # existing milestone - only new/changed information
 ```
 
-`/artifacts` runs 5 blocks:
+`/hlv-artifacts` runs 5 blocks:
 
 | Block | What it discovers | Where it writes |
 |------|-------------|-----------|
@@ -134,9 +134,9 @@ After each block the LLM shows the written file and asks: *"Is this correct? Wha
 
 In incremental mode (when artifacts already exist), the LLM reads the existing artifacts first, shows what is already known, and asks only about new information.
 
-> **When to use what**: `/artifacts` is a good starting point if you do not know where to begin. Manual authoring is better if you already have notes, conversations, or formal specs. You can combine both: start with `/artifacts`, then add files manually.
+> **When to use what**: `/hlv-artifacts` is a good starting point if you do not know where to begin. Manual authoring is better if you already have notes, conversations, or formal specs. You can combine both: start with `/hlv-artifacts`, then add files manually.
 >
-> **Already have a spec?** Drop it into `human/milestones/001-init/artifacts/` (any format — markdown, plain text, PDF export, etc.) and run `/artifacts`. The skill will detect existing files, read them, and generate global artifacts (`human/artifacts/context.md`, `stack.md`, `constraints.md`, etc.) based on the information in your spec. This way you skip the interview and immediately get a structured context layer for `/generate`.
+> **Already have a spec?** Drop it into `human/milestones/001-init/artifacts/` (any format — markdown, plain text, PDF export, etc.) and run `/hlv-artifacts`. The skill will detect existing files, read them, and generate global artifacts (`human/artifacts/context.md`, `stack.md`, `constraints.md`, etc.) based on the information in your spec. This way you skip the interview and immediately get a structured context layer for `/hlv-generate`.
 >
 > **Language selection policy**: by default HLV recommends strict, compile-time-safe languages where they naturally fit the task. But without dogma: for UI, TypeScript is usually better; for bot/automation/SDK-first tasks, Python, TypeScript, or another language with a better ecosystem fit may be more appropriate. For ML/data and complex AI-chain tasks, Python may also be the best deliberate choice because of the ecosystem. If the choice is not obvious, it should be explicitly recorded in artifacts or raised as an open question instead of guessed.
 
@@ -202,10 +202,10 @@ Alternatives: pessimistic locking (slower), saga (overkill).
 
 ## Phase 2: Formalization - the LLM generates, you confirm
 
-**Who does it**: the LLM (via `/generate`), then you review.
+**Who does it**: the LLM (via `/hlv-generate`), then you review.
 
 ```
-/generate
+/hlv-generate
 ```
 
 The LLM reads all your artifacts and generates:
@@ -223,7 +223,7 @@ The LLM reads all your artifacts and generates:
 | Stack | `project.yaml -> stack` (global) | Components, languages, dependencies |
 | Artifact graph | artifact frontmatter + `project.yaml -> artifact_graph` | Dependencies, downstream impact, owners, code ownership |
 
-### What you do after `/generate`
+### What you do after `/hlv-generate`
 
 **Read the contracts.** They are the main artifact. Each contract looks like:
 
@@ -259,13 +259,13 @@ Open Questions:
 ```
 
 Options:
-- Answer -> the LLM updates the contract on the next `/generate`
+- Answer -> the LLM updates the contract on the next `/hlv-generate`
 - Defer -> does not block, but creates a warning
-- Do not know -> leave it open; it blocks `/verify`
+- Do not know -> leave it open; it blocks `/hlv-verify`
 
 **Three ways to answer open questions:**
 
-1. **`/questions`** - LLM skill. Walks through questions interactively, gives recommendations based on artifacts, you answer, the LLM writes them down.
+1. **`/hlv-questions`** - LLM skill. Walks through questions interactively, gives recommendations based on artifacts, you answer, the LLM writes them down.
 2. **`hlv dashboard`** -> Questions tab. Navigation: `↑↓`, `a`/`Enter` to answer, `d` to defer.
 3. **Manually.** Open `open-questions.md` inside the milestone, change `[ ]` to `[x]`, and add the answer.
 
@@ -274,7 +274,7 @@ Options:
 ### Iteration
 
 ```
-/generate -> /questions (or dashboard) -> /generate -> /verify -> edits -> /verify -> ok
+/hlv-generate -> /hlv-questions (or dashboard) -> /hlv-generate -> /hlv-verify -> edits -> /hlv-verify -> ok
 ```
 
 Going through 2-3 iterations is normal.
@@ -285,7 +285,7 @@ Going through 2-3 iterations is normal.
 
 ## Phase 3: Verification - the machine checks
 
-**Who does it**: `hlv check` (deterministic) + `/verify` (LLM semantics).
+**Who does it**: `hlv check` (deterministic) + `/hlv-verify` (LLM semantics).
 
 ```bash
 hlv check
@@ -308,21 +308,21 @@ PASSED - 0 errors, 0 warnings
 If `hlv check` is green, you run full verification:
 
 ```
-/verify
+/hlv-verify
 ```
 
-`/verify` does all of the above plus LLM semantic analysis:
+`/hlv-verify` does all of the above plus LLM semantic analysis:
 - Contracts do not contradict each other
 - Test specs cover all invariants and errors
 - The plan is realistic (tasks fit inside LLM context windows)
 - Artifacts are fully covered by contracts
 
-Result: `READY for /implement` (stage status becomes `verified`) or `NEEDS FIXES`.
+Result: `READY for /hlv-implement` (stage status becomes `verified`) or `NEEDS FIXES`.
 
 ### Iteration
 
 ```
-hlv check -> fix -> hlv check -> /verify -> fix -> /verify -> READY
+hlv check -> fix -> hlv check -> /hlv-verify -> fix -> /hlv-verify -> READY
 ```
 
 Convenient option: `hlv check --watch` watches files and rechecks on save.
@@ -333,10 +333,10 @@ Convenient option: `hlv check --watch` watches files and rechecks on save.
 
 ## Phase 4: Implementation - the LLM writes code
 
-**Who does it**: LLM agents (via `/implement`).
+**Who does it**: LLM agents (via `/hlv-implement`).
 
 ```
-/implement
+/hlv-implement
 ```
 
 The LLM reads the plan and executes tasks:
@@ -382,10 +382,10 @@ mod tests {
 
 ## Phase 5: Validation - gates decide
 
-**Who does it**: the LLM (via `/validate`). You do not run technical commands.
+**Who does it**: the LLM (via `/hlv-validate`). You do not run technical commands.
 
 ```
-/validate
+/hlv-validate
 ```
 
 Runs 7 mandatory gates:
@@ -400,7 +400,7 @@ Runs 7 mandatory gates:
 | Mutation | Mutation testing | >=70% score |
 | Observability | Metrics, traces, logs | Everything is present |
 
-### What `/validate` does automatically
+### What `/hlv-validate` does automatically
 
 - Installs missing tools (`hypothesis`, `locust`, `mutmut`, etc.)
 - Runs all gates
@@ -412,16 +412,16 @@ Runs 7 mandatory gates:
 ### Results
 
 - **RELEASE APPROVED** -> everything passed, deploy
-- **RELEASE BLOCKED** -> fix plan created -> `/implement` -> `/validate`
-- **Decision needed** -> open question -> answer -> `/implement` -> `/validate`
+- **RELEASE BLOCKED** -> fix plan created -> `/hlv-implement` -> `/hlv-validate`
+- **Decision needed** -> open question -> answer -> `/hlv-implement` -> `/hlv-validate`
 
 ### Remediation cycle
 
 ```
-/validate -> BLOCKED
+/hlv-validate -> BLOCKED
   ├─ FIX tasks added to the plan
-  ├─ /implement (executes FIX tasks)
-  └─ /validate (recheck)
+  ├─ /hlv-implement (executes FIX tasks)
+  └─ /hlv-validate (recheck)
 ```
 
 You do not run `pip install` and you do not patch code manually. Agents handle that. You only make decisions if needed.
@@ -434,8 +434,8 @@ You do not run `pip install` and you do not patch code manually. Agents handle t
 
 ```
 Phase 0          Phase 1           Phase 2          Phase 3        Phase 4         Phase 5
-hlv init    ->   /artifacts   ->   /generate   ->   hlv check  ->  /implement  ->  /validate
-                 or manual          + review         /verify        LLM code        gates
+hlv init    ->   /hlv-artifacts   ->   /hlv-generate   ->   hlv check  ->  /hlv-implement  ->  /hlv-validate
+                 or manual          + review         /hlv-verify        LLM code        gates
 5 sec             15-60 min         30-90 min       5-20 min       10-30 min       5-15 min
                   HUMAN             LLM + you       machine        LLM             machine
                   provides          iterate         verifies       writes          proves
@@ -502,7 +502,7 @@ Run results are displayed inline: exit code, runtime, first lines of stdout/stde
 ### What if I want to add a feature to an existing project?
 
 1. `hlv milestone new "my-feature"` - creates a new milestone + branch
-2. `/artifacts` -> `/generate` -> `/verify` -> `/implement` (by stages) -> `/validate`
+2. `/hlv-artifacts` -> `/hlv-generate` -> `/hlv-verify` -> `/hlv-implement` (by stages) -> `/hlv-validate`
 3. `hlv milestone done` - merge
 
 ### What if the contract is wrong?
@@ -511,7 +511,7 @@ Edit the markdown directly. A contract is just a regular `.md` file. After editi
 
 ```bash
 hlv check          # quick check
-/verify            # full verification
+/hlv-verify            # full verification
 ```
 
 Run `hlv doctor` first if the project was moved, generated files are missing, or commands fail before validation starts. It checks configured paths, command portability, cwd values, schema compatibility, and non-ASCII rendering.
@@ -519,9 +519,9 @@ Run `hlv doctor` first if the project was moved, generated files are missing, or
 ### What if implemented code needs to change?
 
 1. Update the contract
-2. `/verify` - checks that everything is aligned
-3. `/implement` - regenerates the affected tasks
-4. `/validate` - proves behavior is intact through the equivalence policy
+2. `/hlv-verify` - checks that everything is aligned
+3. `/hlv-implement` - regenerates the affected tasks
+4. `/hlv-validate` - proves behavior is intact through the equivalence policy
 
 ### What if `hlv check` shows warnings?
 
@@ -533,9 +533,9 @@ Use `hlv explain <CODE>` to see what a diagnostic means and common fixes:
 hlv explain CTR-060
 ```
 
-### Can I write code manually instead of using `/implement`?
+### Can I write code manually instead of using `/hlv-implement`?
 
-Yes. HLV does not force code generation. Contracts + validation specs are useful on their own as a specification and test plan. Write the code manually, then `/validate` will check it through the same gates.
+Yes. HLV does not force code generation. Contracts + validation specs are useful on their own as a specification and test plan. Write the code manually, then `/hlv-validate` will check it through the same gates.
 
 ### What if `hlv check` shows warnings that are too early to fix?
 
@@ -559,13 +559,13 @@ Waived diagnostics remain visible; expired and unmatched waivers fail audit.
 ### What should I do with open questions I do not know how to answer?
 
 Three options:
-- **Find out and answer** - best option. Use `/questions` (LLM-recommended) or `hlv dashboard` -> Questions (answer manually)
+- **Find out and answer** - best option. Use `/hlv-questions` (LLM-recommended) or `hlv dashboard` -> Questions (answer manually)
 - **Defer** - postpone it; does not block `check`, but produces a warning
-- **Leave it open** - blocks `/verify`; it must be resolved before implementation
+- **Leave it open** - blocks `/hlv-verify`; it must be resolved before implementation
 
 ### What is the minimum set of artifacts needed to start?
 
-One file in `tasks/` describing what to build. That is enough for `/generate`. More context gives better contracts, but you can start with the minimum.
+One file in `tasks/` describing what to build. That is enough for `/hlv-generate`. More context gives better contracts, but you can start with the minimum.
 
 ---
 
@@ -583,10 +583,10 @@ hlv milestone done           # merge milestone
 hlv milestone abort          # abort milestone
 
 # Context dump
-/artifacts                   # interactive interview
+/hlv-artifacts                   # interactive interview
 
 # Generation
-/generate                    # artifacts -> contracts + validation + stages
+/hlv-generate                    # artifacts -> contracts + validation + stages
 
 # Verification
 hlv doctor                   # environment and config preflight
@@ -594,7 +594,7 @@ hlv check                    # structural validation + run gate commands + const
 hlv check --watch            # same + watch
 hlv check --strict           # CI mode: warnings become errors
 hlv explain <CODE>           # explain a diagnostic and suggested fixes
-/verify                      # full verification (structure + semantics)
+/hlv-verify                      # full verification (structure + semantics)
 
 # Overview
 hlv status                   # milestone + stages
@@ -660,10 +660,10 @@ hlv trace --json
 hlv workflow --json
 
 # Implementation
-/implement                   # stage/plan -> code + tests + gate commands
+/hlv-implement                   # stage/plan -> code + tests + gate commands
 
 # Validation
-/validate                    # gates -> release decision
+/hlv-validate                    # gates -> release decision
 ```
 
 ### Upgrading existing projects

@@ -20,8 +20,8 @@ Code is a derived artifact. Contracts are also derived artifacts, generated from
 hlv milestone new "feature"
     │
     ▼
-/artifacts -> /generate -> /verify -> /implement (stage 1) -> /validate
-                                   /implement (stage 2) -> /validate
+/hlv-artifacts -> /hlv-generate -> /hlv-verify -> /hlv-implement (stage 1) -> /hlv-validate
+                                   /hlv-implement (stage 2) -> /hlv-validate
                                    ...
                                    -> hlv milestone done
 ```
@@ -182,17 +182,17 @@ The plan consists of `plan.md` (table of contents) + `stage_N.md` (tasks for eac
 - A stage is a unit of context (contracts + glossary + test specs < ~40K tokens)
 - Tasks inside a stage run by dependency graph (topological sort)
 - Stages run sequentially (`stage 1` -> `stage 2` -> ...)
-- `/implement` works on one stage at a time
+- `/hlv-implement` works on one stage at a time
 
 ### 3.6 Open Questions
 
-Questions the LLM could not infer from artifacts. These block `/verify`.
+Questions the LLM could not infer from artifacts. These block `/hlv-verify`.
 
 ---
 
 ## 4. Validation Layer (PROOF)
 
-Generated from contracts by `/generate`. Not written manually.
+Generated from contracts by `/hlv-generate`. Not written manually.
 
 ### 4.1 Test Specs
 
@@ -311,7 +311,7 @@ Every LLM agent MUST start by reading `project.yaml` (global configuration), the
 
 Status, contracts, plan, and questions live inside `human/milestones/{id}/`.
 
-Updated automatically after every `/generate` and `/verify`.
+Updated automatically after every `/hlv-generate` and `/hlv-verify`.
 
 ### 5.1a Artifact Dependency Graph
 
@@ -387,7 +387,7 @@ fn test_no_sql_injection() { ... }
 
 `@ctx` comments are navigation hints for the LLM. They help understand context quickly without reading the entire file. They are optional, but recommended for complex logic.
 
-`hlv check` automatically collects all IDs from `contracts/*.yaml` (`errors[].code`, `invariants[].id`) and `constraints/*.yaml` (`rules[].id`), then scans `src/` and `tests/` for markers. Rules with `check_command` are skipped (verified by their command via CST-050). Missing markers produce warning `CTR-010`; in phase `implemented` and later they block `/validate`.
+`hlv check` automatically collects all IDs from `contracts/*.yaml` (`errors[].code`, `invariants[].id`) and `constraints/*.yaml` (`rules[].id`), then scans `src/` and `tests/` for markers. Rules with `check_command` are skipped (verified by their command via CST-050). Missing markers produce warning `CTR-010`; in phase `implemented` and later they block `/hlv-validate`.
 
 ### 5.3 Agent Protocol
 
@@ -413,12 +413,12 @@ fn test_no_sql_injection() { ... }
 | Skill | Purpose | Input | Output |
 |-------|-----------|-------|--------|
 | `/init` | Scaffold a new HLV project | `--project`, `--owner`, `--agent` (comma-separated) | Directories, templates, `project.yaml`, `milestones.yaml`, `.{agent}/skills/` |
-| `/artifacts` | Interactive interview -> populate artifacts | artifacts dir | artifacts (tasks, infra, decisions, research) |
-| `/generate` | Artifacts -> Contracts + Validation + Plan + Gates coverage | artifacts | contracts, test-specs, `plan.md` + `stage_N.md`, traceability |
-| `/questions` | Interactive resolution of open questions with recommendations | `open-questions.md`, artifacts | `open-questions.md` |
-| `/verify` | Structure + semantics + coverage + gates<->contracts cross-check | Contracts, test specs, plan, gates-policy | `validation/verify-report.md` |
-| `/implement` | Stage -> Code + Tests (parallel agents). Also executes remediation tasks | `stage_N.md`, contracts | Configured code/test roots |
-| `/validate` | Run gates -> diagnostics -> FIX tasks or release. Two-phase: milestone gates -> global scenarios | Configured code/test roots, gate policies | `validation/validate-report.md`, FIX tasks |
+| `/hlv-artifacts` | Interactive interview -> populate artifacts | artifacts dir | artifacts (tasks, infra, decisions, research) |
+| `/hlv-generate` | Artifacts -> Contracts + Validation + Plan + Gates coverage | artifacts | contracts, test-specs, `plan.md` + `stage_N.md`, traceability |
+| `/hlv-questions` | Interactive resolution of open questions with recommendations | `open-questions.md`, artifacts | `open-questions.md` |
+| `/hlv-verify` | Structure + semantics + coverage + gates<->contracts cross-check | Contracts, test specs, plan, gates-policy | `validation/verify-report.md` |
+| `/hlv-implement` | Stage -> Code + Tests (parallel agents). Also executes remediation tasks | `stage_N.md`, contracts | Configured code/test roots |
+| `/hlv-validate` | Run gates -> diagnostics -> FIX tasks or release. Two-phase: milestone gates -> global scenarios | Configured code/test roots, gate policies | `validation/validate-report.md`, FIX tasks |
 
 All skills work through milestones (`milestones.yaml` with the `current` section).
 
@@ -426,29 +426,29 @@ All skills work through milestones (`milestones.yaml` with the `current` section
 
 Each skill does exactly one thing:
 
-- **`/generate`** - formalizes artifacts into contracts. Checks gate coverage: every gate from `gates-policy.yaml` MUST be covered by contracts or constraints.
-- **`/verify`** - validates artifacts and sets the stage status to `verified`. Cross-check: if a mandatory gate has no coverage in contracts/constraints, it is a CRITICAL issue.
-- **`/implement`** - executes plan tasks. No diagnostics - only code and tests.
-- **`/validate`** - diagnoses problems and plans fixes. No autonomous repair - only FIX tasks for `/implement`.
+- **`/hlv-generate`** - formalizes artifacts into contracts. Checks gate coverage: every gate from `gates-policy.yaml` MUST be covered by contracts or constraints.
+- **`/hlv-verify`** - validates artifacts and sets the stage status to `verified`. Cross-check: if a mandatory gate has no coverage in contracts/constraints, it is a CRITICAL issue.
+- **`/hlv-implement`** - executes plan tasks. No diagnostics - only code and tests.
+- **`/hlv-validate`** - diagnoses problems and plans fixes. No autonomous repair - only FIX tasks for `/hlv-implement`.
 
 ### Typical cycle
 
 ```
-/init -> /artifacts -> /generate -> /questions -> /verify -> fix -> /verify -> READY -> /implement -> /validate -> release
+/init -> /hlv-artifacts -> /hlv-generate -> /hlv-questions -> /hlv-verify -> fix -> /hlv-verify -> READY -> /hlv-implement -> /hlv-validate -> release
 ```
 
 ### Remediation loop (when gates fail)
 
 ```
-/validate (gates failed)
+/hlv-validate (gates failed)
     -> diagnostics + create FIX tasks in plan.groups
     -> status stays `validating`
-    -> /implement (executes only pending FIX tasks)
-    -> /validate (reruns failed gates)
+    -> /hlv-implement (executes only pending FIX tasks)
+    -> /hlv-validate (reruns failed gates)
     -> repeat until all gates pass -> release
 ```
 
-In this loop, the human only sees **decisions** (if `/validate` created an open question). Technical details (`pip install`, `cargo audit`, etc.) are hidden - tools are installed automatically.
+In this loop, the human only sees **decisions** (if `/hlv-validate` created an open question). Technical details (`pip install`, `cargo audit`, etc.) are hidden - tools are installed automatically.
 
 > Open questions can also be resolved through `hlv dashboard` -> Questions tab (`a` answer, `d` defer).
 
@@ -499,7 +499,7 @@ validation/
   gates-policy.yaml             # <- static
   waivers.yaml                  # <- explicit expiring diagnostic waivers
   scenarios/*.md                # <- cross-milestone integration tests
-  verify-report.md              # <- result of /verify
+  verify-report.md              # <- result of /hlv-verify
 
 llm/
   map.yaml                      # <- file navigator (`hlv check` validates it)
@@ -558,7 +558,7 @@ Architecture for managing constraint files in `human/constraints/`.
 
 **CRUD.** `hlv constraints add` creates a new YAML file from a `ConstraintFile` template. `add-rule` / `remove-rule` mutate the `rules[]` array inside an existing file. All operations follow: read file -> deserialize -> mutate -> serialize -> write. `add-rule --check-command` parses the portable command before saving, and `add-rule --check-cwd` verifies the path is project-relative and the directory exists before saving.
 
-**`hlv check` checks.** `CST-010` - file from `project.yaml -> constraints` not found. `CST-020` - duplicate `rule.id` values inside the file. `CST-030` - invalid `severity` or `error_level` value. `CST-050` - runs `check_command` for each constraint rule that has one; missing `check_cwd` is reported as a clear check failure. Severity is determined by the rule's `error_level` override, or mapped from rule severity (`critical`/`high` -> error, `medium`/`low` -> warning). `CST-060` - runs file-level `check_command` on the constraint file itself; missing `check_cwd` or command failure is always an error. `CST-010`/`020` are errors (block `/verify`), `CST-030` is a warning.
+**`hlv check` checks.** `CST-010` - file from `project.yaml -> constraints` not found. `CST-020` - duplicate `rule.id` values inside the file. `CST-030` - invalid `severity` or `error_level` value. `CST-050` - runs `check_command` for each constraint rule that has one; missing `check_cwd` is reported as a clear check failure. Severity is determined by the rule's `error_level` override, or mapped from rule severity (`critical`/`high` -> error, `medium`/`low` -> warning). `CST-060` - runs file-level `check_command` on the constraint file itself; missing `check_cwd` or command failure is always an error. `CST-010`/`020` are errors (block `/hlv-verify`), `CST-030` is a warning.
 
 **`hlv constraints check`.** Runs `check_command` for constraint rules with additional filters: `hlv constraints check <constraint>`, `--rule <id>`, `--json`. The same checks also run as part of `hlv check`.
 
@@ -624,7 +624,7 @@ HLV integrates with [Handoff](../../) to orchestrate parallel agents:
 
 | Handoff MCP Tool | When it is called | What it does |
 |------------------|-----------------|------------|
-| `handoff_register` | `/implement` - agent startup | Registers the agent, workspace, and task |
+| `handoff_register` | `/hlv-implement` - agent startup | Registers the agent, workspace, and task |
 | `handoff_check` | Before writing a file | Checks for conflicts with other agents |
 | `handoff_done` | Task completion | Signals completion and triggers change propagation |
 | `handoff_status` | Monitoring | Status of all agents and tasks |
@@ -641,8 +641,8 @@ Code is a third-order derived artifact: `artifacts -> contracts -> code`.
 Code is written for LLMs, not for humans. File names are arbitrary, `map.yaml` is the navigator, tests live next to code, and there are no layers.
 
 Three "compilations":
-1. **Artifacts -> Contracts + Validation** (`/generate`) - the LLM formalizes intent
-2. **Contracts -> Code** (`/implement`) - the LLM implements contracts
-3. **Code x Validation -> Release** (`/validate`) - CI/CD proves correctness
+1. **Artifacts -> Contracts + Validation** (`/hlv-generate`) - the LLM formalizes intent
+2. **Contracts -> Code** (`/hlv-implement`) - the LLM implements contracts
+3. **Code x Validation -> Release** (`/hlv-validate`) - CI/CD proves correctness
 
-If `/validate` finds problems, it creates FIX tasks in the plan and sends them back to `/implement`. The cycle repeats until all gates pass. In that loop, the human only makes decisions and does not perform technical actions.
+If `/hlv-validate` finds problems, it creates FIX tasks in the plan and sends them back to `/hlv-implement`. The cycle repeats until all gates pass. In that loop, the human only makes decisions and does not perform technical actions.

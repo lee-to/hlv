@@ -1,6 +1,6 @@
 ---
-name: validate
-description: Run all mandatory validation gates (from gates-policy.yaml) and produce a release decision. Use after /implement completes, when the user says "validate", "run gates", "check gates", or "release check".
+name: hlv-validate
+description: Run all mandatory validation gates (from gates-policy.yaml) and produce a release decision. Use after /hlv-implement completes, when the user says "validate", "run gates", "check gates", or "release check".
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Bash Agent
 metadata:
@@ -40,6 +40,19 @@ For adopted projects, run gates against the configured project commands and chan
 
 ❌ Wrong: `git checkout main && git pull`
 ✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ## Input
 
@@ -82,16 +95,16 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
 5. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
 6. **STATUS GATE (hard stop)**:
    - Allowed stage statuses to proceed: `implemented`, `validating`
-   - `implemented` — normal validation after /implement
+   - `implemented` — normal validation after /hlv-implement
    - `validating` — re-run, execute failed/skipped gates
    - `pending`, `verified`, or `implementing` — stage not ready:
      ```
-     STOP. Cannot run /validate.
+     STOP. Cannot run /hlv-validate.
 
      Current stage status: <status>
      Required: implemented
 
-     Finish /implement for this stage first.
+     Finish /hlv-implement for this stage first.
      ```
    - `validated` — this stage already passed, inform user
 7. Read `validation/gates-policy.yaml`
@@ -207,7 +220,7 @@ elif flaky tests detected:
 
 #### Step 4a: Create remediation plan
 
-`/validate` diagnoses problems and plans fixes. `/implement` executes them. Each skill has one job.
+`/hlv-validate` diagnoses problems and plans fixes. `/hlv-implement` executes them. Each skill has one job.
 
 **For each failed gate, classify and create remediation:**
 
@@ -232,7 +245,7 @@ Human decisions → add to `{MID}/open-questions.md`.
 1. **Gate failed — missing contract/constraint coverage** (e.g., OBS-001 requires observability but no contract mentions it):
    - Create or update the missing constraint (e.g., `human/constraints/observability.yaml`, schema: `schema/constraint-schema.json`) or add sections to contracts
    - Add remediation task(s)
-   - These tasks follow the same rules as normal plan tasks — `/implement` picks them up
+   - These tasks follow the same rules as normal plan tasks — `/hlv-implement` picks them up
 
 2. **Gate failed — bug in existing code** (tests fail, mutation score too low):
    - Add remediation tasks targeting the specific failures
@@ -242,23 +255,23 @@ Human decisions → add to `{MID}/open-questions.md`.
 
 4. **Gate requires a human decision** (e.g., gate conflicts with a decision in artifacts):
    - Add an open question to `{MID}/open-questions.md`
-   - This blocks the next `/implement` run until the human answers
+   - This blocks the next `/hlv-implement` run until the human answers
 
 #### Step 4b: Set status for next cycle
 
 After creating the remediation plan:
 
-Keep stage status as `validating` in `milestones.yaml` — `/implement` accepts this status and will execute only pending remediation tasks from the Remediation section of stage_N.md.
+Keep stage status as `validating` in `milestones.yaml` — `/hlv-implement` accepts this status and will execute only pending remediation tasks from the Remediation section of stage_N.md.
 
-The cycle becomes: `/validate` → `/implement` (runs remediation tasks) → `/validate` (re-runs failed gates)
-If open questions were added → human must answer first (via /questions or hlv dashboard), then `/implement` → `/validate`
+The cycle becomes: `/hlv-validate` → `/hlv-implement` (runs remediation tasks) → `/hlv-validate` (re-runs failed gates)
+If open questions were added → human must answer first (via /hlv-questions or hlv dashboard), then `/hlv-implement` → `/hlv-validate`
 
 ### Step 5: Output summary
 
 #### If all gates passed:
 
 ```
-=== /validate report (Stage N) ===
+=== /hlv-validate report (Stage N) ===
 
 Milestone: <milestone-id>
 Stage:     <N>/<total>
@@ -274,7 +287,7 @@ Cross-milestone integration: PASSED
 
 ## Decision
 Stage N VALIDATED.
-  → If more stages remain: run /implement for stage N+1
+  → If more stages remain: run /hlv-implement for stage N+1
   → If last stage: run `hlv milestone done` to merge
 ```
 
@@ -290,7 +303,7 @@ Added 2 FIX tasks to stage_N.md Remediation section:
   FIX-SEC-002  Update cryptography>=46.0.5             [application]
 
 ## Next steps
-Run /implement to execute remediation tasks, then /validate again.
+Run /hlv-implement to execute remediation tasks, then /hlv-validate again.
 ```
 
 #### If a human decision is needed:
@@ -304,10 +317,10 @@ RELEASE BLOCKED — needs your decision
    Do you want <requirement> added?
 
 ## Next steps
-Answer the question above (via /questions or hlv dashboard), then /implement → /validate.
+Answer the question above (via /hlv-questions or hlv dashboard), then /hlv-implement → /hlv-validate.
 ```
 
-**Key principle**: The output tells the human what to *decide*, never what to *execute*. `/validate` plans, `/implement` executes.
+**Key principle**: The output tells the human what to *decide*, never what to *execute*. `/hlv-validate` plans, `/hlv-implement` executes.
 
 ### Step 6: Update project files
 
@@ -319,7 +332,7 @@ Update `milestones.yaml` (schema: `schema/milestones-schema.json`):
 current.stages[N].status: validated
 
 # If remediation tasks were added (Step 4a):
-current.stages[N].status: validating   # /implement accepts this, runs pending remediation tasks
+current.stages[N].status: validating   # /hlv-implement accepts this, runs pending remediation tasks
 ```
 
 > **Important**: Gate definitions live in `validation/gates-policy.yaml` (single source of truth).
@@ -347,7 +360,7 @@ milestones.yaml               # updated stage status
 
 ## Re-run
 
-`/validate` can be run again after fixes:
+`/hlv-validate` can be run again after fixes:
 
 1. Re-runs only failed/skipped gates (by default)
 2. `--all` — re-runs all gates

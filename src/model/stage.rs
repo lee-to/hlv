@@ -1,4 +1,4 @@
-/// Parsed stage_N.md — the full context for /implement on one stage.
+/// Parsed stage_N.md — the full context for /hlv-implement on one stage.
 ///
 /// Format:
 /// ```markdown
@@ -20,7 +20,7 @@
 ///   output: llm/src/features/order_create/
 ///
 /// ## Remediation
-/// (filled by /validate on failures)
+/// (filled by /hlv-validate on failures)
 /// ```
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct StagePlan {

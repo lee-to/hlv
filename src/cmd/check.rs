@@ -18,6 +18,7 @@ use crate::model::waiver::{Waiver, WaiverFile};
 pub struct CheckOptions {
     pub strict: bool,
     pub with_waivers: bool,
+    pub emit_gate_progress: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -47,6 +48,7 @@ pub fn run(
     let options = CheckOptions {
         strict,
         with_waivers,
+        emit_gate_progress: !json && !style::is_quiet(),
     };
     if json {
         let report = get_check_report(project_root, options)?;
@@ -93,7 +95,8 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
     }
 
     if check::exit_code(&all_diags) == 0 && strictness != Strictness::Relaxed {
-        let gate_report = super::gates::run_gate_command_report(root, None, false)?;
+        let gate_report =
+            super::gates::run_gate_command_report(root, None, options.emit_gate_progress)?;
         all_diags.extend(gate_report.diagnostics);
     }
 

@@ -155,7 +155,7 @@ pub fn run(project_root: &Path, visual: bool, json: bool) -> Result<()> {
     }
 
     if current.stages.is_empty() {
-        style::hint("No stages yet. Run /generate to create them.");
+        style::hint("No stages yet. Run /hlv-generate to create them.");
         return Ok(());
     }
 

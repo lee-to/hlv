@@ -1,6 +1,6 @@
 ---
-name: implement
-description: Execute the implementation plan by assigning agents to tasks, generating code and tests from contracts. Agents work in parallel within stages. Use after /verify passes, when the user says "implement", "generate code", or "execute plan".
+name: hlv-implement
+description: Execute the implementation plan by assigning agents to tasks, generating code and tests from contracts. Agents work in parallel within stages. Use after /hlv-verify passes, when the user says "implement", "generate code", or "execute plan".
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Grep Bash Agent
 metadata:
@@ -23,6 +23,19 @@ Before proceeding, read `project.yaml → features` and note the flag values:
 
 These flags control which sections below are active. If `project.yaml` has no `features` section, use defaults: the first three booleans are `true`, `legacy_mode` is `false`, and `index_tracking` is `ignored`.
 If `features.legacy_mode` is `true`, also read `paths.code` and query the signature index with `hlv index show --json <symbol>` or `hlv index list --json --file <path>` before changing observed legacy code. Legacy code stays in place; only new/changed milestone work must follow the full contract and marker flow.
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ### Adopt Mode
 
@@ -59,7 +72,7 @@ This changes everything about how code is structured:
 
 ## Prerequisites
 
-- `/verify` passed without critical issues
+- `/hlv-verify` passed without critical issues
 - Plan contains tasks
 - All open questions closed (or deferred with waiver)
 
@@ -118,10 +131,10 @@ validation/
 6. **STATUS GATE (hard stop)**:
    - Read stage `status`
    - Allowed values to proceed: `pending`, `verified`, `implementing`, `validating`
-   - `pending` — implementation without prior /verify
-   - `verified` — normal implementation after /verify passed
+   - `pending` — implementation without prior /hlv-verify
+   - `verified` — normal implementation after /hlv-verify passed
    - `implementing` — re-run, continue from pending tasks
-   - `validating` — remediation: /validate found gate failures and added FIX tasks to stage_N.md Remediation section. Execute only pending remediation tasks.
+   - `validating` — remediation: /hlv-validate found gate failures and added FIX tasks to stage_N.md Remediation section. Execute only pending remediation tasks.
    - `implemented` or `validated` — this stage is done. Check if there's a next stage to advance to, or inform user.
 7. Update stage status → `implementing` in `milestones.yaml` (schema: `schema/milestones-schema.json`)
 8. Read `{MID}/stage_N.md` — load tasks for the current stage
@@ -133,7 +146,7 @@ validation/
 
 ### Step 2: Execute tasks
 
-`/implement` works on ONE stage at a time. The current stage is determined by `milestones.yaml → current.stage`.
+`/hlv-implement` works on ONE stage at a time. The current stage is determined by `milestones.yaml → current.stage`.
 
 Tasks within a stage execute based on their dependency graph (topological sort):
 - Tasks without unresolved `depends_on` → execute in parallel
@@ -156,7 +169,7 @@ Boundary: git commit after all stage tasks completed
 Update milestones.yaml: stage status → implemented
 ```
 
-After completing a stage, inform the user: "Stage N complete. Run `/validate` to check gates, or `/implement` for the next stage."
+After completing a stage, inform the user: "Stage N complete. Run `/hlv-validate` to check gates, or `/hlv-implement` for the next stage."
 
 ### Step 3: Agent protocol
 
@@ -237,7 +250,7 @@ Every agent MUST add structured logging to ALL generated code. This is not optio
 After all tasks in the current stage complete:
 
 ```
-=== /implement complete (Stage N) ===
+=== /hlv-implement complete (Stage N) ===
 
 Milestone:           <milestone-id>
 Stage:               <N>/<total>
@@ -245,7 +258,7 @@ Tasks completed:     <N>/<N>
 Files generated:     <N>
 Tests generated:     <N>
 
-Next step: run /validate to check gates for this stage
+Next step: run /hlv-validate to check gates for this stage
 ```
 
 ### Step 6: Update project files
@@ -396,7 +409,7 @@ it('masks PII in logs', () => { ... });
 2. Every `errors[].code` from every contract YAML must appear as `@hlv <code>` somewhere in `LLM_SRC` or `LLM_TESTS`.
 3. Every `invariants[].id` must appear as `@hlv <id>`.
 4. Every constraint `rules[].id` must appear as `@hlv <id>` — except rules that have `check_command` (they are verified programmatically, not via markers).
-5. `hlv check` reports missing markers as warnings (`CTR-010`). At `implemented` phase and later, these become hard warnings that block `/validate`. `hlv check` also runs `check_command` for rules that define one (CST-050/CST-060).
+5. `hlv check` reports missing markers as warnings (`CTR-010`). At `implemented` phase and later, these become hard warnings that block `/hlv-validate`. `hlv check` also runs `check_command` for rules that define one (CST-050/CST-060).
 
 ### Verification
 
@@ -414,7 +427,7 @@ $ hlv check
 > **Conditional: `features.security_markers: true`**
 > If `security_markers` is `false` in project.yaml, skip this entire section. No `@hlv:sec` markers are required and `hlv check` will not run SEC-010 diagnostics.
 
-When writing implementation code, mark security-sensitive spots with `@hlv:sec` markers. These are attention flags for heightened scrutiny during `/validate`.
+When writing implementation code, mark security-sensitive spots with `@hlv:sec` markers. These are attention flags for heightened scrutiny during `/hlv-validate`.
 
 ### Syntax
 
@@ -467,7 +480,7 @@ $ hlv check
 ## Error handling
 
 - Stage status not in allowed set (`pending`, `verified`, `implementing`, `validating`) → **hard stop** with guidance
-- Open questions remain → error: "Resolve open questions before /implement"
+- Open questions remain → error: "Resolve open questions before /hlv-implement"
 - Task dependency cycle detected → error: "Dependency cycle in plan: \<details\>"
 - File conflict between agents → block task, escalate to human
 - Context budget exceeded → warning: "Task \<id\> exceeds context budget. Consider splitting."
@@ -475,7 +488,7 @@ $ hlv check
 
 ## Re-run
 
-`/implement` can be run again:
+`/hlv-implement` can be run again:
 
 1. Skips tasks with `status: completed`
 2. Continues from first `pending` task

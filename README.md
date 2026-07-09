@@ -109,24 +109,24 @@ $ hlv milestone new add-payments
 ✓ Milestone created: add-payments
 
 # 2. Capture intent (AI-driven interview)
-$ /artifacts
+$ /hlv-artifacts
 ✓ Intent captured: 8 decisions recorded
 
 # 3. Generate specs
-$ /generate
+$ /hlv-generate
 ✓ Generated: contracts, plan (4 stages), gates-policy
 
 # 4. Resolve questions, verify, check
-$ /questions && /verify && hlv check
+$ /hlv-questions && /hlv-verify && hlv check
 ✓ All gates passed — ready to implement
 
 # 5. Implement stage by stage
-$ /implement
+$ /hlv-implement
 ◐ stage 1/4 ████████████████████ ✓ validated
   stage 2/4 ████████████░░░░░░░░ implementing
 
 # 6. Validate and ship
-$ /validate
+$ /hlv-validate
 ✓ All gates passed across all 4 stages
 
 $ hlv milestone done add-payments
@@ -222,12 +222,12 @@ Built-in skills drive the full development lifecycle:
 
 | Skill | What it does |
 |-------|-------------|
-| `/artifacts` | Interview to capture domain context, stack, and constraints |
-| `/generate` | Generate contracts, test specs, stages, and gates |
-| `/implement` | Implement one stage at a time with validation cycles |
-| `/validate` | Verify code against contracts, auto-create fix tasks on failure |
-| `/verify` | Cross-check contracts for completeness and consistency |
-| `/questions` | Surface open questions that block progress |
+| `/hlv-artifacts` | Interview to capture domain context, stack, and constraints |
+| `/hlv-generate` | Generate contracts, test specs, stages, and gates |
+| `/hlv-implement` | Implement one stage at a time with validation cycles |
+| `/hlv-validate` | Verify code against contracts, auto-create fix tasks on failure |
+| `/hlv-verify` | Cross-check contracts for completeness and consistency |
+| `/hlv-questions` | Surface open questions that block progress |
 
 Skills are installed automatically by `hlv init`.
 

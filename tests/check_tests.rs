@@ -2419,12 +2419,15 @@ fn init_creates_scaffold() {
     assert!(tmp.path().join("validation/gates-policy.yaml").exists());
     assert!(tmp
         .path()
-        .join(".claude/skills/artifacts/SKILL.md")
+        .join(".claude/skills/hlv-artifacts/SKILL.md")
         .exists());
-    assert!(tmp.path().join(".claude/skills/generate/SKILL.md").exists());
     assert!(tmp
         .path()
-        .join(".claude/skills/implement/SKILL.md")
+        .join(".claude/skills/hlv-generate/SKILL.md")
+        .exists());
+    assert!(tmp
+        .path()
+        .join(".claude/skills/hlv-implement/SKILL.md")
         .exists());
     assert!(!tmp.path().join(".claude/skills/init/SKILL.md").exists()); // init skill removed
                                                                         // First milestone created
@@ -2448,8 +2451,14 @@ fn init_installs_skills_for_multiple_agents() {
     )
     .unwrap();
 
-    assert!(tmp.path().join(".claude/skills/generate/SKILL.md").exists());
-    assert!(tmp.path().join(".codex/skills/generate/SKILL.md").exists());
+    assert!(tmp
+        .path()
+        .join(".claude/skills/hlv-generate/SKILL.md")
+        .exists());
+    assert!(tmp
+        .path()
+        .join(".codex/skills/hlv-generate/SKILL.md")
+        .exists());
     let hlv_md = fs::read_to_string(tmp.path().join("HLV.md")).unwrap();
     assert!(hlv_md.contains("`.claude/skills/`"));
     assert!(hlv_md.contains("`.codex/skills/`"));
@@ -2497,7 +2506,7 @@ fn init_different_agent() {
 
     assert!(tmp
         .path()
-        .join(".copilot/skills/generate/SKILL.md")
+        .join(".copilot/skills/hlv-generate/SKILL.md")
         .exists());
     assert!(!tmp.path().join(".claude/skills").exists());
 }

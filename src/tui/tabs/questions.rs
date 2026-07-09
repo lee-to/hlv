@@ -21,7 +21,7 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App) {
     app.set_scroll_limit(0);
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            "No open questions (run /generate to create them)",
+            "No open questions (run /hlv-generate to create them)",
             Style::default().fg(Color::DarkGray),
         )))
         .block(

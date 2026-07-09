@@ -1627,12 +1627,12 @@ Each contract maps to exactly one directory. No cross-contract imports except th
 
 After any change to contracts or code:
 1. `hlv check` must pass (structural validation)
-2. `/verify` must pass (semantic validation)
-3. `/validate` must pass before release (all mandatory gates from gates-policy.yaml)
+2. `/hlv-verify` must pass (semantic validation)
+3. `/hlv-validate` must pass before release (all mandatory gates from gates-policy.yaml)
 
 ### 2.5 No invented behavior
 
-If information is not in artifacts or contracts — do NOT invent it. Add an open question instead. Open questions block `/verify`.
+If information is not in artifacts or contracts — do NOT invent it. Add an open question instead. Open questions block `/hlv-verify`.
 
 ### 2.6 Tests are proof — with `@hlv` traceability
 
@@ -1684,34 +1684,34 @@ Every error from the contract's Errors table has an explicit code path. No catch
 
 | Skill | What it does | When to use |
 |-------|-------------|-------------|
-| `/artifacts` | Interactive interview → fills milestone artifacts/ | At project start or when adding features |
-| `/generate` | Artifacts → Contracts + Validation + Plan | After human adds artifacts |
-| `/questions` | Interactive resolution of open questions | After /generate if open questions exist |
-| `/verify` | Structural + semantic validation + gates coverage check | After /generate or manual edits |
-| `/implement` | Plan → Code + Tests (executes plan tasks) | After /verify passes, or after /validate adds remediation tasks |
-| `/validate` | Mandatory gates (from gates-policy.yaml) → Release decision or remediation plan | After /implement completes |
+| `/hlv-artifacts` | Interactive interview → fills milestone artifacts/ | At project start or when adding features |
+| `/hlv-generate` | Artifacts → Contracts + Validation + Plan | After human adds artifacts |
+| `/hlv-questions` | Interactive resolution of open questions | After /hlv-generate if open questions exist |
+| `/hlv-verify` | Structural + semantic validation + gates coverage check | After /hlv-generate or manual edits |
+| `/hlv-implement` | Plan → Code + Tests (executes plan tasks) | After /hlv-verify passes, or after /hlv-validate adds remediation tasks |
+| `/hlv-validate` | Mandatory gates (from gates-policy.yaml) → Release decision or remediation plan | After /hlv-implement completes |
 
 ### Separation of concerns
 
 Each skill has one job:
-- **`/generate`** — creates contracts, ensures gates-policy requirements are covered by contracts/constraints
-- **`/verify`** — validates everything is consistent, cross-checks gates vs contracts (catches gaps before /implement)
-- **`/implement`** — executes plan tasks (both initial and remediation). Never decides what to build — only builds what the plan says
-- **`/validate`** — runs gates, diagnoses failures. Never writes code — only creates FIX-tasks for /implement
+- **`/hlv-generate`** — creates contracts, ensures gates-policy requirements are covered by contracts/constraints
+- **`/hlv-verify`** — validates everything is consistent, cross-checks gates vs contracts (catches gaps before /hlv-implement)
+- **`/hlv-implement`** — executes plan tasks (both initial and remediation). Never decides what to build — only builds what the plan says
+- **`/hlv-validate`** — runs gates, diagnoses failures. Never writes code — only creates FIX-tasks for /hlv-implement
 
 ### Workflow
 
 ```
-/generate → /verify → /implement → /validate → release
+/hlv-generate → /hlv-verify → /hlv-implement → /hlv-validate → release
                           ↑              │
                           │  if blocked: │
                           │  FIX-* tasks │
                           └──────────────┘
 ```
 
-- **Happy path**: /generate → /verify → /implement → /validate → RELEASE APPROVED
-- **Gate failure**: /validate adds FIX-* remediation tasks to the plan → /implement executes them → /validate re-runs
-- **Human decision needed**: /validate adds open question → human answers → /implement → /validate
+- **Happy path**: /hlv-generate → /hlv-verify → /hlv-implement → /hlv-validate → RELEASE APPROVED
+- **Gate failure**: /hlv-validate adds FIX-* remediation tasks to the plan → /hlv-implement executes them → /hlv-validate re-runs
+- **Human decision needed**: /hlv-validate adds open question → human answers → /hlv-implement → /hlv-validate
 - **The human never runs technical commands.** The human writes artifacts, reviews contracts, and answers questions. Everything else is automated.
 
 ---
@@ -1963,8 +1963,8 @@ fn gates_policy_template_with_command(profile: GateProfile, gate_command: Option
     format!(
         r#"# yaml-language-server: $schema=../schema/gates-policy-schema.json
 # Gate profile: {profile}
-# /generate may adjust gates based on project analysis.
-# /implement sets `command` for each gate after code is generated.
+# /hlv-generate may adjust gates based on project analysis.
+# /hlv-implement sets `command` for each gate after code is generated.
 # Manage gates: hlv gates enable/disable/set-cmd/clear-cmd <GATE-ID>
 version: 1.0.0
 policy_id: HLV-VAL-GATES

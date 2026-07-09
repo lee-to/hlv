@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../schema/project-schema.json
 # HLV Project Map
 # Entry point for any LLM agent. Read this file first.
-# Updated automatically after /generate and /verify.
+# Updated automatically after /hlv-generate and /hlv-verify.
 
 schema_version: 1
 spec: schema/project-schema.json
@@ -11,7 +11,7 @@ updated_at: "2026-03-05T12:00:00Z"
 # --- Project State ---
 
 status: implementing  # draft | implementing | implemented | validating | validated
-last_skill: /verify
+last_skill: /hlv-verify
 last_skill_result: passed
 
 # --- Tech Stack ---

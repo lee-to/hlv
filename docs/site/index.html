@@ -593,13 +593,13 @@
             <div class="wf-pipeline">
               <div class="wf-node wf-node--cyan-bg">hlv milestone new</div>
               <div class="wf-arrow"></div>
-              <div class="wf-node"><span class="wf-node__cmd">/artifacts</span><span class="wf-node__sub">capture intent</span></div>
+              <div class="wf-node"><span class="wf-node__cmd">/hlv-artifacts</span><span class="wf-node__sub">capture intent</span></div>
               <div class="wf-arrow"></div>
-              <div class="wf-node"><span class="wf-node__cmd">/generate</span><span class="wf-node__sub">contracts · stages · gates</span></div>
+              <div class="wf-node"><span class="wf-node__cmd">/hlv-generate</span><span class="wf-node__sub">contracts · stages · gates</span></div>
               <div class="wf-arrow"></div>
-              <div class="wf-node"><span class="wf-node__cmd">/questions</span><span class="wf-node__sub">resolve open questions</span></div>
+              <div class="wf-node"><span class="wf-node__cmd">/hlv-questions</span><span class="wf-node__sub">resolve open questions</span></div>
               <div class="wf-arrow"></div>
-              <div class="wf-node"><span class="wf-node__cmd">/verify</span><span class="wf-node__sub">cross-check contracts</span></div>
+              <div class="wf-node"><span class="wf-node__cmd">/hlv-verify</span><span class="wf-node__sub">cross-check contracts</span></div>
               <div class="wf-arrow"></div>
               <div class="wf-node"><span class="wf-node__cmd">hlv check</span><span class="wf-node__sub">structural validation</span></div>
               <div class="wf-arrow"></div>
@@ -611,11 +611,11 @@
               <div class="wf-loop wf-loop--cyan">
                 <div class="wf-loop__header"><span class="wf-loop__dot wf-loop__dot--cyan"></span><span class="wf-loop__label wf-loop__label--cyan">STAGE LOOP</span></div>
                 <div class="wf-loop__body">
-                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/implement</span><span class="wf-node__sub">one stage at a time</span></div>
+                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/hlv-implement</span><span class="wf-node__sub">one stage at a time</span></div>
                   <div class="wf-arrow wf-arrow--cyan"></div>
                   <div class="wf-node wf-node--sm"><span class="wf-node__cmd wf-node__cmd--sm">hlv check</span></div>
                   <div class="wf-arrow wf-arrow--cyan"></div>
-                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/validate</span><span class="wf-node__sub">evaluate gates</span></div>
+                  <div class="wf-node wf-node--border-cyan"><span class="wf-node__cmd">/hlv-validate</span><span class="wf-node__sub">evaluate gates</span></div>
                   <div class="wf-arrow wf-arrow--cyan"></div>
                   <div class="wf-gate">gates pass?</div>
                   <div class="wf-gate-branches">
@@ -636,9 +636,9 @@
                 <div class="wf-loop__body">
                   <div class="wf-node wf-node--border-red"><span class="wf-node__cmd wf-node__cmd--red">FIX tasks</span><span class="wf-node__sub">auto-generated</span></div>
                   <div class="wf-arrow wf-arrow--red"></div>
-                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/implement</span></div>
+                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/hlv-implement</span></div>
                   <div class="wf-arrow wf-arrow--red"></div>
-                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/validate</span></div>
+                  <div class="wf-node wf-node--border-red wf-node--sm"><span class="wf-node__cmd wf-node__cmd--red">/hlv-validate</span></div>
                 </div>
               </div>
             </div>
@@ -653,7 +653,7 @@
             <article class="wf-card">
               <div class="wf-card__header"><span class="wf-card__dot wf-card__dot--red"></span><span class="wf-card__kicker wf-card__kicker--red">REMEDIATION LOOP</span></div>
               <h3 class="wf-card__title">Self-correcting failures</h3>
-              <p class="wf-card__desc">When /validate finds gate failures, FIX tasks are generated automatically. /implement executes the fixes, /validate re-runs — the loop repeats until all gates pass.</p>
+              <p class="wf-card__desc">When /hlv-validate finds gate failures, FIX tasks are generated automatically. /hlv-implement executes the fixes, /hlv-validate re-runs — the loop repeats until all gates pass.</p>
             </article>
             <article class="wf-card">
               <div class="wf-card__header"><span class="wf-card__dot wf-card__dot--slate"></span><span class="wf-card__kicker wf-card__kicker--slate">HLV CHECK</span></div>
@@ -704,7 +704,7 @@
                   An interactive interview captures what you want — first global context (domain, stack, constraints), then milestone-specific features and decisions.
                 </p>
                 <div class="walk-term">
-                  <pre class="walk-term__cmd"><code>$ /artifacts</code></pre>
+                  <pre class="walk-term__cmd"><code>$ /hlv-artifacts</code></pre>
                   <pre class="walk-term__out"><code>◐ Interview started for add-payments
   ── Global artifacts (shared) ──
   ✓ context.md exists, skipping
@@ -730,7 +730,7 @@
                   Structured artifacts generated from captured intent — contracts, test specs, and a full implementation file tree.
                 </p>
                 <div class="walk-term">
-                  <pre class="walk-term__cmd"><code>$ /generate</code></pre>
+                  <pre class="walk-term__cmd"><code>$ /hlv-generate</code></pre>
                   <pre class="walk-term__out"><code>✓ Generated artifacts:
   ├── contracts/payment-api.contract.yaml
   ├── contracts/payment-flow.contract.yaml
@@ -754,8 +754,8 @@
                   Surface open questions that block progress, then cross-check generated specs for consistency and run structural validation.
                 </p>
                 <div class="walk-term">
-                  <pre class="walk-term__cmd"><code>$ /questions
-$ /verify
+                  <pre class="walk-term__cmd"><code>$ /hlv-questions
+$ /hlv-verify
 $ hlv check</code></pre>
                   <pre class="walk-term__out"><code>◐ Open questions for add-payments
   Q: Max retry delay for failed charges?
@@ -784,7 +784,7 @@ $ hlv check</code></pre>
                   The LLM implements against the spec, one bounded stage at a time. Drift is caught at every boundary.
                 </p>
                 <div class="walk-term">
-                  <pre class="walk-term__cmd"><code>$ /implement
+                  <pre class="walk-term__cmd"><code>$ /hlv-implement
 $ hlv workflow</code></pre>
                   <pre class="walk-term__out"><code>◐ Milestone: add-payments
   Phase: implementing
@@ -793,7 +793,7 @@ $ hlv workflow</code></pre>
   stage 3/4  ○ pending
   stage 4/4  ○ pending
 
-  Next: finish stage 2, then /validate</code></pre>
+  Next: finish stage 2, then /hlv-validate</code></pre>
                 </div>
                 <p class="walk-step__callout">
                   The harness holds — every stage validated before the next begins.
@@ -811,7 +811,7 @@ $ hlv workflow</code></pre>
                   Final validation confirms every requirement is met, every gate passes. Ship with confidence.
                 </p>
                 <div class="walk-term">
-                  <pre class="walk-term__cmd"><code>$ /validate</code></pre>
+                  <pre class="walk-term__cmd"><code>$ /hlv-validate</code></pre>
                   <pre class="walk-term__out"><code>✓ Contract compliance     PASSED
 ✓ Test specs executed      PASSED  (47/47)
 ✓ Traceability verified    PASSED

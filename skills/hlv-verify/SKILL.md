@@ -1,6 +1,6 @@
 ---
-name: verify
-description: Validate contracts, validation specs, plan, and project map. Runs structural checks and LLM cross-review, then produces a verify report. Use after /generate or after manual edits to contracts, when the user says "verify", "check", or "validate structure".
+name: hlv-verify
+description: Validate contracts, validation specs, plan, and project map. Runs structural checks and LLM cross-review, then produces a verify report. Use after /hlv-generate or after manual edits to contracts, when the user says "verify", "check", or "validate structure".
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Bash
 metadata:
@@ -26,6 +26,19 @@ Validate contracts, validation specs, and plan. Structural checks (deterministic
 
 ❌ Wrong: `git checkout main && git pull`
 ✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ## Milestone Resolution
 
@@ -160,11 +173,11 @@ For each gate defined in `gates-policy.yaml` (the file is the single source of t
 - If a mandatory gate has NO coverage in contracts/constraints → **CRITICAL issue**:
   ```
   [GATES] <GATE-ID> requires <requirement> but no contract or constraint
-  covers it. /implement cannot generate code for this gate.
+  covers it. /hlv-implement cannot generate code for this gate.
   Add coverage to contracts or create a constraint.
   ```
 
-This check prevents the validate→verify→implement→validate infinite loop: if gates require something that contracts don't cover, /implement will never produce the code, and /validate will always fail.
+This check prevents the validate→verify→implement→validate infinite loop: if gates require something that contracts don't cover, /hlv-implement will never produce the code, and /hlv-validate will always fail.
 
 #### 1h. Open questions
 
@@ -172,8 +185,8 @@ Check `{MID}/open-questions.md`:
 
 - [ ] No `open` questions remain (`[ ]` in open-questions.md)
 - `open` questions → BLOCKER, do not proceed
-- `deferred` questions → WARNING, does not block /implement
-- `resolved` questions → WARNING if still present (should have been pruned by /generate)
+- `deferred` questions → WARNING, does not block /hlv-implement
+- `resolved` questions → WARNING if still present (should have been pruned by /hlv-generate)
 
 ### Step 2: LLM cross-review (semantic)
 
@@ -220,7 +233,7 @@ LLM validates content correctness. For each check — verdict and rationale.
 Generate structured report:
 
 ```
-=== /verify report ===
+=== /hlv-verify report ===
 
 ## Structure Validation
 Contracts:     <N>/<N> valid    pass/fail
@@ -238,7 +251,7 @@ Coverage:      <N>/<N> artifacts covered
 
 ## Issues
 
-### Critical (blocks /implement)
+### Critical (blocks /hlv-implement)
 1. [CONTRACT] order.cancel expects status `pending` but order.create
    returns `created` — inconsistent state machine
 2. [TRACE] REQ-ORDER-003 has no test mapping
@@ -251,7 +264,7 @@ Coverage:      <N>/<N> artifacts covered
 1. [PLAN] Task 3 and Task 4 could be parallelized (no shared deps)
 
 ## Verdict
-READY for /implement
+READY for /hlv-implement
 — or —
 NEEDS FIXES — <N> critical issues, <N> warnings
 ```
@@ -265,29 +278,29 @@ NEEDS FIXES — <N> critical issues, <N> warnings
 
 If all checks pass (no errors, only warnings or info):
 - Update `milestones.yaml` (schema: `schema/milestones-schema.json`): set current stage status → `verified`
-- This signals that contracts are verified and ready for `/implement`
+- This signals that contracts are verified and ready for `/hlv-implement`
 
 If there are errors:
 - Do NOT update status — stage remains `pending`
 - List all errors and suggest fixes
 
-`/verify` acts as a quality gate between `/generate` and `/implement`. The stage must be `pending` or `verified` for `/implement` to proceed.
+`/hlv-verify` acts as a quality gate between `/hlv-generate` and `/hlv-implement`. The stage must be `pending` or `verified` for `/hlv-implement` to proceed.
 
 ## Re-run
 
-`/verify` can be run repeatedly. Each run:
+`/hlv-verify` can be run repeatedly. Each run:
 1. Overwrites `verify-report.md`
 2. Shows diff with previous run (issues fixed, new issues)
 
-## Integration with /generate
+## Integration with /hlv-generate
 
 Typical cycle:
 
 ```
-/generate → /verify → fix issues → /verify → fix → /verify → READY
+/hlv-generate → /hlv-verify → fix issues → /hlv-verify → fix → /hlv-verify → READY
 ```
 
-`/verify` never modifies contracts or plan. It only reads and reports.
+`/hlv-verify` never modifies contracts or plan. It only reads and reports.
 
 ## Cleanup
 
@@ -295,5 +308,5 @@ After the skill completes:
 1. Run `hlv doctor` to validate the environment and configuration.
 2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
 3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
-4. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
+4. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/hlv-questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
 5. Suggest the user run `/clear` to free up context window before the next skill.

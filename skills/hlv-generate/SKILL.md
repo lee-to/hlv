@@ -1,5 +1,5 @@
 ---
-name: generate
+name: hlv-generate
 description: Generate contracts, validation specs, and implementation plan from milestone artifacts. Use when the user has added requirements to milestone artifacts/ and wants to formalize them into contracts, or says "generate", "create contracts", or "formalize requirements".
 disable-model-invocation: true
 allowed-tools: Read Write Edit Glob Grep
@@ -24,6 +24,19 @@ Transform free-form human artifacts into structured contracts, validation specif
 
 ❌ Wrong: `git checkout main && git pull`
 ✅ Right: Two separate Bash tool calls — first `git checkout main`, then `git pull`
+
+## HLV Root Resolution
+
+Before reading or reporting missing HLV files, resolve the project layout:
+
+1. If `project.yaml` exists in the current project root, use greenfield layout: `CONFIG_ROOT = .`, `REPO_ROOT = .`.
+2. Else if `.hlv/project.yaml` exists, use adopted layout: `CONFIG_ROOT = .hlv`, `REPO_ROOT = .`.
+3. Else search upward for either `project.yaml` or `.hlv/project.yaml`.
+4. Read `CONFIG_ROOT/project.yaml` first. HLV-owned paths such as `human/`, `validation/`, `llm/`, and `milestones.yaml` are relative to `CONFIG_ROOT`.
+5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
+6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
+
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
 
 ## Milestone Context
 
@@ -59,7 +72,7 @@ human/
     test-specs/*.md          # existing test specs
 ```
 
-An artifact is any file in any format (MD, TXT, YAML, SQL, PNG). No structure requirements — the human writes however they prefer. Artifacts may have been created manually or via the `/artifacts` interactive interview (which produces structured markdown in the same directories).
+An artifact is any file in any format (MD, TXT, YAML, SQL, PNG). No structure requirements — the human writes however they prefer. Artifacts may have been created manually or via the `/hlv-artifacts` interactive interview (which produces structured markdown in the same directories).
 
 **Read both levels**: global `human/artifacts/` provides project-wide context (domain, users, tech stack, architectural decisions). Milestone `{MID}/artifacts/` provides feature-specific context. Both inform contract generation.
 
@@ -281,7 +294,7 @@ Create `{MID}/plan.md` — lightweight overview with stage table. Then create `{
 Stage 2 uses types from Stage 1
 ```
 
-**stage_N.md** (self-contained context for /implement):
+**stage_N.md** (self-contained context for /hlv-implement):
 ```markdown
 # Stage N: <scope> (~<budget>K)
 
@@ -301,7 +314,7 @@ TASK-002 <name>
   output: {paths.llm.tests or selected paths.code.tests}integration/
 
 ## Remediation
-(filled by /validate when gates fail)
+(filled by /hlv-validate when gates fail)
 
 ## Commit Points
 <!-- hlv:commit-hint -->
@@ -374,7 +387,7 @@ After adding or changing artifact frontmatter, run `hlv artifacts sync` to mater
 ### Step 9: Output summary
 
 ```
-=== /generate complete ===
+=== /hlv-generate complete ===
 
 Artifacts scanned:    <N>
 Glossary entities:    <N> new, <N> updated
@@ -383,14 +396,14 @@ Validation specs:     <N> test-specs, <N> scenarios
 Plan:                 <N> tasks in <N> parallel groups
 
 Questions pruned:     <N> resolved (incorporated into contracts)
-Open Questions:       <N> open (BLOCKERS — resolve before /verify)
+Open Questions:       <N> open (BLOCKERS — resolve before /hlv-verify)
   - [ ] <question> — source: <artifact>
 Deferred Questions:   <N> (won't block — warnings only)
   - [deferred] <question> — source: <artifact>
 
 Next step:
-  - If open questions remain → resolve them (/questions or hlv dashboard), then /generate again
-  - If only deferred → run /verify (deferred = warning, not blocker)
+  - If open questions remain → resolve them (/hlv-questions or hlv dashboard), then /hlv-generate again
+  - If only deferred → run /hlv-verify (deferred = warning, not blocker)
 ```
 
 ## Incremental mode
@@ -405,7 +418,7 @@ If contracts already exist in `{MID}/contracts/`, switch to incremental mode aut
 
 ## Error handling
 
-- Empty `artifacts/` (both global and milestone) → error: "No artifacts found. Run /artifacts first or add files to human/artifacts/ and milestone artifacts/."
+- Empty `artifacts/` (both global and milestone) → error: "No artifacts found. Run /hlv-artifacts first or add files to human/artifacts/ and milestone artifacts/."
 - All questions open, no contracts generated → warning: "Not enough context to generate contracts. Add more artifacts."
 - Conflict between artifacts → add to Open Questions with quotes from both sources
 

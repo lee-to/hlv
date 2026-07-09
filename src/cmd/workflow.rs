@@ -82,8 +82,8 @@ pub fn get_workflow(project_root: &Path) -> Result<WorkflowData> {
             phase_name: "Artifacts".to_string(),
             stages: Vec::new(),
             next_actions: vec![
-                "Add artifacts or run /artifacts".to_string(),
-                "Then run /generate".to_string(),
+                "Add artifacts or run /hlv-artifacts".to_string(),
+                "Then run /hlv-generate".to_string(),
             ],
         });
     }
@@ -145,7 +145,7 @@ pub fn get_workflow(project_root: &Path) -> Result<WorkflowData> {
     if let Some(s) = active_stage {
         match s.status {
             StageStatus::Pending | StageStatus::Verified => {
-                next_actions.push("Run /implement to start this stage".to_string());
+                next_actions.push("Run /hlv-implement to start this stage".to_string());
             }
             StageStatus::Implementing => {
                 next_actions.push("Implementation in progress".to_string());
@@ -154,11 +154,11 @@ pub fn get_workflow(project_root: &Path) -> Result<WorkflowData> {
                 }
             }
             StageStatus::Implemented => {
-                next_actions.push("Run /validate".to_string());
+                next_actions.push("Run /hlv-validate".to_string());
                 next_actions.push("Found issues? → hlv stage reopen or hlv task add".to_string());
             }
             StageStatus::Validating => {
-                next_actions.push("Run /implement for remediation".to_string());
+                next_actions.push("Run /hlv-implement for remediation".to_string());
                 if !s.tasks.is_empty() && s.tasks.iter().all(|t| t.status == TaskStatus::Done) {
                     next_actions.push("All tasks done — consider advancing the stage".to_string());
                 }
@@ -229,11 +229,11 @@ fn run_milestone(project_root: &Path) -> Result<()> {
             current.id
         );
         println!(
-            "    {} Or run /artifacts for interactive interview",
+            "    {} Or run /hlv-artifacts for interactive interview",
             "→".cyan()
         );
         println!(
-            "    {} Then run /generate to create contracts + stages",
+            "    {} Then run /hlv-generate to create contracts + stages",
             "→".cyan()
         );
         println!();
@@ -325,11 +325,11 @@ fn run_milestone(project_root: &Path) -> Result<()> {
 fn print_milestone_diagram(current_phase: u8) {
     println!();
     let milestone_phases = [
-        ("1", "Artifacts", "/artifacts"),
-        ("2", "Generate", "/generate"),
-        ("3", "Verify", "/verify"),
-        ("4", "Implement", "/implement"),
-        ("5", "Validate", "/validate"),
+        ("1", "Artifacts", "/hlv-artifacts"),
+        ("2", "Generate", "/hlv-generate"),
+        ("3", "Verify", "/hlv-verify"),
+        ("4", "Implement", "/hlv-implement"),
+        ("5", "Validate", "/hlv-validate"),
     ];
 
     let mut names = String::new();
@@ -373,22 +373,22 @@ fn print_milestone_next_actions(current: &crate::model::milestone::MilestoneCurr
         Some(s) => {
             match s.status {
                 StageStatus::Pending => {
-                    action("Run /implement to start this stage");
+                    action("Run /hlv-implement to start this stage");
                 }
                 StageStatus::Verified => {
-                    action("Run /implement to start this stage");
+                    action("Run /hlv-implement to start this stage");
                 }
                 StageStatus::Implementing => {
-                    action("Implementation in progress — wait for /implement to finish");
-                    hint("Or run /implement to continue if interrupted");
+                    action("Implementation in progress — wait for /hlv-implement to finish");
+                    hint("Or run /hlv-implement to continue if interrupted");
                 }
                 StageStatus::Implemented => {
-                    action("Run /validate to prove correctness of this stage");
+                    action("Run /hlv-validate to prove correctness of this stage");
                     hint("Found issues? → hlv stage reopen <N> or hlv task add --stage <N> <ID> <name>");
                 }
                 StageStatus::Validating => {
-                    action("Validation found issues — run /implement for remediation tasks");
-                    hint("Then /validate again to re-check");
+                    action("Validation found issues — run /hlv-implement for remediation tasks");
+                    hint("Then /hlv-validate again to re-check");
                 }
                 StageStatus::Validated => {
                     // Current stage validated — check if more stages
@@ -402,7 +402,7 @@ fn print_milestone_next_actions(current: &crate::model::milestone::MilestoneCurr
                                 "Stage {} validated. Advance to stage {}: {}",
                                 s.id, ns.id, ns.scope
                             ));
-                            hint("Run /implement (new context window) for next stage");
+                            hint("Run /hlv-implement (new context window) for next stage");
                         }
                         None => {
                             let all_validated = current
