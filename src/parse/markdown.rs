@@ -212,7 +212,7 @@ fn first_test_id_token(text: &str) -> Option<String> {
         .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
         .collect::<String>();
 
-    let prefixes = ["CT-", "PBT-", "EC-", "PERF-", "SEC-", "TST-"];
+    let prefixes = ["CT-", "PBT-", "IT-", "EC-", "PERF-", "SEC-", "TST-"];
     if prefixes.iter().any(|prefix| candidate.starts_with(prefix))
         && candidate.len() > candidate.find('-').unwrap_or(0) + 1
     {
@@ -352,6 +352,20 @@ pub fn parse_header(md: &str) -> (String, String, Option<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_extract_integration_test_id_from_heading() {
+        let md = "## Integration Tests\n\n### IT-CHECKOUT-001: Complete checkout\n";
+
+        assert_eq!(extract_test_ids(md), vec!["IT-CHECKOUT-001"]);
+    }
+
+    #[test]
+    fn test_extract_integration_test_id_from_bullet() {
+        let md = "## Integration Tests\n\n- **IT-CHECKOUT-001** Complete checkout\n";
+
+        assert_eq!(extract_test_ids(md), vec!["IT-CHECKOUT-001"]);
+    }
 
     #[test]
     fn test_extract_yaml_blocks() {

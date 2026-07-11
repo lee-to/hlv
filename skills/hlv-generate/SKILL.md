@@ -203,7 +203,11 @@ Use one Markdown table row per property. Put the test ID in the first cell.
 
 ## Integration Tests
 For cross-contract scenarios:
-- scenario, contracts, steps, expected behavior
+Use one Markdown table row per scenario. Put the test ID in the first cell.
+
+| ID | Scenario | Contracts | Steps | Expected | Gate |
+|----|----------|-----------|-------|----------|------|
+| IT-<SCENARIO>-001 | <scenario name> | <contract IDs> | <step summary> | <expected behavior> | GATE-INTEGRATION-001 |
 
 ## Performance Tests
 From NFR section of contract:

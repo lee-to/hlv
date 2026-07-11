@@ -1308,6 +1308,50 @@ derived_from: c.md
 }
 
 #[test]
+fn traceability_accepts_integration_tests_declared_in_markdown_table() {
+    let tmp = TempDir::new().unwrap();
+    write_traceability(
+        tmp.path(),
+        r#"
+schema_version: 1
+requirements:
+  - id: REQ-001
+    statement: "Complete checkout"
+mappings:
+  - requirement: REQ-001
+    contracts: [order.create]
+    tests: [IT-CHECKOUT-001]
+    runtime_gates: []
+"#,
+    );
+
+    fs::create_dir_all(tmp.path().join("validation/test-specs")).unwrap();
+    fs::write(
+        tmp.path().join("validation/test-specs/order.create.md"),
+        r#"# Test Spec
+
+derived_from: c.md
+
+## Integration Tests
+
+| ID | Scenario | Contracts | Expected | Gate |
+|----|----------|-----------|----------|------|
+| IT-CHECKOUT-001 | Complete checkout | cart.checkout, order.create | Order created | GATE-INTEGRATION-001 |
+"#,
+    )
+    .unwrap();
+
+    let mut entry = make_entry("order.create", "c.md");
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let diags = check_traceability(tmp.path(), "human/traceability.yaml", &[entry]);
+    assert!(
+        !has_warning(&diags, "TRC-022"),
+        "table-declared integration test IDs should resolve traceability mappings: {:?}",
+        diags
+    );
+}
+
+#[test]
 fn traceability_unknown_contract_error() {
     let tmp = TempDir::new().unwrap();
     write_traceability(

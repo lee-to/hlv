@@ -247,13 +247,14 @@ For each contract, a complete set of tests mapped to gates.
 |-----------------|--------------|----------------|
 | **Contract Tests** (CT-*) | Every happy path and error case from the contract | Examples, Errors sections |
 | **Property-Based Tests** (PBT-*) | Every invariant across >=10,000 generations | Invariants section |
+| **Integration Tests** (IT-*) | Cross-contract behavior and workflows | Cross-contract scenarios |
 | **Edge Case Tests** (EC-*) | Boundary situations: concurrent access, duplicates | Edge Cases section |
 | **Performance Tests** (PERF-*) | p99 latency, query time under load | NFR section |
 | **Security Tests** (SEC-*) | SQL injection, auth, PII masking | Security section |
 | **Gate Mappings** | Mapping every test to a gate | - |
 
 Each test includes: Input, Expected, Assertions, Gate.
-`hlv check` recognizes test IDs declared as `### CT-*:` headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell.
+`hlv check` recognizes `CT-*`, `PBT-*`, `IT-*`, `EC-*`, `PERF-*`, `SEC-*`, and `TST-*` test IDs declared as headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell.
 
 Files: `order.create.md`, `order.cancel.md`
 

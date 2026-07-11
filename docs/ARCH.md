@@ -207,12 +207,13 @@ validation/test-specs/
 Contains:
 - **Contract Tests**: for every error case and happy path from the contract
 - **Property-Based Tests**: for every invariant (>=10,000 generations)
+- **Integration Tests**: for cross-contract scenarios
 - **Edge Case Tests**: for every edge case from the contract
 - **Performance Tests**: from the NFR section
 - **Security Tests**: from the Security section
 - **Gate Mappings**: mapping each test to a gate
 
-Test IDs are declared as `### CT-*:` headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell. The same parser feeds `TST-*` validation and `TRC-022` traceability resolution.
+Test IDs use the `CT-*`, `PBT-*`, `IT-*`, `EC-*`, `PERF-*`, `SEC-*`, or `TST-*` prefix and are declared as headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell. The same parser feeds `TST-*` validation and `TRC-022` traceability resolution.
 
 ### 4.2 Scenarios
 
