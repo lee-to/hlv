@@ -183,6 +183,12 @@ enum Commands {
         /// Only check for updates, don't install
         #[arg(long)]
         check: bool,
+        /// Update only the HLV binary, without synchronizing project files
+        #[arg(long, conflicts_with = "project_only")]
+        binary_only: bool,
+        /// Synchronize project files from the installed binary, without network access
+        #[arg(long, conflicts_with = "binary_only")]
+        project_only: bool,
     },
     /// Manage MCP workspace (multi-project config)
     Workspace {
@@ -662,9 +668,15 @@ fn run(cli: Cli) -> Result<()> {
         );
     }
 
-    // Update doesn't need a project root
-    if let Commands::Update { check } = cli.command {
-        return hlv::cmd::update::run(check);
+    // Update may run outside a project; when a project is available it also
+    // synchronizes files managed by the installed HLV version.
+    if let Commands::Update {
+        check,
+        binary_only,
+        project_only,
+    } = &cli.command
+    {
+        return hlv::cmd::update::run(*check, *binary_only, *project_only, cli.root.as_deref());
     }
 
     // Explain doesn't need a project root

@@ -11,6 +11,75 @@ use crate::model::project::ProjectMap;
 
 static EMBEDDED_SKILLS: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills");
 
+fn embedded_schemas() -> &'static [(&'static str, &'static str)] {
+    &[
+        (
+            "schema/project-schema.json",
+            include_str!("../../schema/project-schema.json"),
+        ),
+        (
+            "schema/glossary-schema.json",
+            include_str!("../../schema/glossary-schema.json"),
+        ),
+        (
+            "schema/gates-policy-schema.json",
+            include_str!("../../schema/gates-policy-schema.json"),
+        ),
+        (
+            "schema/equivalence-policy-schema.json",
+            include_str!("../../schema/equivalence-policy-schema.json"),
+        ),
+        (
+            "schema/traceability-policy-schema.json",
+            include_str!("../../schema/traceability-policy-schema.json"),
+        ),
+        (
+            "schema/ir-policy-schema.json",
+            include_str!("../../schema/ir-policy-schema.json"),
+        ),
+        (
+            "schema/adversarial-guardrails-schema.json",
+            include_str!("../../schema/adversarial-guardrails-schema.json"),
+        ),
+        (
+            "schema/security-constraints-schema.json",
+            include_str!("../../schema/security-constraints-schema.json"),
+        ),
+        (
+            "schema/performance-constraints-schema.json",
+            include_str!("../../schema/performance-constraints-schema.json"),
+        ),
+        (
+            "schema/llm-map-schema.json",
+            include_str!("../../schema/llm-map-schema.json"),
+        ),
+        (
+            "schema/traceability-schema.json",
+            include_str!("../../schema/traceability-schema.json"),
+        ),
+        (
+            "schema/contract-schema.json",
+            include_str!("../../schema/contract-schema.json"),
+        ),
+        (
+            "schema/constraint-schema.json",
+            include_str!("../../schema/constraint-schema.json"),
+        ),
+        (
+            "schema/milestones-schema.json",
+            include_str!("../../schema/milestones-schema.json"),
+        ),
+        (
+            "schema/waivers-schema.json",
+            include_str!("../../schema/waivers-schema.json"),
+        ),
+        (
+            "schema/signatures-schema.json",
+            include_str!("../../schema/signatures-schema.json"),
+        ),
+    ]
+}
+
 /// Framework/package manifests that indicate an existing codebase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdoptManifestKind {
@@ -321,6 +390,61 @@ fn push_unique(items: &mut Vec<String>, item: String) {
     }
 }
 
+/// Refresh files owned by the installed HLV version without changing project data.
+pub fn sync_managed_files(
+    root: &Path,
+    project_override: Option<&str>,
+    agent_override: Option<&str>,
+) -> Result<()> {
+    anyhow::ensure!(
+        crate::has_project_config(root),
+        "No project.yaml or .hlv/project.yaml found at {}",
+        root.display()
+    );
+
+    let project_context = crate::ProjectContext::from_root(root);
+    let config_root = project_context.hlv_root();
+    let project_name = if let Some(project) = project_override {
+        project.to_string()
+    } else {
+        ProjectMap::load(&config_root.join("project.yaml"))?.project
+    };
+    let agent_names = if let Some(agents) = agent_override {
+        parse_agent_names(agents)?
+    } else {
+        detect_agents(root)?
+    };
+    let skills_dirs = skills_dirs(&agent_names);
+
+    tracing::debug!(
+        repo_root = %root.display(),
+        config_root = %config_root.display(),
+        agents = ?agent_names,
+        "Synchronizing HLV-managed project files"
+    );
+    style::hint(&format!(
+        "updating skills, HLV.md, and schemas (agents: {})",
+        agent_names.join(", ").bold(),
+    ));
+
+    write_embedded_skills(root, &skills_dirs, true)?;
+    write_or_update(
+        root,
+        "HLV.md",
+        &hlv_template(&project_name, &skills_dirs, &project_context),
+    )?;
+    for (path, content) in embedded_schemas() {
+        write_or_update(config_root, path, content)?;
+    }
+    ensure_project_yaml_schema(config_root)?;
+    ensure_yaml_schemas(config_root)?;
+
+    // AGENTS.md is user-owned. Create it only when missing and never overwrite it.
+    write_template(root, "AGENTS.md", &agents_template(&project_name))?;
+
+    Ok(())
+}
+
 /// Full init entry point. With `adopt = true`, HLV-owned files (project.yaml,
 /// milestones.yaml, human/, validation/, schema/, llm/) are written under
 /// `.hlv/` while root-owned files (AGENTS.md, HLV.md, agent skills) stay at
@@ -353,119 +477,9 @@ pub fn run_with_options(
         "init file layout resolved"
     );
 
-    // Embedded schemas — all go into schema/ directory
-    let schemas: &[(&str, &str)] = &[
-        (
-            "schema/project-schema.json",
-            include_str!("../../schema/project-schema.json"),
-        ),
-        (
-            "schema/glossary-schema.json",
-            include_str!("../../schema/glossary-schema.json"),
-        ),
-        (
-            "schema/gates-policy-schema.json",
-            include_str!("../../schema/gates-policy-schema.json"),
-        ),
-        (
-            "schema/equivalence-policy-schema.json",
-            include_str!("../../schema/equivalence-policy-schema.json"),
-        ),
-        (
-            "schema/traceability-policy-schema.json",
-            include_str!("../../schema/traceability-policy-schema.json"),
-        ),
-        (
-            "schema/ir-policy-schema.json",
-            include_str!("../../schema/ir-policy-schema.json"),
-        ),
-        (
-            "schema/adversarial-guardrails-schema.json",
-            include_str!("../../schema/adversarial-guardrails-schema.json"),
-        ),
-        (
-            "schema/security-constraints-schema.json",
-            include_str!("../../schema/security-constraints-schema.json"),
-        ),
-        (
-            "schema/performance-constraints-schema.json",
-            include_str!("../../schema/performance-constraints-schema.json"),
-        ),
-        (
-            "schema/llm-map-schema.json",
-            include_str!("../../schema/llm-map-schema.json"),
-        ),
-        (
-            "schema/traceability-schema.json",
-            include_str!("../../schema/traceability-schema.json"),
-        ),
-        (
-            "schema/contract-schema.json",
-            include_str!("../../schema/contract-schema.json"),
-        ),
-        (
-            "schema/constraint-schema.json",
-            include_str!("../../schema/constraint-schema.json"),
-        ),
-        (
-            "schema/milestones-schema.json",
-            include_str!("../../schema/milestones-schema.json"),
-        ),
-        (
-            "schema/waivers-schema.json",
-            include_str!("../../schema/waivers-schema.json"),
-        ),
-        (
-            "schema/signatures-schema.json",
-            include_str!("../../schema/signatures-schema.json"),
-        ),
-    ];
-
     if is_reinit {
-        // Read project name from existing project.yaml
-        let project_name = if let Some(p) = project {
-            p.to_string()
-        } else {
-            let yaml = fs::read_to_string(config_root.join("project.yaml"))?;
-            let pm: ProjectMap =
-                serde_yaml::from_str(&yaml).context("failed to parse project.yaml")?;
-            pm.project
-        };
-
-        // Detect agents from existing .{agent}/skills/ directories.
-        let agent_names = if let Some(a) = agent {
-            parse_agent_names(a)?
-        } else {
-            detect_agents(root)?
-        };
-        let skills_dirs = skills_dirs(&agent_names);
-
         style::header("init");
-        style::hint(&format!(
-            "project.yaml exists — updating skills and HLV.md (agents: {})",
-            agent_names.join(", ").bold(),
-        ));
-
-        write_embedded_skills(root, &skills_dirs, true)?;
-
-        // HLV.md is always updated (generated, not user-editable)
-        write_or_update(
-            root,
-            "HLV.md",
-            &hlv_template(&project_name, &skills_dirs, &project_context),
-        )?;
-
-        // Schemas are always updated (HLV-owned — config root)
-        for (path, content) in schemas {
-            write_or_update(config_root, path, content)?;
-        }
-
-        // Ensure all YAML files have $schema comments
-        ensure_project_yaml_schema(config_root)?;
-        ensure_yaml_schemas(config_root)?;
-
-        // AGENTS.md is user-owned — skip if exists
-        write_template(root, "AGENTS.md", &agents_template(&project_name))?;
+        sync_managed_files(root, project, agent)?;
 
         println!();
         style::ok("Skills and HLV.md updated");
@@ -626,7 +640,7 @@ pub fn run_with_options(
         "HLV.md",
         &hlv_template(&project_name, &skills_dirs, &project_context),
     )?;
-    for (path, content) in schemas {
+    for (path, content) in embedded_schemas() {
         write_template(config_root, path, content)?;
     }
     write_template(root, "AGENTS.md", &agents_template(&project_name))?;
@@ -944,8 +958,8 @@ fn write_or_update(root: &Path, rel: &str, content: &str) -> Result<()> {
         fs::create_dir_all(parent)?;
     }
     if path.exists() {
-        let existing = fs::read_to_string(&path)?;
-        if existing == content {
+        let existing = fs::read(&path)?;
+        if existing == content.as_bytes() {
             style::file_op("skip", rel, Some("up to date"));
         } else {
             fs::write(&path, content)?;
@@ -2275,6 +2289,21 @@ mod tests {
         assert_eq!(
             fs::read_to_string(root.join("old.txt")).unwrap(),
             "version 2"
+        );
+    }
+
+    #[test]
+    fn write_or_update_overwrites_non_utf8_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        fs::write(root.join("invalid.txt"), [0xff, 0xfe]).unwrap();
+
+        write_or_update(root, "invalid.txt", "valid UTF-8").unwrap();
+
+        assert_eq!(
+            fs::read_to_string(root.join("invalid.txt")).unwrap(),
+            "valid UTF-8"
         );
     }
 

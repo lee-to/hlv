@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use crate::cmd::style;
 
@@ -140,14 +142,79 @@ fn self_replace(new_binary: &[u8]) -> Result<()> {
     Ok(())
 }
 
-/// `hlv update [--check]`
-pub fn run(check_only: bool) -> Result<()> {
+fn resolve_project_root(explicit_root: Option<&str>) -> Result<Option<PathBuf>> {
+    if explicit_root.is_some() {
+        return crate::find_project_root(explicit_root).map(Some);
+    }
+
+    let current_dir = std::env::current_dir().context("Cannot get current directory")?;
+    Ok(crate::find_project_root_from(&current_dir).ok())
+}
+
+fn sync_project(root: &Path) -> Result<()> {
+    tracing::info!(root = %root.display(), "Synchronizing project files after HLV update");
+    crate::cmd::init::sync_managed_files(root, None, None)?;
+    style::ok("Project files synchronized");
+    Ok(())
+}
+
+fn sync_project_with_installed_binary(executable: &Path, root: &Path) -> Result<()> {
+    tracing::debug!(
+        executable = %executable.display(),
+        root = %root.display(),
+        "Starting installed HLV binary for project synchronization"
+    );
+    let status = Command::new(executable)
+        .arg("--root")
+        .arg(root)
+        .arg("update")
+        .arg("--project-only")
+        .status()
+        .context("Failed to start updated HLV binary for project synchronization")?;
+    anyhow::ensure!(
+        status.success(),
+        "Updated HLV binary failed to synchronize project files"
+    );
+    Ok(())
+}
+
+/// `hlv update [--check|--binary-only|--project-only]`
+pub fn run(
+    check_only: bool,
+    binary_only: bool,
+    project_only: bool,
+    explicit_root: Option<&str>,
+) -> Result<()> {
     style::header("update");
+
+    let project_root = if binary_only {
+        None
+    } else {
+        resolve_project_root(explicit_root)?
+    };
+
+    if project_only {
+        let root = project_root.ok_or_else(|| {
+            anyhow::anyhow!(
+                "No HLV project found. Run from inside a project or pass --root <path>."
+            )
+        })?;
+        if check_only {
+            style::hint(&format!(
+                "Project synchronization is available for {}",
+                root.display()
+            ));
+            return Ok(());
+        }
+        return sync_project(&root);
+    }
+
     style::detail("current", CURRENT_VERSION);
 
     // Fetch latest release
     let url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/latest");
     let client = build_client()?;
+    tracing::debug!(url, "Checking latest HLV release");
     let resp = client.get(&url).send().context("Cannot reach GitHub API")?;
 
     if !resp.status().is_success() {
@@ -164,6 +231,15 @@ pub fn run(check_only: bool) -> Result<()> {
 
     if !is_newer(&release.tag_name) {
         style::ok("Already up to date");
+        if !check_only {
+            if let Some(root) = project_root {
+                println!();
+                sync_project(&root)?;
+            }
+        } else if let Some(root) = project_root {
+            style::detail("project", &root.display().to_string());
+            style::hint("Run 'hlv update --project-only' to synchronize managed files");
+        }
         return Ok(());
     }
 
@@ -202,5 +278,9 @@ pub fn run(check_only: bool) -> Result<()> {
     self_replace(&binary)?;
 
     style::ok(&format!("Updated to {remote_version}"));
+    if let Some(root) = project_root {
+        println!();
+        sync_project_with_installed_binary(&exe_path, &root)?;
+    }
     Ok(())
 }

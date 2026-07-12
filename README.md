@@ -97,7 +97,7 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 | `hlv task` | Task lifecycle (start/done/block/unblock) |
 | `hlv mcp` | Start MCP server (stdio or HTTP) |
 | `hlv workspace` | Manage MCP workspace (init/add/remove/list) |
-| `hlv update` | Self-update to the latest release from GitHub |
+| `hlv update` | Update the binary and synchronize managed project files |
 
 All commands support `--json` for programmatic access.
 
@@ -293,9 +293,22 @@ cargo install --path .
 ### Updating
 
 ```bash
-hlv update            # download and install the latest release
-hlv update --check    # only check if a new version is available
+hlv update                 # update the binary and sync the current project
+hlv update --check         # check for a new version without changing files
+hlv update --binary-only   # update only the executable
+hlv update --project-only  # sync project files without network access
 ```
+
+When run inside an HLV project, `hlv update` synchronizes the installed
+version's managed files after updating the executable: agent skills under
+`.{agent}/skills/`, `HLV.md`, JSON Schemas, and known YAML schema references.
+This synchronization also runs when the executable is already current.
+
+Managed skills and `HLV.md` are generated files and local changes to them are
+overwritten. Project data such as `project.yaml`, `milestones.yaml`, contracts,
+and artifacts is preserved. `AGENTS.md` is created only when missing and is
+never overwritten. Outside an HLV project, the default command updates only the
+executable; use `--root <path>` to target a specific project.
 
 Then bootstrap a project:
 
