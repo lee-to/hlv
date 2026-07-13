@@ -1,4 +1,5 @@
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use regex::Regex;
 
 /// A section extracted from Markdown, split on `## ` headings.
 #[derive(Debug, Clone)]
@@ -159,17 +160,25 @@ pub fn extract_sections(md: &str) -> Vec<Section> {
 /// `### CT-...:`, bullet rows beginning with an ID, and Markdown tables
 /// where the first cell is the ID.
 pub fn extract_test_ids(md: &str) -> Vec<String> {
+    extract_test_ids_with_pattern(md, None)
+}
+
+/// Extract test IDs while accepting an additional project-specific pattern.
+/// Built-in HLV test prefixes are always recognized for backward compatibility.
+pub fn extract_test_ids_with_pattern(md: &str, additional_pattern: Option<&Regex>) -> Vec<String> {
     let mut ids = Vec::new();
 
     for section in extract_sections(md) {
         for line in section.body.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("### ") {
-                if let Some(id) = first_test_id_token(trimmed.trim_start_matches('#').trim()) {
+                if let Some(id) =
+                    first_test_id_token(trimmed.trim_start_matches('#').trim(), additional_pattern)
+                {
                     ids.push(id);
                 }
             } else if let Some(item) = markdown_list_item(trimmed) {
-                if let Some(id) = first_test_id_token(item) {
+                if let Some(id) = first_test_id_token(item, additional_pattern) {
                     ids.push(id);
                 }
             } else if trimmed.starts_with('|') {
@@ -179,7 +188,7 @@ pub fn extract_test_ids(md: &str) -> Vec<String> {
                     .next()
                     .unwrap_or("")
                     .trim();
-                if let Some(id) = first_test_id_token(first_cell) {
+                if let Some(id) = first_test_id_token(first_cell, additional_pattern) {
                     ids.push(id);
                 }
             }
@@ -204,18 +213,25 @@ fn markdown_list_item(line: &str) -> Option<&str> {
     }
 }
 
-fn first_test_id_token(text: &str) -> Option<String> {
+fn first_test_id_token(text: &str, additional_pattern: Option<&Regex>) -> Option<String> {
     let candidate = text
         .trim()
         .trim_start_matches(['*', '`', '[', '('])
         .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(*c, '-' | '_' | '.'))
         .collect::<String>();
 
     let prefixes = ["CT-", "PBT-", "IT-", "EC-", "PERF-", "SEC-", "TST-"];
-    if prefixes.iter().any(|prefix| candidate.starts_with(prefix))
-        && candidate.len() > candidate.find('-').unwrap_or(0) + 1
-    {
+    let matches_builtin = prefixes
+        .iter()
+        .any(|prefix| candidate.starts_with(prefix) && candidate.len() > prefix.len());
+    let matches_additional = additional_pattern.is_some_and(|pattern| {
+        pattern
+            .find(&candidate)
+            .is_some_and(|matched| matched.start() == 0 && matched.end() == candidate.len())
+    });
+
+    if matches_builtin || matches_additional {
         Some(candidate)
     } else {
         None
@@ -365,6 +381,18 @@ mod tests {
         let md = "## Integration Tests\n\n- **IT-CHECKOUT-001** Complete checkout\n";
 
         assert_eq!(extract_test_ids(md), vec!["IT-CHECKOUT-001"]);
+    }
+
+    #[test]
+    fn test_extract_project_specific_test_id_with_pattern() {
+        let md = "## Integration Tests\n\n### INT_CHECKOUT_001: Complete checkout\n";
+        let pattern = Regex::new(r"^INT_[A-Z]+_[0-9]{3}$").unwrap();
+
+        assert_eq!(
+            extract_test_ids_with_pattern(md, Some(&pattern)),
+            vec!["INT_CHECKOUT_001"]
+        );
+        assert!(extract_test_ids(md).is_empty());
     }
 
     #[test]

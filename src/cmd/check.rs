@@ -151,6 +151,9 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     }
 
     let project = ProjectMap::load(&root.join("project.yaml"))?;
+    let (additional_test_id_pattern, test_id_policy_diags) =
+        check::test_ids::load_additional_test_id_pattern(root);
+    all_diags.extend(test_id_policy_diags);
     let glossary_path = root.join(&project.paths.human.glossary);
     let glossary = match Glossary::load(&glossary_path) {
         Ok(glossary) => glossary,
@@ -205,13 +208,18 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
         root, &contracts, &glossary,
     ));
 
-    all_diags.extend(check::validation::check_test_specs(root, &contracts));
+    all_diags.extend(check::validation::check_test_specs_with_pattern(
+        root,
+        &contracts,
+        additional_test_id_pattern.as_ref(),
+    ));
 
     if root.join(&trace_path_str).exists() {
-        all_diags.extend(check::traceability::check_traceability(
+        all_diags.extend(check::traceability::check_traceability_with_pattern(
             root,
             &trace_path_str,
             &contracts,
+            additional_test_id_pattern.as_ref(),
         ));
     }
 

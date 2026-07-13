@@ -118,6 +118,28 @@ fn waiver_file_parses_required_fields() {
 }
 
 #[test]
+fn check_report_loads_traceability_test_id_policy() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    fs::write(
+        tmp.path().join("validation/traceability-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: INVALID
+id_formats:
+  test: "["
+"#,
+    )
+    .unwrap();
+
+    let report = get_check_report(tmp.path(), CheckOptions::default()).unwrap();
+
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == "TRC-003"));
+}
+
+#[test]
 fn strict_check_promotes_warnings_to_errors() {
     let tmp = TempDir::new().unwrap();
     write_minimal_project(tmp.path(), None);
@@ -422,7 +444,9 @@ fn explain_registry_finds_index_stale_code() {
 
 #[test]
 fn explain_registry_finds_test_spec_and_traceability_codes() {
-    for code in ["CTR-010", "TST-020", "TST-021", "TRC-022"] {
+    for code in [
+        "CTR-010", "TST-020", "TST-021", "TRC-002", "TRC-003", "TRC-022",
+    ] {
         let explanation = lookup_diagnostic(code).expect("diagnostic explanation");
         assert_eq!(explanation.code, code);
         assert!(

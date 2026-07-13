@@ -2041,7 +2041,7 @@ description: Machine-verifiable traceability policy.
 id_formats:
   requirement: "^REQ-[a-z0-9-]+-[0-9]{4}$"
   contract: "^CTR-[a-z0-9.-]+-[0-9]+\\.[0-9]+\\.[0-9]+$"
-  test: "^TST-[a-z0-9-]+-[0-9]{4}$"
+  test: "^(?:CT|PBT|IT|EC|PERF|SEC|TST)-[A-Za-z0-9._-]+$"
   gate: "^GATE-[A-Z0-9-]+-[0-9]{3}$"
 
 graph_requirements:

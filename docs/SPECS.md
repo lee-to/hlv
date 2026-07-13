@@ -340,7 +340,7 @@ Machine-verifiable traceability rules.
 | `TRACE-002` | Every requirement is reachable through a contract and a test |
 | `TRACE-003` | Every test is mapped to a gate |
 
-Also defines ID formats: `REQ-*`, `CTR-*`, `TST-*`, `GATE-*`. Schema: `schema/traceability-policy-schema.json`.
+Also defines ID formats: `REQ-*`, `CTR-*`, test IDs, and `GATE-*`. HLV always recognizes the built-in `CT-*`, `PBT-*`, `IT-*`, `EC-*`, `PERF-*`, `SEC-*`, and `TST-*` test categories. `id_formats.test` is an additional full-match regex for project-specific test IDs; the same configured matcher is used by test-spec validation and `TRC-022` traceability resolution. Schema: `schema/traceability-policy-schema.json`.
 
 #### `validation/ir-policy.yaml`
 
@@ -732,6 +732,8 @@ Important notes:
 | Code | Default Severity | What it checks |
 |-----|---------|--------------|
 | `TRC-001` | error / info | Cannot parse traceability file (error) or traceability file is missing (info) |
+| `TRC-002` | error | Cannot parse `validation/traceability-policy.yaml` |
+| `TRC-003` | error | Invalid `id_formats.test` regular expression |
 | `TRC-010` | error | Mapping references unknown contract |
 | `TRC-011` | error | Mapping references unknown requirement |
 | `TRC-020` | warning / info | Requirement has no tests mapped (warning), or infra-only mapping without contracts (info) |

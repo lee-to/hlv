@@ -1,12 +1,22 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use regex::Regex;
+
 use crate::check::Diagnostic;
 use crate::model::project::ContractEntry;
 use crate::parse::markdown;
 
 /// Validate test specs in validation/test-specs/.
 pub fn check_test_specs(root: &Path, entries: &[ContractEntry]) -> Vec<Diagnostic> {
+    check_test_specs_with_pattern(root, entries, None)
+}
+
+pub fn check_test_specs_with_pattern(
+    root: &Path,
+    entries: &[ContractEntry],
+    additional_test_id_pattern: Option<&Regex>,
+) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let mut all_test_ids: Vec<(String, String)> = Vec::new(); // (test_id, file)
 
@@ -73,7 +83,7 @@ pub fn check_test_specs(root: &Path, entries: &[ContractEntry]) -> Vec<Diagnosti
         let mut has_pbt = false;
         let mut has_contract_test = false;
 
-        for test_id in markdown::extract_test_ids(&text) {
+        for test_id in markdown::extract_test_ids_with_pattern(&text, additional_test_id_pattern) {
             all_test_ids.push((test_id.clone(), spec_path.clone()));
 
             if test_id.starts_with("CT-") {

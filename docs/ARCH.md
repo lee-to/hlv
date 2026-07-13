@@ -213,7 +213,7 @@ Contains:
 - **Security Tests**: from the Security section
 - **Gate Mappings**: mapping each test to a gate
 
-Test IDs use the `CT-*`, `PBT-*`, `IT-*`, `EC-*`, `PERF-*`, `SEC-*`, or `TST-*` prefix and are declared as headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell. The same parser feeds `TST-*` validation and `TRC-022` traceability resolution.
+Test IDs use the `CT-*`, `PBT-*`, `IT-*`, `EC-*`, `PERF-*`, `SEC-*`, or `TST-*` prefix and are declared as headings, bullets starting with the ID, or Markdown table rows with the ID in the first cell. Projects may extend those built-ins with the full-match `id_formats.test` regex in `validation/traceability-policy.yaml`. The same configured parser feeds `TST-*` validation and `TRC-022` traceability resolution.
 
 ### 4.2 Scenarios
 

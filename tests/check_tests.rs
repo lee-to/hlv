@@ -11,8 +11,9 @@ use hlv::check::plan::check_stage_plans;
 use hlv::check::project_map::check_project_map;
 use hlv::check::sec_markers::{check_sec_markers, check_sec_markers_with_scope};
 use hlv::check::stack::check_stack;
-use hlv::check::traceability::check_traceability;
-use hlv::check::validation::check_test_specs;
+use hlv::check::test_ids::load_additional_test_id_pattern;
+use hlv::check::traceability::{check_traceability, check_traceability_with_pattern};
+use hlv::check::validation::{check_test_specs, check_test_specs_with_pattern};
 use hlv::check::{self, Severity};
 use hlv::model::glossary::Glossary;
 use hlv::model::project::ConstraintEntry;
@@ -1352,6 +1353,126 @@ derived_from: c.md
 }
 
 #[test]
+fn traceability_accepts_project_specific_test_id_from_policy_pattern() {
+    let tmp = TempDir::new().unwrap();
+    write_traceability(
+        tmp.path(),
+        r#"
+schema_version: 1
+requirements:
+  - id: REQ-001
+    statement: "Complete checkout"
+mappings:
+  - requirement: REQ-001
+    contracts: [order.create]
+    tests: [INT_CHECKOUT_001]
+    runtime_gates: []
+"#,
+    );
+
+    fs::create_dir_all(tmp.path().join("validation/test-specs")).unwrap();
+    fs::write(
+        tmp.path().join("validation/test-specs/order.create.md"),
+        r#"# Test Spec
+
+derived_from: c.md
+
+## Integration Tests
+
+### INT_CHECKOUT_001: Complete checkout
+"#,
+    )
+    .unwrap();
+    fs::write(
+        tmp.path().join("validation/traceability-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: TEST
+id_formats:
+  test: "^INT_[A-Z]+_[0-9]{3}$"
+"#,
+    )
+    .unwrap();
+
+    let (pattern, policy_diags) = load_additional_test_id_pattern(tmp.path());
+    assert!(
+        policy_diags.is_empty(),
+        "unexpected diagnostics: {policy_diags:?}"
+    );
+
+    let mut entry = make_entry("order.create", "c.md");
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let diags = check_traceability_with_pattern(
+        tmp.path(),
+        "human/traceability.yaml",
+        &[entry],
+        pattern.as_ref(),
+    );
+    assert!(
+        !has_warning(&diags, "TRC-022"),
+        "policy-declared test IDs should resolve traceability mappings: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn traceability_policy_pattern_does_not_disable_builtin_test_ids() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("validation")).unwrap();
+    fs::write(
+        tmp.path().join("validation/traceability-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: LEGACY
+id_formats:
+  test: "^TST-[a-z0-9-]+-[0-9]{4}$"
+"#,
+    )
+    .unwrap();
+
+    let (pattern, diags) = load_additional_test_id_pattern(tmp.path());
+    assert!(diags.is_empty(), "unexpected diagnostics: {diags:?}");
+
+    let extracted = hlv::parse::markdown::extract_test_ids_with_pattern(
+        "## Integration Tests\n\n### IT-CHECKOUT-001: Complete checkout\n",
+        pattern.as_ref(),
+    );
+    assert_eq!(extracted, vec!["IT-CHECKOUT-001"]);
+}
+
+#[test]
+fn invalid_traceability_policy_test_regex_reports_trc003() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("validation")).unwrap();
+    fs::write(
+        tmp.path().join("validation/traceability-policy.yaml"),
+        r#"version: 1.0.0
+policy_id: INVALID
+id_formats:
+  test: "["
+"#,
+    )
+    .unwrap();
+
+    let (pattern, diags) = load_additional_test_id_pattern(tmp.path());
+    assert!(pattern.is_none());
+    assert!(has_error(&diags, "TRC-003"), "expected TRC-003: {diags:?}");
+}
+
+#[test]
+fn invalid_traceability_policy_yaml_reports_trc002() {
+    let tmp = TempDir::new().unwrap();
+    fs::create_dir_all(tmp.path().join("validation")).unwrap();
+    fs::write(
+        tmp.path().join("validation/traceability-policy.yaml"),
+        "id_formats: [not: valid: yaml]",
+    )
+    .unwrap();
+
+    let (pattern, diags) = load_additional_test_id_pattern(tmp.path());
+    assert!(pattern.is_none());
+    assert!(has_error(&diags, "TRC-002"), "expected TRC-002: {diags:?}");
+}
+
+#[test]
 fn traceability_unknown_contract_error() {
     let tmp = TempDir::new().unwrap();
     write_traceability(
@@ -1836,6 +1957,34 @@ derived_from: human/milestones/001/contracts/order.create.md
     assert!(
         has_error(&diags, "TST-040"),
         "expected duplicate table ID: {:?}",
+        diags
+    );
+}
+
+#[test]
+fn test_specs_detect_duplicate_project_specific_test_id() {
+    let tmp = TempDir::new().unwrap();
+    let spec = r#"# Test Spec: order.create
+derived_from: human/milestones/001/contracts/order.create.md
+
+## Integration Tests
+
+### INT_CHECKOUT_001: First
+### INT_CHECKOUT_001: Duplicate
+GATE-INTEGRATION-001
+"#;
+    write_test_spec(tmp.path(), "order.create", spec);
+    let mut entry = make_entry(
+        "order.create",
+        "human/milestones/001/contracts/order.create.md",
+    );
+    entry.test_spec = Some("validation/test-specs/order.create.md".to_string());
+    let pattern = regex::Regex::new(r"^INT_[A-Z]+_[0-9]{3}$").unwrap();
+
+    let diags = check_test_specs_with_pattern(tmp.path(), &[entry], Some(&pattern));
+    assert!(
+        has_error(&diags, "TST-040"),
+        "expected duplicate project-specific ID: {:?}",
         diags
     );
 }

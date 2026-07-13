@@ -30,7 +30,10 @@
       "properties": {
         "requirement": { "type": "string", "description": "Regex for REQ-* IDs" },
         "contract": { "type": "string", "description": "Regex for CTR-* IDs" },
-        "test": { "type": "string", "description": "Regex for TST-* IDs" },
+        "test": {
+          "type": "string",
+          "description": "Full-match regex for additional project-specific test IDs. Built-in CT-*, PBT-*, IT-*, EC-*, PERF-*, SEC-*, and TST-* IDs remain supported."
+        },
         "gate": { "type": "string", "description": "Regex for GATE-* IDs" }
       },
       "additionalProperties": false
