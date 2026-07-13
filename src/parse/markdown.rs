@@ -214,9 +214,17 @@ fn markdown_list_item(line: &str) -> Option<&str> {
 }
 
 fn first_test_id_token(text: &str, additional_pattern: Option<&Regex>) -> Option<String> {
-    let candidate = text
+    let text = text
         .trim()
-        .trim_start_matches(['*', '`', '[', '('])
+        .trim_start_matches(['*', '`', '[', '(']);
+
+    if let Some(candidate) = additional_pattern
+        .and_then(|pattern| longest_pattern_match_at_token_boundary(text, pattern))
+    {
+        return Some(candidate);
+    }
+
+    let candidate = text
         .chars()
         .take_while(|c| c.is_ascii_alphanumeric() || matches!(*c, '-' | '_' | '.'))
         .collect::<String>();
@@ -225,16 +233,38 @@ fn first_test_id_token(text: &str, additional_pattern: Option<&Regex>) -> Option
     let matches_builtin = prefixes
         .iter()
         .any(|prefix| candidate.starts_with(prefix) && candidate.len() > prefix.len());
-    let matches_additional = additional_pattern.is_some_and(|pattern| {
-        pattern
-            .find(&candidate)
-            .is_some_and(|matched| matched.start() == 0 && matched.end() == candidate.len())
-    });
 
-    if matches_builtin || matches_additional {
+    if matches_builtin {
         Some(candidate)
     } else {
         None
+    }
+}
+
+fn longest_pattern_match_at_token_boundary(text: &str, pattern: &Regex) -> Option<String> {
+    let mut boundaries: Vec<usize> = text.char_indices().map(|(index, _)| index).collect();
+    boundaries.push(text.len());
+
+    boundaries.into_iter().rev().find_map(|end| {
+        if end == 0 || !is_test_id_token_boundary(text[end..].chars().next()) {
+            return None;
+        }
+
+        let candidate = &text[..end];
+        pattern
+            .find(candidate)
+            .filter(|matched| matched.start() == 0 && matched.end() == candidate.len())
+            .map(|_| candidate.to_string())
+    })
+}
+
+fn is_test_id_token_boundary(next: Option<char>) -> bool {
+    match next {
+        None => true,
+        Some(character) => {
+            character.is_whitespace()
+                || matches!(character, ':' | '`' | '*' | ']' | ')' | ',' | ';' | '|')
+        }
     }
 }
 
@@ -393,6 +423,17 @@ mod tests {
             vec!["INT_CHECKOUT_001"]
         );
         assert!(extract_test_ids(md).is_empty());
+    }
+
+    #[test]
+    fn test_extract_project_specific_test_id_with_punctuation() {
+        let md = "## Integration Tests\n\n### QA/123: Complete checkout\n";
+        let pattern = Regex::new(r"^QA/[0-9]+$").unwrap();
+
+        assert_eq!(
+            extract_test_ids_with_pattern(md, Some(&pattern)),
+            vec!["QA/123"]
+        );
     }
 
     #[test]
