@@ -214,9 +214,7 @@ fn markdown_list_item(line: &str) -> Option<&str> {
 }
 
 fn first_test_id_token(text: &str, additional_pattern: Option<&Regex>) -> Option<String> {
-    let text = text
-        .trim()
-        .trim_start_matches(['*', '`', '[', '(']);
+    let text = text.trim().trim_start_matches(['*', '`', '[', '(']);
 
     if let Some(candidate) = additional_pattern
         .and_then(|pattern| longest_pattern_match_at_token_boundary(text, pattern))
