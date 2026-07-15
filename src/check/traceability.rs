@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use regex::Regex;
+
 use crate::check::Diagnostic;
 use crate::model::project::ContractEntry;
 use crate::model::traceability::TraceabilityMap;
@@ -11,6 +13,15 @@ pub fn check_traceability(
     root: &Path,
     trace_path: &str,
     entries: &[ContractEntry],
+) -> Vec<Diagnostic> {
+    check_traceability_with_pattern(root, trace_path, entries, None)
+}
+
+pub fn check_traceability_with_pattern(
+    root: &Path,
+    trace_path: &str,
+    entries: &[ContractEntry],
+    additional_test_id_pattern: Option<&Regex>,
 ) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let full_path = root.join(trace_path);
@@ -29,7 +40,7 @@ pub fn check_traceability(
     let contract_ids: HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
 
     // Collect known test IDs from test specs
-    let known_test_ids = collect_test_ids(root, entries);
+    let known_test_ids = collect_test_ids(root, entries, additional_test_id_pattern);
 
     // Collect known gate IDs from gates policy
     let known_gate_ids = collect_gate_ids(root, entries);
@@ -156,7 +167,11 @@ pub fn check_traceability(
 }
 
 /// Extract test IDs from all test spec files.
-fn collect_test_ids(root: &Path, entries: &[ContractEntry]) -> HashSet<String> {
+fn collect_test_ids(
+    root: &Path,
+    entries: &[ContractEntry],
+    additional_test_id_pattern: Option<&Regex>,
+) -> HashSet<String> {
     let mut ids = HashSet::new();
     for entry in entries {
         let spec_path = match &entry.test_spec {
@@ -168,7 +183,7 @@ fn collect_test_ids(root: &Path, entries: &[ContractEntry]) -> HashSet<String> {
             Ok(t) => t,
             Err(_) => continue,
         };
-        for id in markdown::extract_test_ids(&text) {
+        for id in markdown::extract_test_ids_with_pattern(&text, additional_test_id_pattern) {
             ids.insert(id);
         }
     }

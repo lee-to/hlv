@@ -9,6 +9,7 @@ pub mod project_map;
 pub mod sec_markers;
 pub mod stack;
 pub mod tasks;
+pub mod test_ids;
 pub mod traceability;
 pub mod validation;
 

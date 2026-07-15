@@ -78,6 +78,8 @@ hlv check      # structural validation
 /hlv-verify        # semantic validation
 ```
 
+`hlv check` reads `validation/traceability-policy.yaml`. Built-in test ID prefixes remain valid, while `id_formats.test` may add a project-specific test ID regex used consistently for test-spec validation and traceability lookup.
+
 ### 5. Implement by stages
 
 ```bash

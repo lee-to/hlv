@@ -214,6 +214,8 @@ From NFR section of contract:
 - target metrics, load profile, duration
 ```
 
+Use the built-in test ID prefixes shown above unless `validation/traceability-policy.yaml` defines an additional `id_formats.test` convention. A project-specific ID must fully match that regex and still be placed in a parser-supported heading, bullet, or first table cell.
+
 #### 4b. Gates coverage check + profile adaptation
 
 Read `validation/gates-policy.yaml` and iterate **only the gates defined in the file** (the file is the single source of truth — do NOT assume a fixed set of gates).
