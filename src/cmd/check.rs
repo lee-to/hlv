@@ -215,12 +215,26 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     ));
 
     if root.join(&trace_path_str).exists() {
-        all_diags.extend(check::traceability::check_traceability_with_pattern(
-            root,
-            &trace_path_str,
-            &contracts,
-            additional_test_id_pattern.as_ref(),
-        ));
+        if contracts.is_empty() {
+            // No active milestone: contracts live in closed milestones and are not
+            // collected here. Checking the map against an empty set would report every
+            // mapping as a dangling reference, which says nothing about the project.
+            all_diags.push(
+                Diagnostic::info(
+                    "TRC-002",
+                    "Traceability not checked: no active milestone, so no contracts are in scope"
+                        .to_string(),
+                )
+                .with_file(&trace_path_str),
+            );
+        } else {
+            all_diags.extend(check::traceability::check_traceability_with_pattern(
+                root,
+                &trace_path_str,
+                &contracts,
+                additional_test_id_pattern.as_ref(),
+            ));
+        }
     }
 
     if let Some((_, milestone_id)) = &milestone_info {
