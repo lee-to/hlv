@@ -83,6 +83,20 @@ fn registry() -> &'static [DiagnosticExplanation] {
             fixes: &["add the type to human/glossary.yaml", "or remove/update the glossary_types entry"],
         },
         DiagnosticExplanation {
+            code: "PRJ-080",
+            title: "Generated source root outside llm/",
+            meaning: "paths.llm.src points outside llm/, or is missing in a greenfield project. Generated code keeps its own namespace so it never mixes with human-owned files.",
+            common_causes: &["paths.llm.src points at a project source directory", "greenfield project without paths.llm.src", "the language toolchain resolves sources relative to the package root, as Flutter does with lib/"],
+            fixes: &["move generated sources under llm/", "add paths.llm.src for greenfield projects", "make llm/ the package root: llm/pubspec.yaml with paths.llm.src: llm/lib/"],
+        },
+        DiagnosticExplanation {
+            code: "PRJ-081",
+            title: "Generated tests root outside llm/",
+            meaning: "paths.llm.tests points outside llm/, so generated tests would land next to human-owned files.",
+            common_causes: &["paths.llm.tests points at the project's own test directory", "the language toolchain collects tests relative to the package root, as Flutter does with test/"],
+            fixes: &["move generated tests under llm/", "make llm/ the package root: llm/pubspec.yaml with paths.llm.tests: llm/test/"],
+        },
+        DiagnosticExplanation {
             code: "PRJ-090",
             title: "Legacy mode missing code roots",
             meaning: "features.legacy_mode is enabled, but paths.code.src is missing or empty.",
