@@ -475,16 +475,6 @@ fn git_diffstat(root: &Path, base: &str) -> Result<String> {
 }
 
 fn chrono_today() -> String {
-    // Simple date without chrono dependency
-    let now = std::time::SystemTime::now();
-    let since = now
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let days = since.as_secs() / 86400;
-    // Approximate date calculation (good enough for a string)
-    let year = 1970 + (days / 365);
-    let remaining = days % 365;
-    let month = remaining / 30 + 1;
-    let day = remaining % 30 + 1;
-    format!("{year:04}-{month:02}-{day:02}")
+    // Local, not Utc: merged_at is read by a human against their own calendar.
+    chrono::Local::now().date_naive().to_string()
 }

@@ -1,3 +1,4 @@
+use chrono::{Local, NaiveDate};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -10,6 +11,18 @@ use hlv::model::milestone::{
 // ═══════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════
+
+/// The stamp must be the local calendar date of the call. `before`/`after` bracket
+/// the call so a run across midnight accepts either day.
+fn assert_stamped_today(stamp: Option<&str>, before: NaiveDate, after: NaiveDate) {
+    let stamp = stamp.expect("history entry must carry a date");
+    let parsed = NaiveDate::parse_from_str(stamp, "%Y-%m-%d")
+        .unwrap_or_else(|e| panic!("date must be YYYY-MM-DD, got {stamp:?}: {e}"));
+    assert!(
+        parsed >= before && parsed <= after,
+        "expected {before}..={after}, got {parsed}"
+    );
+}
 
 /// Create a minimal project scaffold for milestone tests.
 fn setup_project(dir: &Path) -> &Path {
@@ -257,7 +270,9 @@ fn milestone_done_all_validated() {
     );
     fs::write(root.join("milestones.yaml"), yaml).unwrap();
 
+    let before = Local::now().date_naive();
     hlv::cmd::milestone::run_done(root).unwrap();
+    let after = Local::now().date_naive();
 
     let m = load_milestones(root);
     assert!(m.current.is_none());
@@ -265,6 +280,7 @@ fn milestone_done_all_validated() {
     assert_eq!(m.history[0].id, "001-done-test");
     assert_eq!(m.history[0].status, MilestoneStatus::Merged);
     assert!(!m.history[0].contracts.is_empty());
+    assert_stamped_today(m.history[0].merged_at.as_deref(), before, after);
 }
 
 #[test]
@@ -322,13 +338,16 @@ fn milestone_abort_moves_to_history() {
     setup_project(root);
 
     hlv::cmd::milestone::run_new(root, "aborted-feature").unwrap();
+    let before = Local::now().date_naive();
     hlv::cmd::milestone::run_abort(root).unwrap();
+    let after = Local::now().date_naive();
 
     let m = load_milestones(root);
     assert!(m.current.is_none());
     assert_eq!(m.history.len(), 1);
     assert_eq!(m.history[0].status, MilestoneStatus::Aborted);
     assert_eq!(m.history[0].id, "001-aborted-feature");
+    assert_stamped_today(m.history[0].merged_at.as_deref(), before, after);
 }
 
 #[test]
