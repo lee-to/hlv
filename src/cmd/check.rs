@@ -215,12 +215,27 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
     ));
 
     if root.join(&trace_path_str).exists() {
-        all_diags.extend(check::traceability::check_traceability_with_pattern(
-            root,
-            &trace_path_str,
-            &contracts,
-            additional_test_id_pattern.as_ref(),
-        ));
+        if milestone_info.is_none() {
+            // Contracts live in the active milestone. With no milestone there is nothing
+            // to resolve the map against, so every mapping would come back as a dangling
+            // reference. An active milestone is still checked even when it has no
+            // contracts yet: a dangling reference there is a real finding.
+            all_diags.push(
+                Diagnostic::info(
+                    "TRC-000",
+                    "Traceability not checked: no active milestone, so no contracts are in scope"
+                        .to_string(),
+                )
+                .with_file(&trace_path_str),
+            );
+        } else {
+            all_diags.extend(check::traceability::check_traceability_with_pattern(
+                root,
+                &trace_path_str,
+                &contracts,
+                additional_test_id_pattern.as_ref(),
+            ));
+        }
     }
 
     if let Some((_, milestone_id)) = &milestone_info {

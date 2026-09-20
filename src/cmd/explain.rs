@@ -167,6 +167,13 @@ fn registry() -> &'static [DiagnosticExplanation] {
             fixes: &["fix the failing implementation or test", "fix the gate command or cwd", "use validation.strictness: relaxed only when gate execution should be skipped"],
         },
         DiagnosticExplanation {
+            code: "TRC-000",
+            title: "Traceability not checked",
+            meaning: "No milestone is active, so no contracts are in scope and the traceability map has nothing to resolve against. The map is checked again as soon as a milestone is active.",
+            common_causes: &["the last milestone was merged or aborted and no new one was started", "milestones.yaml has no current entry"],
+            fixes: &["run hlv milestone new when the next milestone starts", "no action is needed between milestones"],
+        },
+        DiagnosticExplanation {
             code: "TRC-002",
             title: "Traceability policy cannot be parsed",
             meaning: "HLV could not load validation/traceability-policy.yaml, so project-specific test ID formats cannot be applied.",
