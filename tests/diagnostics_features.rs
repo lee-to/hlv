@@ -560,3 +560,98 @@ fn diagnostic_print_width_helper_can_pad_non_ascii_messages() {
 
     assert_eq!(display_width(&padded), 20);
 }
+
+/// Traceability map with a mapping that resolves to no contract.
+const DANGLING_TRACEABILITY: &str = r#"schema_version: 1
+mappings:
+- requirement: REQ-001
+  contracts: [missing.contract]
+  tests: []
+  runtime_gates: []
+"#;
+
+#[test]
+fn check_skips_traceability_without_active_milestone() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    fs::write(
+        tmp.path().join("validation/traceability.yaml"),
+        DANGLING_TRACEABILITY,
+    )
+    .unwrap();
+
+    let report = get_check_report(tmp.path(), CheckOptions::default()).unwrap();
+
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "TRC-000"),
+        "expected TRC-000: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        !report.diagnostics.iter().any(|d| d.code == "TRC-010"),
+        "mappings must not resolve without a milestone: {:?}",
+        report.diagnostics
+    );
+}
+
+/// Active milestone whose contracts directory exists but holds no contracts.
+fn write_milestone_without_contracts(root: &Path, traceability: &str) {
+    fs::create_dir_all(root.join("human/milestones/001/contracts")).unwrap();
+    fs::write(
+        root.join("milestones.yaml"),
+        "project: test\ncurrent:\n  id: '001'\n  number: 1\n  stages: []\n  gate_results: []\nhistory: []\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("human/milestones/001/traceability.yaml"),
+        traceability,
+    )
+    .unwrap();
+}
+
+#[test]
+fn check_validates_traceability_for_milestone_without_contracts() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    write_milestone_without_contracts(tmp.path(), DANGLING_TRACEABILITY);
+
+    let report = get_check_report(tmp.path(), CheckOptions::default()).unwrap();
+
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "TRC-010"),
+        "expected TRC-010 for the dangling mapping: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        !report.diagnostics.iter().any(|d| d.code == "TRC-000"),
+        "an active milestone must not skip the check: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn check_reports_invalid_traceability_for_milestone_without_contracts() {
+    let tmp = TempDir::new().unwrap();
+    write_minimal_project(tmp.path(), None);
+    write_milestone_without_contracts(tmp.path(), "schema_version: 1\nmappings: [\n");
+
+    let report = get_check_report(tmp.path(), CheckOptions::default()).unwrap();
+
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "TRC-001" && matches!(d.severity, Severity::Error)),
+        "expected TRC-001 for the broken map: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn explain_registry_finds_traceability_skip_code() {
+    let explanation = lookup_diagnostic("TRC-000").expect("TRC-000 explanation");
+
+    assert_eq!(explanation.code, "TRC-000");
+    assert!(!explanation.common_causes.is_empty());
+    assert!(!explanation.fixes.is_empty());
+}

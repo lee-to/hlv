@@ -731,6 +731,7 @@ Important notes:
 
 | Code | Default Severity | What it checks |
 |-----|---------|--------------|
+| `TRC-000` | info | Traceability not checked: no active milestone |
 | `TRC-001` | error / info | Cannot parse traceability file (error) or traceability file is missing (info) |
 | `TRC-002` | error | Cannot parse `validation/traceability-policy.yaml` |
 | `TRC-003` | error | Invalid `id_formats.test` regular expression |
