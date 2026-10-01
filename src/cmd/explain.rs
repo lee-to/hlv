@@ -69,6 +69,48 @@ fn print_explanation(entry: &DiagnosticExplanation) {
 fn registry() -> &'static [DiagnosticExplanation] {
     &[
         DiagnosticExplanation {
+            code: "PRJ-100",
+            title: "Invalid execution evidence configuration",
+            meaning: "The opt-in execution_evidence section has an invalid path or binding definition.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
+            code: "EVD-001",
+            title: "Invalid execution evidence",
+            meaning: "Evidence YAML, schema version, run identity, hashes, timestamp or artifact reference is invalid. Duplicate or unknown binding records are rejected.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
+            code: "EVD-010",
+            title: "Invalid execution evidence binding",
+            meaning: "An evidence binding cannot resolve its requirement/test/gate mapping or its repository input files.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
+            code: "EVD-020",
+            title: "Missing execution evidence",
+            meaning: "A configured binding has no externally produced run. Structural links do not imply execution.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
+            code: "EVD-030",
+            title: "Stale execution evidence",
+            meaning: "The approved requirement revision, requirement/test/gate identity or input content differs from the recorded pre-run snapshot.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
+            code: "EVD-040",
+            title: "Execution did not pass",
+            meaning: "Compatible external evidence reports a failed, incomplete or skipped run.",
+            common_causes: &["missing or incompatible external runner evidence"],
+            fixes: &["check execution_evidence bindings and input scope", "capture hlv evidence snapshot before running the configured external tests", "publish one current run per binding with its actual outcome and report reference"],
+        },
+        DiagnosticExplanation {
             code: "PRJ-001",
             title: "Cannot parse project.yaml",
             meaning: "HLV could not load the project map, so later checks cannot run reliably.",

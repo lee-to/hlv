@@ -5,6 +5,7 @@ use anyhow::Result;
 use colored::Colorize;
 
 use super::style;
+use crate::check::execution_evidence::{EvidenceStatus, ExecutionEvidenceReport};
 use crate::check::{self, Diagnostic, Severity};
 use crate::model::contract_md::ContractMd;
 use crate::model::contract_yaml::ContractYaml;
@@ -23,6 +24,8 @@ pub struct CheckOptions {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CheckReport {
+    pub structural_status: &'static str,
+    pub execution_evidence: ExecutionEvidenceReport,
     pub diagnostics: Vec<Diagnostic>,
     pub waived: Vec<WaivedDiagnostic>,
     pub errors: usize,
@@ -60,6 +63,8 @@ pub fn run(
             "infos": report.infos,
             "strictness": report.strictness,
             "exit_code": report.exit_code,
+            "structural_status": report.structural_status,
+            "execution_evidence": report.execution_evidence,
         });
         println!("{}", serde_json::to_string_pretty(&output)?);
         std::process::exit(report.exit_code);
@@ -100,6 +105,19 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
         all_diags.extend(gate_report.diagnostics);
     }
 
+    let (execution_evidence, evidence_diags) =
+        match ProjectMap::load(&crate::config_root(root).join("project.yaml")) {
+            Ok(project) => check::execution_evidence::check_execution_evidence(root, &project),
+            Err(_) => (
+                ExecutionEvidenceReport {
+                    status: EvidenceStatus::Invalid,
+                    bindings: vec![],
+                },
+                vec![],
+            ),
+        };
+    all_diags.extend(evidence_diags);
+
     let mut waived = Vec::new();
     if options.with_waivers {
         let mut waiver_diags = apply_waivers(root, &mut all_diags, &mut waived);
@@ -123,7 +141,18 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
         .count();
     let exit_code = check::exit_code(&all_diags);
 
+    let structural_status = if all_diags.iter().any(|d| {
+        matches!(d.severity, Severity::Error)
+            && !d.code.starts_with("EVD-")
+            && !matches!(d.code.as_str(), "GAT-050" | "CST-050" | "CST-060")
+    }) {
+        "failed"
+    } else {
+        "passed"
+    };
     Ok(CheckReport {
+        structural_status,
+        execution_evidence,
         diagnostics: all_diags,
         waived,
         errors,
@@ -614,6 +643,23 @@ fn apply_waivers(
 fn print_check_report(report: &CheckReport) {
     style::header("check");
     style::detail("strictness", &report.strictness.to_string());
+    style::detail("Structural validation", report.structural_status);
+    style::detail(
+        "Execution evidence",
+        &report.execution_evidence.status.to_string(),
+    );
+    if report.execution_evidence.status != EvidenceStatus::NotConfigured {
+        style::section("Execution evidence (external runner)");
+        for binding in &report.execution_evidence.bindings {
+            println!(
+                "    {}: {} — {}",
+                binding.binding, binding.status, binding.reason
+            );
+            if let Some(artifact) = &binding.artifact_ref {
+                println!("      artifact: {artifact}");
+            }
+        }
+    }
     style::section("Diagnostics");
     if report.diagnostics.is_empty() {
         style::ok("all checks passed");

@@ -519,3 +519,13 @@ After the skill completes:
 1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
 2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If `validation.strictness: strict` or CI parity is required, run `hlv check --strict`.
 3. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional execution evidence context
+
+Read `project.yaml.execution_evidence` when present and include its selected
+requirement/test/gate bindings, approved requirement revisions and input scopes in
+agent context. Changes to scoped files or identities invalidate prior evidence.
+Keep actual test implementation/specification and source/build/dependency paths in
+scope. Do not refresh hashes on an old successful run or mark evidence passed from
+structural links. External runners capture `hlv evidence snapshot` before execution
+and publish their actual outcomes; see `docs/EXECUTION_EVIDENCE.md`.

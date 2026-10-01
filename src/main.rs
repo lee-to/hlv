@@ -14,6 +14,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Export input snapshots for external execution-evidence producers
+    Evidence {
+        #[command(subcommand)]
+        action: EvidenceAction,
+    },
     /// Scaffold a new HLV project (prompts interactively if options omitted)
     Init {
         /// Project name
@@ -211,6 +216,12 @@ enum Commands {
         #[arg(long)]
         workspace: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum EvidenceAction {
+    /// Print versioned JSON snapshots before running tests (does not execute tests)
+    Snapshot,
 }
 
 #[derive(Subcommand)]
@@ -737,6 +748,9 @@ fn run(cli: Cli) -> Result<()> {
 
     match cli.command {
         Commands::Init { .. } => unreachable!(),
+        Commands::Evidence {
+            action: EvidenceAction::Snapshot,
+        } => hlv::cmd::evidence::run_snapshot(&project_root),
         Commands::Check {
             watch,
             json,

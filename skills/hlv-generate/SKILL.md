@@ -434,3 +434,16 @@ After the skill completes:
 1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
 2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If CI parity is needed, run `hlv check --strict`.
 3. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional execution evidence configuration
+
+Read `project.yaml.execution_evidence` when present. Preserve its manifest path and
+binding IDs; maintain requirement/test/gate identities, human-approved requirement
+revision labels, requirement traceability file and test/code input scopes when
+regenerating specifications. Do not invent approvals or successful run records.
+Bindings use repository-relative input paths (including `.hlv/` for HLV artifacts
+in adopted projects); the manifest path is relative to the HLV config root.
+Requirement and gate policy inputs are automatically fingerprinted. Include actual
+test implementations, test specifications, contracts and relevant build/dependency
+inputs in the scope. Leave this optional section absent unless evidence consumption
+is requested. See `docs/EXECUTION_EVIDENCE.md` for the v1 contract.

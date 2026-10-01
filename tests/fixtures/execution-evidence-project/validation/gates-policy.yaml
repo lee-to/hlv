@@ -1,0 +1,6 @@
+version: 1.0.0
+policy_id: DEMO
+gates:
+  - id: GATE-DEMO-001
+    type: contract_tests
+    mandatory: true

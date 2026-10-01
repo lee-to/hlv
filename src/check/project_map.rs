@@ -114,6 +114,18 @@ pub fn check_project_map(root: &Path) -> Vec<Diagnostic> {
         diags.extend(crate::check::stack::check_stack(stack));
     }
 
+    if let Some(config) = &project.execution_evidence {
+        if let Err(error) = crate::check::execution_evidence::check_configuration(config) {
+            diags.push(
+                Diagnostic::error(
+                    "PRJ-100",
+                    format!("Invalid execution_evidence configuration: {error}"),
+                )
+                .with_file("project.yaml"),
+            );
+        }
+    }
+
     diags
 }
 

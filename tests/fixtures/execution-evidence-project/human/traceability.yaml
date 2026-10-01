@@ -1,0 +1,9 @@
+schema_version: 1
+requirements:
+  - id: REQ-DEMO-001
+    statement: The observed value must be one.
+mappings:
+  - requirement: REQ-DEMO-001
+    contracts: [demo]
+    tests: [CT-DEMO-001]
+    runtime_gates: [GATE-DEMO-001]

@@ -373,3 +373,20 @@ After the skill completes:
 2. Run `hlv check --strict` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
 3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
 4. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional versioned execution evidence
+
+Read `project.yaml.execution_evidence` for selected requirement/test/gate bindings
+and approved requirement revisions. When configured, capture `hlv evidence snapshot`
+before executing the existing runner, collect its actual terminal outcome and report
+artifact, and verify inputs did not change during execution before publishing the
+original snapshot with run/code revision identities. Publish one current record per
+binding in the configured manifest. Never attach updated hashes to an older success.
+
+Use `hlv check` to evaluate `structural_status` and `execution_evidence` separately.
+Missing/stale/invalid/failed/incomplete/skipped evidence blocks validation through
+`EVD-*` diagnostics, including in relaxed mode. Valid structural links, old gate
+statuses or free-text CI URLs are insufficient. Keep ordinary detailed runner reports
+in `validation/gate-results/`; versioned evidence references those reports rather than
+replacing the runner. Omitted configuration preserves current defaults. See
+`docs/EXECUTION_EVIDENCE.md` for field definitions, adopted paths and producer rules.

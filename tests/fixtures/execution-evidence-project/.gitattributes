@@ -1,0 +1,2 @@
+# SHA-256 fixture snapshots use exact bytes on every CI platform.
+* text eol=lf

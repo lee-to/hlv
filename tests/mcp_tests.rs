@@ -784,6 +784,8 @@ fn tool_check() {
     let json: serde_json::Value = serde_json::from_str(&text).unwrap();
     assert!(json["exit_code"].is_number());
     assert!(json["diagnostics"].is_array());
+    assert!(json["structural_status"].is_string());
+    assert_eq!(json["execution_evidence"]["status"], "not_configured");
 }
 
 #[test]

@@ -19,6 +19,16 @@ const ADOPT_RUST_HLV_FIXTURE: &str = "tests/fixtures/adopt-rust-project/.hlv";
 const SCHEMA_DIR: &str = "schema";
 
 const FIXTURE_CASES: &[(&str, &str, &str)] = &[
+    (
+        "tests/fixtures/execution-evidence-project",
+        "project-schema.json",
+        "project.yaml",
+    ),
+    (
+        "tests/fixtures/execution-evidence-project",
+        "execution-evidence-schema.json",
+        "validation/execution-evidence.yaml",
+    ),
     // --- example-project ---
     (FIXTURE, "project-schema.json", "project.yaml"),
     (FIXTURE, "milestones-schema.json", "milestones.yaml"),

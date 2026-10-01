@@ -311,3 +311,14 @@ After the skill completes:
 3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
 4. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/hlv-questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
 5. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional execution evidence structural checks
+
+If `project.yaml.execution_evidence` exists, validate nonempty unique binding IDs,
+approved requirement revision labels, requirement/test/gate mapping resolution and
+repository-relative input scopes. The requirement file is traceability YAML; test
+scopes must include actual implementation and specification inputs, and code scopes
+must cover relevant source/build/dependency inputs. `PRJ-100` and `EVD-010` diagnose
+invalid configuration/bindings. Treat `structural_status` and `execution_evidence`
+as separate report dimensions: valid metadata does not imply an executed test.
+Do not generate passed evidence. See `docs/EXECUTION_EVIDENCE.md`.

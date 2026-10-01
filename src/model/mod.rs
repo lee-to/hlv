@@ -1,6 +1,7 @@
 pub mod artifact;
 pub mod contract_md;
 pub mod contract_yaml;
+pub mod execution_evidence;
 pub mod glossary;
 pub mod index;
 pub mod llm_map;

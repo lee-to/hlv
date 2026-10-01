@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hlv-execution-evidence-schema",
+  "title": "HLV external execution evidence (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "runs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "code_revision",
+          "run_id",
+          "outcome"
+        ],
+        "properties": {
+          "snapshot": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "binding",
+              "requirement",
+              "approved_requirement_revision",
+              "test",
+              "gate",
+              "inputs"
+            ],
+            "properties": {
+              "binding": {
+                "type": "string",
+                "minLength": 1
+              },
+              "requirement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approved_requirement_revision": {
+                "type": "string",
+                "minLength": 1
+              },
+              "test": {
+                "type": "string",
+                "minLength": 1
+              },
+              "gate": {
+                "type": "string",
+                "minLength": 1
+              },
+              "inputs": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          },
+          "code_revision": {
+            "type": "string",
+            "minLength": 1
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "enum": [
+              "passed",
+              "failed",
+              "incomplete",
+              "skipped"
+            ]
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "artifact_ref": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "outcome": {
+                  "enum": [
+                    "passed",
+                    "failed",
+                    "skipped"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "finished_at",
+                "artifact_ref"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

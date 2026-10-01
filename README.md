@@ -76,6 +76,9 @@ $ hlv check
 
 Phase-aware: checks expected at the current phase are automatically downgraded to info. Use `hlv check --strict` in CI to promote warnings to errors.
 
+Versioned external test evidence is opt-in. Structural links and external run
+outcomes are reported separately; see [Execution evidence](docs/EXECUTION_EVIDENCE.md).
+
 ### Key commands
 
 | Command | What it does |
@@ -84,6 +87,7 @@ Phase-aware: checks expected at the current phase are automatically downgraded t
 | `hlv init --adopt` | Attach HLV to an existing Laravel, Go, Node/TypeScript, Python, or Rust codebase under `.hlv/` |
 | `hlv doctor` | Preflight paths, schema compatibility, command portability, cwd values, and rendering |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
+| `hlv evidence snapshot` | Export input identities/hashes for opt-in external execution evidence |
 | `hlv index build/show/list` | Build and query the compact signature index for adopted code |
 | `hlv explain <CODE>` | Explain a diagnostic and common fixes |
 | `hlv waivers` | List and audit explicit expiring diagnostic waivers |
