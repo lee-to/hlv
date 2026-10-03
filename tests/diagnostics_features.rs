@@ -150,6 +150,7 @@ fn strict_check_promotes_warnings_to_errors() {
             strict: true,
             with_waivers: false,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -173,6 +174,7 @@ fn check_report_preserves_glossary_parse_errors() {
             strict: false,
             with_waivers: false,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -207,6 +209,7 @@ gates:
             strict: false,
             with_waivers: false,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -251,6 +254,7 @@ gates:
             strict: false,
             with_waivers: true,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -287,6 +291,7 @@ gates:
             strict: false,
             with_waivers: false,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -316,6 +321,7 @@ fn check_with_waivers_suppresses_exact_code_and_file_only() {
             strict: false,
             with_waivers: true,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -346,6 +352,7 @@ fn expired_waiver_is_reported_and_does_not_suppress() {
             strict: false,
             with_waivers: true,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();
@@ -376,6 +383,7 @@ fn strict_mode_promotes_waiver_warnings_too() {
             strict: true,
             with_waivers: true,
             emit_gate_progress: false,
+            structural_only: false,
         },
     )
     .unwrap();

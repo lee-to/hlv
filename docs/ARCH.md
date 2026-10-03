@@ -197,7 +197,10 @@ Structural traceability and execution evidence are separate. Opt-in
 pre-run SHA-256 input snapshots. `hlv evidence snapshot` exports inputs without
 executing tests; check and status reports distinguish missing, stale and non-passing
 evidence. [Execution evidence](EXECUTION_EVIDENCE.md) defines the v1 contract and
-producer protocol. Projects that omit the section retain their validation defaults.
+producer protocol. `hlv check --structural-only` validates configuration/binding
+prerequisites before implementation or runner execution, with evidence outcomes
+explicitly `not_checked`; full checks enforce outcomes after publication.
+Projects that omit the section retain their validation defaults.
 
 Generated from contracts by `/hlv-generate`. Not written manually.
 

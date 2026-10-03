@@ -57,6 +57,9 @@ enum Commands {
         /// Apply validation/waivers.yaml to matching diagnostics
         #[arg(long)]
         with_waivers: bool,
+        /// Check prerequisites without executing commands or enforcing execution evidence
+        #[arg(long)]
+        structural_only: bool,
     },
     /// Build and query the signature index
     Index {
@@ -756,7 +759,15 @@ fn run(cli: Cli) -> Result<()> {
             json,
             strict,
             with_waivers,
-        } => hlv::cmd::check::run(&project_root, watch, json, strict, with_waivers),
+            structural_only,
+        } => hlv::cmd::check::run(
+            &project_root,
+            watch,
+            json,
+            strict,
+            with_waivers,
+            structural_only,
+        ),
         Commands::Index { action } => match action {
             IndexAction::Build => hlv::cmd::index::run_build(&project_root),
             IndexAction::Show { symbol, json } => {

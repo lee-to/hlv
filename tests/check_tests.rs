@@ -6022,3 +6022,239 @@ fn execution_evidence_negative_control_structural_links_with_wrong_observation()
     assert_eq!(report.exit_code, 1);
     assert!(report.diagnostics.iter().any(|d| d.code == "EVD-040"));
 }
+
+// A portable external runner for workflow tests. The normal suite invocation is a no-op;
+// gate and constraint commands invoke this test in an isolated fixture working directory.
+#[test]
+fn execution_evidence_workflow_runner() {
+    if !Path::new("workflow-runner-enabled").exists() {
+        return;
+    }
+    fs::write("workflow-runner-ran", "executed\n").unwrap();
+    let input = fs::read_to_string("llm/src/value.sh").unwrap();
+    let observed: u32 = input.trim().strip_prefix("echo ").unwrap().parse().unwrap();
+    assert_eq!(observed, 1);
+}
+
+fn evidence_workflow_fixture() -> TempDir {
+    let tmp = evidence_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    // The fixture intentionally has unmapped files; the workflow scenarios need a
+    // strict-clean structural baseline so evidence is the only deferred dimension.
+    project.paths.llm.map = None;
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let policy_path = tmp.path().join("validation/gates-policy.yaml");
+    let mut policy = hlv::model::policy::GatesPolicy::load(&policy_path).unwrap();
+    policy.gates[0].command = Some(portable_gate_command(&[
+        "--exact",
+        "execution_evidence_workflow_runner",
+        "--nocapture",
+    ]));
+    policy.save(&policy_path).unwrap();
+    fs::write(tmp.path().join("workflow-runner-enabled"), "enabled\n").unwrap();
+    tmp
+}
+
+fn evidence_workflow_check(root: &Path, structural_only: bool) -> (bool, serde_json::Value) {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"));
+    command
+        .args(["check", "--strict", "--json", "--root"])
+        .arg(root);
+    if structural_only {
+        command.arg("--structural-only");
+    }
+    let output = command.output().unwrap();
+    let report = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("{error}: {output:?}"));
+    (output.status.success(), report)
+}
+
+fn evidence_workflow_publish(root: &Path) {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["evidence", "snapshot", "--root"])
+        .arg(root)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let snapshots: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let mut run = evidence_run(root);
+    run.snapshot = serde_json::from_value(snapshots["snapshots"][0].clone()).unwrap();
+    assert!(
+        !root.join("workflow-runner-ran").exists(),
+        "snapshot must precede execution"
+    );
+    let observed = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "execution_evidence_workflow_runner",
+            "--nocapture",
+        ])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(observed.status.success(), "{observed:?}");
+    assert!(root.join("workflow-runner-ran").exists());
+    let project = ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let post_snapshot = hlv::check::execution_evidence::capture_snapshot(
+        root,
+        &project,
+        &project.execution_evidence.as_ref().unwrap().bindings[0],
+    )
+    .unwrap();
+    assert_eq!(
+        run.snapshot, post_snapshot,
+        "inputs must stay unchanged during execution"
+    );
+    fs::write(root.join("workflow-runner-report.txt"), observed.stdout).unwrap();
+    run.artifact_ref = Some("workflow-runner-report.txt".into());
+    write_evidence(root, vec![run]);
+    let (success, report) = evidence_workflow_check(root, false);
+    assert!(success, "{report}");
+    assert_eq!(report["structural_only"], false);
+    assert_eq!(report["structural_status"], "passed");
+    assert_eq!(report["execution_evidence"]["status"], "passed");
+}
+
+#[test]
+fn execution_evidence_workflow_first_run_preflight_then_publish() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_workflow_fixture();
+    fs::remove_file(tmp.path().join("validation/execution-evidence.yaml")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Missing, Some("EVD-020"));
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert_eq!(report["structural_only"], true);
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    assert!(!tmp.path().join("workflow-runner-ran").exists());
+    evidence_workflow_publish(tmp.path());
+}
+
+#[test]
+fn execution_evidence_workflow_stale_run_preflight_then_republish() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_workflow_fixture();
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    fs::write(tmp.path().join("llm/src/value.sh"), "echo 1\n\n").unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    assert!(!tmp.path().join("workflow-runner-ran").exists());
+    evidence_workflow_publish(tmp.path());
+}
+
+#[test]
+fn execution_evidence_structural_only_skips_gate_and_constraint_commands() {
+    let tmp = evidence_workflow_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let cmd = portable_gate_command(&[
+        "--exact",
+        "execution_evidence_workflow_runner",
+        "--nocapture",
+    ]);
+    let path = "human/constraints/workflow.yaml";
+    fs::write(tmp.path().join(path), format!(
+        "id: workflow\nversion: '1.0.0'\ncheck_command: {}\nrules:\n  - id: workflow-rule\n    severity: critical\n    statement: Check workflow\n    check_command: {}\n",
+        serde_json::to_string(&cmd).unwrap(), serde_json::to_string(&cmd).unwrap(),
+    )).unwrap();
+    project.constraints.push(ConstraintEntry {
+        id: "workflow".into(),
+        path: path.into(),
+        applies_to: None,
+    });
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert!(
+        !tmp.path().join("workflow-runner-ran").exists(),
+        "preflight must execute no commands"
+    );
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    assert!(evidence_workflow_check(tmp.path(), false).0);
+    assert!(
+        tmp.path().join("workflow-runner-ran").exists(),
+        "full checks still execute commands"
+    );
+}
+
+#[test]
+fn execution_evidence_structural_only_supports_planned_inputs_but_blocks_invalid_bindings() {
+    let tmp = evidence_workflow_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let binding = &mut project.execution_evidence.as_mut().unwrap().bindings[0];
+    binding.test_paths = vec!["llm/tests/not-implemented.rs".into()];
+    binding.code_paths = vec!["llm/src/not-implemented.rs".into()];
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(
+        success,
+        "pre-implementation verification should defer absent code/test inputs: {report}"
+    );
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    let snapshot = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["evidence", "snapshot", "--root"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        !snapshot.status.success(),
+        "absent inputs must block capture before execution"
+    );
+    project.execution_evidence.as_mut().unwrap().bindings[0].test = "CT-UNKNOWN-001".into();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "invalid");
+    assert!(report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["code"] == "EVD-010"));
+    project.execution_evidence.as_mut().unwrap().bindings[0]
+        .approved_requirement_revision
+        .clear();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(!success);
+    assert!(report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["code"] == "PRJ-100"));
+}
+
+#[test]
+fn execution_evidence_final_check_still_blocks_missing_stale_and_nonpassing_outcomes() {
+    use hlv::model::execution_evidence::ExecutionOutcome;
+    let tmp = evidence_workflow_fixture();
+    for outcome in [
+        ExecutionOutcome::Failed,
+        ExecutionOutcome::Incomplete,
+        ExecutionOutcome::Skipped,
+    ] {
+        let mut run = evidence_run(tmp.path());
+        run.outcome = outcome;
+        write_evidence(tmp.path(), vec![run]);
+        assert!(
+            evidence_workflow_check(tmp.path(), true).0,
+            "old outcomes must not prevent reruns"
+        );
+        let (success, report) = evidence_workflow_check(tmp.path(), false);
+        assert!(!success, "{report}");
+        assert_eq!(report["structural_status"], "passed");
+        assert!(report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["code"] == "EVD-040"));
+    }
+    fs::remove_file(tmp.path().join("validation/execution-evidence.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), false);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "missing");
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    fs::write(tmp.path().join("llm/src/value.sh"), "echo 1\n\n").unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), false);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "stale");
+}

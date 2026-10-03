@@ -17,6 +17,7 @@ use crate::model::traceability::TraceabilityMap;
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceStatus {
     NotConfigured,
+    NotChecked,
     Passed,
     Failed,
     Missing,
@@ -30,6 +31,7 @@ impl std::fmt::Display for EvidenceStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::NotConfigured => "not_configured",
+            Self::NotChecked => "not_checked",
             Self::Passed => "passed",
             Self::Failed => "failed",
             Self::Missing => "missing",
@@ -53,16 +55,7 @@ pub fn check_configuration(config: &crate::model::project::ExecutionEvidenceConf
             !binding.id.trim().is_empty() && seen.insert(&binding.id),
             "empty or duplicate execution evidence binding ID"
         );
-        ensure!(
-            !binding.test_paths.is_empty() && !binding.code_paths.is_empty(),
-            "test_paths and code_paths must not be empty"
-        );
-        for path in std::iter::once(&binding.requirement_file)
-            .chain(&binding.test_paths)
-            .chain(&binding.code_paths)
-        {
-            validate_relative(path)?;
-        }
+        validate_binding(binding)?;
     }
     Ok(())
 }
@@ -87,6 +80,70 @@ pub struct BindingEvidenceStatus {
 pub struct ExecutionEvidenceReport {
     pub status: EvidenceStatus,
     pub bindings: Vec<BindingEvidenceStatus>,
+}
+
+/// Validate planned binding prerequisites without requiring code, test files or runs.
+/// Used before implementation and before capturing an external runner's snapshot.
+pub fn check_execution_prerequisites(
+    repo_root: &Path,
+    project: &ProjectMap,
+) -> (ExecutionEvidenceReport, Vec<Diagnostic>) {
+    let Some(config) = &project.execution_evidence else {
+        return (
+            ExecutionEvidenceReport {
+                status: EvidenceStatus::NotConfigured,
+                bindings: vec![],
+            },
+            vec![],
+        );
+    };
+    if let Err(error) = check_configuration(config) {
+        return (
+            ExecutionEvidenceReport {
+                status: EvidenceStatus::Invalid,
+                bindings: vec![],
+            },
+            vec![Diagnostic::error(
+                "EVD-010",
+                format!("Invalid evidence configuration: {error}"),
+            )
+            .with_file("project.yaml")],
+        );
+    }
+    let mut bindings = Vec::new();
+    let mut diagnostics = Vec::new();
+    for binding in &config.bindings {
+        let (status, reason) = match resolve_binding(repo_root, project, binding) {
+            Ok(_) => (
+                EvidenceStatus::NotChecked,
+                "execution outcomes deferred until after runner execution".to_string(),
+            ),
+            Err(error) => {
+                diagnostics.push(
+                    Diagnostic::error("EVD-010", format!("Binding {}: {error}", binding.id))
+                        .with_file("project.yaml"),
+                );
+                (EvidenceStatus::Invalid, error.to_string())
+            }
+        };
+        bindings.push(BindingEvidenceStatus {
+            binding: binding.id.clone(),
+            requirement: binding.requirement.clone(),
+            test: binding.test.clone(),
+            gate: binding.gate.clone(),
+            status,
+            reason,
+            run_id: None,
+            code_revision: None,
+            artifact_ref: None,
+        });
+    }
+    let status = if diagnostics.is_empty() {
+        EvidenceStatus::NotChecked
+    } else {
+        EvidenceStatus::Invalid
+    };
+    (ExecutionEvidenceReport { status, bindings }, diagnostics)
 }
 
 /// Check evidence without running tests or mutating artifacts.
@@ -266,6 +323,31 @@ pub fn capture_snapshot(
 ) -> Result<ExecutionSnapshot> {
     let context = crate::ProjectContext::from_root(repo_root);
     let repo_root = context.repo_root();
+    let (_, gates_path) = resolve_binding(repo_root, project, binding)?;
+    let root = repo_root.canonicalize()?;
+    let mut inputs = BTreeMap::new();
+    hash_path(&root, &gates_path, &mut inputs)?;
+    for path in std::iter::once(&binding.requirement_file)
+        .chain(&binding.test_paths)
+        .chain(&binding.code_paths)
+    {
+        let full_path = contained_path(&root, path)?;
+        let mut files = BTreeMap::new();
+        hash_path(&root, &full_path, &mut files)?;
+        ensure!(!files.is_empty(), "input directory {path} is empty");
+        inputs.extend(files);
+    }
+    Ok(ExecutionSnapshot {
+        binding: binding.id.clone(),
+        requirement: binding.requirement.clone(),
+        approved_requirement_revision: binding.approved_requirement_revision.clone(),
+        test: binding.test.clone(),
+        gate: binding.gate.clone(),
+        inputs,
+    })
+}
+
+fn validate_binding(binding: &ExecutionEvidenceBinding) -> Result<()> {
     for value in [
         &binding.id,
         &binding.requirement,
@@ -282,6 +364,23 @@ pub fn capture_snapshot(
         !binding.test_paths.is_empty() && !binding.code_paths.is_empty(),
         "test_paths and code_paths must not be empty"
     );
+    for path in std::iter::once(&binding.requirement_file)
+        .chain(&binding.test_paths)
+        .chain(&binding.code_paths)
+    {
+        validate_relative(path)?;
+    }
+    Ok(())
+}
+
+fn resolve_binding(
+    repo_root: &Path,
+    project: &ProjectMap,
+    binding: &ExecutionEvidenceBinding,
+) -> Result<(PathBuf, PathBuf)> {
+    let context = crate::ProjectContext::from_root(repo_root);
+    let repo_root = context.repo_root();
+    validate_binding(binding)?;
     let requirement_file = contained_path(repo_root, &binding.requirement_file)?;
     let trace = TraceabilityMap::load(&requirement_file)
         .context("cannot load requirement traceability file")?;
@@ -312,27 +411,7 @@ pub fn capture_snapshot(
         "unknown gate {}",
         binding.gate
     );
-    let root = repo_root.canonicalize()?;
-    let mut inputs = BTreeMap::new();
-    hash_path(&root, &gates_path, &mut inputs)?;
-    for path in std::iter::once(&binding.requirement_file)
-        .chain(&binding.test_paths)
-        .chain(&binding.code_paths)
-    {
-        let full_path = contained_path(&root, path)?;
-        let mut files = BTreeMap::new();
-        hash_path(&root, &full_path, &mut files)?;
-        ensure!(!files.is_empty(), "input directory {path} is empty");
-        inputs.extend(files);
-    }
-    Ok(ExecutionSnapshot {
-        binding: binding.id.clone(),
-        requirement: binding.requirement.clone(),
-        approved_requirement_revision: binding.approved_requirement_revision.clone(),
-        test: binding.test.clone(),
-        gate: binding.gate.clone(),
-        inputs,
-    })
+    Ok((requirement_file, gates_path))
 }
 
 fn validate_relative(path: &str) -> Result<()> {

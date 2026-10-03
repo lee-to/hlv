@@ -53,17 +53,31 @@ statuses, Markdown reports, CI URLs, or an empty run list.
 
 ## Producer protocol
 
-1. Run `hlv evidence snapshot --root <repo>` **before** running the tests. It prints
+1. Before implementation, use `hlv check --structural-only --json` to verify
+   structure and binding prerequisites. Before release runners, use
+   `hlv check --strict --structural-only --json`. Require exit 0. These checks
+   execute no gate or constraint commands, do not consume the run manifest, and
+   report configured evidence as `not_checked`. Missing/stale prior evidence cannot
+   prevent producing its replacement. Binding identities, approved revision labels,
+   relative path definitions, requirement traceability and gate references remain
+   blocking prerequisites. Planned code/test files may be absent before implementation.
+2. Run `hlv evidence snapshot --root <repo>` **before** running the tests. It prints
    `{schema_version: 1, snapshots: [...]}` as JSON and never runs tests or records
    an outcome. Save this output outside the declared input directories.
-2. Run the existing external runner against those inputs and collect its actual
+3. Run the existing external runner against those inputs and collect its actual
    outcome and observation/report artifact.
-3. Capture a second snapshot and compare it to the first. If inputs changed while
+4. Capture a second snapshot and compare it to the first. If inputs changed while
    the runner executed, discard the run or publish `incomplete`; never attach a
    fresh snapshot to an older successful run.
-4. Publish `schema_version: 1` and a `runs` list at the configured evidence path.
+5. Publish `schema_version: 1` and a `runs` list at the configured evidence path.
    Copy each original snapshot unchanged into the corresponding record. YAML or
    JSON syntax is accepted. Publish atomically after the report artifact is ready.
+
+6. After publication, run `hlv check --strict --json` without `--structural-only`.
+   Require exit 0, `structural_only: false` and compatible `passed` evidence before
+   approving release. This full check still executes configured local commands.
+   Non-passing evidence remains blocking. Capture cannot succeed if actual inputs
+   are absent/unreadable, so planned inputs must be implemented before Step 2.
 
 Example record (replace illustrative hashes with the snapshot command's output):
 
@@ -114,9 +128,14 @@ See `schema/execution-evidence-schema.json` for the evidence contract.
 code revision and artifact reference. The evidence aggregate is `passed` only when
 all configured bindings have compatible passed records; otherwise it reports the
 first non-passing binding in configuration order. `not_configured` is explicit.
+`--structural-only` reports `structural_only: true` and evidence `not_checked`; it
+validates binding prerequisites without consuming previous outcomes, hashing planned
+code/test inputs, or executing commands. It is a preflight mode, never a release
+check. Old malformed manifests or failed runs may be replaced during production;
+the full final check still rejects them if they remain.
 
-Opt-in missing, stale, invalid, failed, incomplete or skipped evidence produces
-blocking `EVD-*` diagnostics, even with `validation.strictness: relaxed`. Relaxed
+In full checks, opt-in missing, stale, invalid, failed, incomplete or skipped
+evidence produces blocking `EVD-*` diagnostics, even with `validation.strictness: relaxed`. Relaxed
 mode skips command execution, not this deterministic compatibility check. Structural
 status excludes evidence outcomes and gate/constraint command failures. Normal gate
 commands retain their existing execution behavior; consuming external evidence does
@@ -138,3 +157,6 @@ chain remains valid, executes the test, and publishes its actual failed outcome.
 The report then shows `structural_status: passed`, `execution_evidence.status: failed`,
 and a nonzero check exit code. Separate tests cover stale/missing records, input
 changes, malformed metadata, opt-out defaults, snapshot export and adopted layouts.
+Workflow regressions cover first-run and stale-run preflight → snapshot → external
+runner → publication → final strict check, command-free preflight, planned inputs,
+invalid binding prerequisites and blocking final non-passing outcomes.

@@ -20,10 +20,13 @@ pub struct CheckOptions {
     pub strict: bool,
     pub with_waivers: bool,
     pub emit_gate_progress: bool,
+    /// Only validate structural and configuration prerequisites; do not execute commands.
+    pub structural_only: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct CheckReport {
+    pub structural_only: bool,
     pub structural_status: &'static str,
     pub execution_evidence: ExecutionEvidenceReport,
     pub diagnostics: Vec<Diagnostic>,
@@ -47,11 +50,13 @@ pub fn run(
     json: bool,
     strict: bool,
     with_waivers: bool,
+    structural_only: bool,
 ) -> Result<()> {
     let options = CheckOptions {
         strict,
         with_waivers,
         emit_gate_progress: !json && !style::is_quiet(),
+        structural_only,
     };
     if json {
         let report = get_check_report(project_root, options)?;
@@ -65,6 +70,7 @@ pub fn run(
             "exit_code": report.exit_code,
             "structural_status": report.structural_status,
             "execution_evidence": report.execution_evidence,
+            "structural_only": report.structural_only,
         });
         println!("{}", serde_json::to_string_pretty(&output)?);
         std::process::exit(report.exit_code);
@@ -93,13 +99,16 @@ pub fn get_check_diagnostics(root: &Path) -> Result<(Vec<Diagnostic>, i32)> {
 
 pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckReport> {
     let strictness = effective_strictness(root, options.strict);
-    let mut all_diags = collect_diagnostics(root, &strictness)?;
+    let mut all_diags = collect_diagnostics(root, &strictness, !options.structural_only)?;
 
     if strictness == Strictness::Strict {
         promote_warnings_to_errors(&mut all_diags);
     }
 
-    if check::exit_code(&all_diags) == 0 && strictness != Strictness::Relaxed {
+    if check::exit_code(&all_diags) == 0
+        && strictness != Strictness::Relaxed
+        && !options.structural_only
+    {
         let gate_report =
             super::gates::run_gate_command_report(root, None, options.emit_gate_progress)?;
         all_diags.extend(gate_report.diagnostics);
@@ -107,6 +116,9 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
 
     let (execution_evidence, evidence_diags) =
         match ProjectMap::load(&crate::config_root(root).join("project.yaml")) {
+            Ok(project) if options.structural_only => {
+                check::execution_evidence::check_execution_prerequisites(root, &project)
+            }
             Ok(project) => check::execution_evidence::check_execution_evidence(root, &project),
             Err(_) => (
                 ExecutionEvidenceReport {
@@ -151,6 +163,7 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
         "passed"
     };
     Ok(CheckReport {
+        structural_only: options.structural_only,
         structural_status,
         execution_evidence,
         diagnostics: all_diags,
@@ -163,7 +176,11 @@ pub fn get_check_report(root: &Path, options: CheckOptions) -> Result<CheckRepor
     })
 }
 
-fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagnostic>> {
+fn collect_diagnostics(
+    root: &Path,
+    strictness: &Strictness,
+    execute_commands: bool,
+) -> Result<Vec<Diagnostic>> {
     // HLV config artifacts live under the config root (`.hlv/` for adopted
     // projects); command execution (gates, constraint checks) stays on the
     // repository root.
@@ -356,7 +373,7 @@ fn collect_diagnostics(root: &Path, strictness: &Strictness) -> Result<Vec<Diagn
 
     if !project.constraints.is_empty() {
         all_diags.extend(check::constraints::check_constraints(root, &project));
-        if strictness != &Strictness::Relaxed {
+        if strictness != &Strictness::Relaxed && execute_commands {
             // CST-050: run rule-level check_commands (cwd relative to repo root)
             let (cst050, _) =
                 check::constraints::run_constraint_checks(repo_root, &project, None, None);
@@ -642,6 +659,9 @@ fn apply_waivers(
 
 fn print_check_report(report: &CheckReport) {
     style::header("check");
+    if report.structural_only {
+        style::detail("Mode", "structural only (execution outcomes deferred)");
+    }
     style::detail("strictness", &report.strictness.to_string());
     style::detail("Structural validation", report.structural_status);
     style::detail(

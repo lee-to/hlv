@@ -87,6 +87,7 @@ outcomes are reported separately; see [Execution evidence](docs/EXECUTION_EVIDEN
 | `hlv init --adopt` | Attach HLV to an existing Laravel, Go, Node/TypeScript, Python, or Rust codebase under `.hlv/` |
 | `hlv doctor` | Preflight paths, schema compatibility, command portability, cwd values, and rendering |
 | `hlv check` | Run the full validation suite — specs, gates, deps, coverage |
+| `hlv check --structural-only` | Check workflow prerequisites without running commands or requiring execution evidence |
 | `hlv evidence snapshot` | Export input identities/hashes for opt-in external execution evidence |
 | `hlv index build/show/list` | Build and query the compact signature index for adopted code |
 | `hlv explain <CODE>` | Explain a diagnostic and common fixes |

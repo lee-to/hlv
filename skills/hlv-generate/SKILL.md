@@ -36,7 +36,7 @@ Before reading or reporting missing HLV files, resolve the project layout:
 5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
 6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
 
-Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --structural-only --root <REPO_ROOT>` for deterministic prerequisites; enforce the full check after runner execution/evidence publication in `/hlv-validate`.
 
 ## Milestone Context
 
@@ -432,7 +432,7 @@ If contracts already exist in `{MID}/contracts/`, switch to incremental mode aut
 
 After the skill completes:
 1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
-2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If CI parity is needed, run `hlv check --strict`.
+2. Run `hlv check --structural-only` to validate structural/configuration prerequisites; defer execution evidence outcomes to `/hlv-validate`. If there are errors — fix them before finishing. If strict structural checks are needed, run `hlv check --strict --structural-only`.
 3. Suggest the user run `/clear` to free up context window before the next skill.
 
 ### Optional execution evidence configuration
