@@ -36,7 +36,7 @@ Before reading or reporting missing HLV files, resolve the project layout:
 5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
 6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
 
-Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --structural-only --root <REPO_ROOT>` for deterministic prerequisites; enforce the full check after runner execution/evidence publication in `/hlv-validate`.
 
 ## Milestone Context
 
@@ -432,5 +432,18 @@ If contracts already exist in `{MID}/contracts/`, switch to incremental mode aut
 
 After the skill completes:
 1. Run `hlv doctor` to catch missing paths, invalid command strings, cwd problems, schema mismatch, and non-ASCII rendering issues.
-2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. If CI parity is needed, run `hlv check --strict`.
+2. Run `hlv check --structural-only` to validate structural/configuration prerequisites; defer execution evidence outcomes to `/hlv-validate`. If there are errors — fix them before finishing. If strict structural checks are needed, run `hlv check --strict --structural-only`.
 3. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional execution evidence configuration
+
+Read `project.yaml.execution_evidence` when present. Preserve its manifest path and
+binding IDs; maintain requirement/test/gate identities, human-approved requirement
+revision labels, requirement traceability file and test/code input scopes when
+regenerating specifications. Do not invent approvals or successful run records.
+Bindings use repository-relative input paths (including `.hlv/` for HLV artifacts
+in adopted projects); the manifest path is relative to the HLV config root.
+Requirement and gate policy inputs are automatically fingerprinted. Include actual
+test implementations, test specifications, contracts and relevant build/dependency
+inputs in the scope. Leave this optional section absent unless evidence consumption
+is requested. See `docs/EXECUTION_EVIDENCE.md` for the v1 contract.

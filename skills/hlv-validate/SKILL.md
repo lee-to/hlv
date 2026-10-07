@@ -52,7 +52,7 @@ Before reading or reporting missing HLV files, resolve the project layout:
 5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
 6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
 
-Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --structural-only --root <REPO_ROOT>` for deterministic prerequisites; enforce the full check after runner execution/evidence publication in `/hlv-validate`.
 
 ## Input
 
@@ -91,7 +91,7 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
    - In adopt mode without `paths.llm.src`, use `paths.code.src` and `paths.code.tests`; `.hlv/llm/` is metadata only.
    - `LLM_MAP  = paths.llm.map`   (e.g. `llm/map.yaml`)
    All gate execution, code scanning, and marker checks MUST target configured project roots — not hardcoded paths.
-4. Run `hlv check --strict` before release validation. Fix `MAP-080`/`MAP-081` path isolation errors and other strict diagnostics before executing gates.
+4. Run `hlv check --strict --structural-only --json --root <REPO_ROOT>` for preflight. Require exit code 0: fix `MAP-080`/`MAP-081`, invalid evidence configuration/bindings (`PRJ-100`, `EVD-010`), and all other structural/configuration errors before executing gates. This mode executes no gate or constraint commands and reports configured execution evidence as `not_checked`. Expected missing/stale evidence from a first run or changed inputs is deferred; do not require a successful old run before producing its replacement. Do not use a full `hlv check --strict` at this step.
 5. Read `milestones.yaml` → get `current.id`, `current.stage`, and stage status
 6. **STATUS GATE (hard stop)**:
    - Allowed stage statuses to proceed: `implemented`, `validating`
@@ -115,6 +115,15 @@ Note: `project.yaml → artifact_graph` and artifact frontmatter provide impact-
 
 ### Step 2: Execute gates
 
+#### Capture execution evidence inputs before running
+
+If `project.yaml.execution_evidence` is configured:
+
+1. After tooling, build preparation and stage-status updates, run `hlv evidence snapshot --root <REPO_ROOT>` **before any test runner executes**. Save the original snapshots outside declared input scopes. Capture must succeed; missing/unreadable code or test inputs now block execution even though they may be planned during `/hlv-verify`.
+2. Associate each configured binding with the actual test invocation and its external run/code revision identity. A gate's exit code alone does not establish that every mapped test ran.
+3. Run the existing runners below and retain their actual outcomes and observation/report artifacts. Compatible records for bindings that are not rerun may be preserved; every missing/stale binding needs a new run, including those whose old gate status was `passed`.
+4. Publish the records in Step 3, then enforce the full evidence check in Step 3d. Structural preflight success is never release approval.
+
 #### Two-phase validation
 
 **Phase 1 — Milestone gates** (automatic):
@@ -123,7 +132,7 @@ Run all gates from `gates-policy.yaml` against the contracts and code of the cur
 **Phase 2 — Global gates** (with user confirmation):
 After Phase 1 passes, ask: "Milestone gates passed. Run global integration scenarios? [y/n]"
 If yes → run `validation/scenarios/*.md` (cross-milestone integration tests).
-If no → skip Phase 2, milestone is ready to merge based on Phase 1 results.
+If no → skip Phase 2. Phase 1 can approve the milestone only if the final check in Step 3d passes; a configured evidence binding for a skipped test must not be marked passed.
 
 #### Gate execution
 
@@ -170,14 +179,20 @@ gate_results:
   # ... etc.
 ```
 
+When execution evidence is configured, also:
+
+1. Capture a second `hlv evidence snapshot` after execution and compare it with the original pre-run snapshots. If scoped inputs changed, discard the affected success or publish `incomplete`; rerun against a newly captured snapshot before release.
+2. Publish one current record per binding atomically at the configured manifest path. Each new record contains the **original** snapshot, the actual outcome, run/code revision identities, terminal timestamp and artifact reference. Failed/incomplete/skipped runs remain non-passing; never refresh an old success by replacing its hashes.
+3. Keep ordinary runner artifacts in `validation/gate-results/` outside input scopes. Use them as evidence references, not as inferred successes.
+
 ### Step 3b: Constraint rule coverage
 
 > **Conditional: `features.hlv_markers: true`**
 > If `hlv_markers` is `false` in project.yaml, skip the `@hlv` marker check below. `hlv check` will not produce CTR-010 diagnostics. Still run `check_command`-based rules (CST-050/CST-060) as those are independent of markers.
 
-Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in the configured code/test roots (`paths.llm.*` for greenfield, `paths.code.*` for adopted projects without generated roots). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check` and review CTR-010 diagnostics for missing constraint markers.
+Check that every rule in rule-based constraint files (`human/constraints/*.yaml`) has a corresponding `@hlv <rule-id>` marker in the configured code/test roots (`paths.llm.*` for greenfield, `paths.code.*` for adopted projects without generated roots). Rules with `check_command` are exempt — they are verified programmatically. Run `hlv check --structural-only` and review CTR-010 diagnostics for missing constraint markers.
 
-`hlv check` also executes `check_command` for rules that define one (CST-050/CST-060), unless the project is explicitly checked in `relaxed` mode. Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
+The final strict check in Step 3d executes `check_command` for rules that define one (CST-050/CST-060); structural-only marker scans do not execute them. Review diagnostics: rules with `error_level: error` (or `critical`/`high` severity without an override) block release. Add failing checks to the remediation plan (Step 4a).
 
 For each critical rule without coverage, add it to the remediation plan (Step 4a).
 
@@ -201,18 +216,28 @@ Audit all `@hlv:sec` markers in the source code and evaluate security handling q
    - Cryptographic operations using weak algorithms or hardcoded keys.
 
 3. **Report**:
-   - Run `hlv check` and review SEC-010 (summary table) and SEC-011 (invalid categories) diagnostics.
+   - Run `hlv check --structural-only` and review SEC-010 (summary table) and SEC-011 (invalid categories) diagnostics.
    - For each **weak** or **missing** handling, add a remediation item to Step 4a.
    - For each unmarked security-sensitive spot found, recommend adding an `@hlv:sec` marker in the remediation plan.
+
+### Step 3d: Enforce final validation after evidence publication
+
+Run `hlv check --strict --json --root <REPO_ROOT>` **without** `--structural-only`.
+This final check executes configured gate/constraint commands and enforces evidence
+compatibility and actual outcomes. Require exit code 0 and `structural_only: false`.
+When evidence is configured, also require `execution_evidence.status: passed`;
+`not_checked` is never sufficient for release. Missing/stale/invalid/failed/incomplete/
+skipped evidence blocks release and must be repaired or rerun through Steps 2–3.
+Do not downgrade these final diagnostics or fabricate successful records.
 
 ### Step 4: Release decision and remediation plan
 
 Rules from `gates-policy.yaml`:
 
 ```
-if all mandatory gates passed:
+if all mandatory gates passed AND the full final check in Step 3d passed:
   → RELEASE APPROVED → go to Step 5
-elif any mandatory gate failed:
+elif any mandatory gate failed OR the final check in Step 3d failed:
   → RELEASE BLOCKED → create remediation plan (Step 4a)
 elif flaky tests detected:
   → QUARANTINE — block if P0 affected
@@ -328,7 +353,7 @@ Update `milestones.yaml` (schema: `schema/milestones-schema.json`):
 
 ```yaml
 # milestones.yaml updates:
-# If all gates passed (Phase 1 + optional Phase 2):
+# If all gates passed (Phase 1 + optional Phase 2) AND Step 3d passed:
 current.stages[N].status: validated
 
 # If remediation tasks were added (Step 4a):
@@ -362,7 +387,7 @@ milestones.yaml               # updated stage status
 
 `/hlv-validate` can be run again after fixes:
 
-1. Re-runs only failed/skipped gates (by default)
+1. Re-runs failed/skipped gates and every missing/stale evidence binding, even if its old gate status was passed
 2. `--all` — re-runs all gates
 3. Shows diff with previous run
 
@@ -370,6 +395,13 @@ milestones.yaml               # updated stage status
 
 After the skill completes:
 1. Run `hlv doctor` to validate environment and configuration.
-2. Run `hlv check --strict` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
+2. Run the full `hlv check --strict` after evidence publication, without `--structural-only`. Do not mark a stage validated unless Step 3d passed; execution failures remain blocked/remediation findings, not structural preflight prerequisites. Use `hlv explain <CODE>` when a diagnostic needs triage.
 3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
 4. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Execution evidence reference
+
+The ordered production/enforcement flow is in Steps 1–3d. Missing/stale prior records
+are expected before execution; all non-passing evidence blocks the final release
+check. Omitted configuration preserves existing defaults. See
+`docs/EXECUTION_EVIDENCE.md` for field definitions, adopted paths and producer rules.

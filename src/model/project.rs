@@ -31,11 +31,38 @@ pub struct ProjectMap {
     pub features: Features,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub artifact_graph: Option<ArtifactGraphConfig>,
+    /// Opt-in references to externally produced, versioned execution evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_evidence: Option<ExecutionEvidenceConfig>,
     /// Location of HLV-owned artifacts relative to the repository root
     /// (e.g. ".hlv" for adopted projects). Informational — discovery is
     /// filesystem-based; serialized only when set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hlv_root: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionEvidenceConfig {
+    /// Evidence YAML, relative to the HLV config root.
+    pub path: String,
+    pub bindings: Vec<ExecutionEvidenceBinding>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct ExecutionEvidenceBinding {
+    pub id: String,
+    pub requirement: String,
+    pub approved_requirement_revision: String,
+    /// Traceability YAML containing the requirement and mapping, relative to the repo.
+    pub requirement_file: String,
+    pub test: String,
+    pub gate: String,
+    /// Actual test implementation and spec files/directories, relative to the repo.
+    pub test_paths: Vec<String>,
+    /// Source and build/dependency inputs, relative to the repo.
+    pub code_paths: Vec<String>,
 }
 
 // ── Artifact Dependency Graph ─────────────────────────
@@ -647,6 +674,7 @@ type: some_new_type
             git: GitPolicy::default(),
             features: Features::default(),
             artifact_graph: None,
+            execution_evidence: None,
             hlv_root: None,
         };
 
@@ -694,6 +722,7 @@ type: some_new_type
             git: GitPolicy::default(),
             features: Features::default(),
             artifact_graph: None,
+            execution_evidence: None,
             hlv_root: None,
         };
 
@@ -873,6 +902,7 @@ custom_field: hello
                 index_tracking: IndexTrackingPolicy::Ignored,
             },
             artifact_graph: None,
+            execution_evidence: None,
             hlv_root: None,
         };
 

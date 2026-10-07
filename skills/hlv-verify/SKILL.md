@@ -38,7 +38,7 @@ Before reading or reporting missing HLV files, resolve the project layout:
 5. In the steps below, bare paths like `milestones.yaml` or `human/` mean `CONFIG_ROOT/milestones.yaml` and `CONFIG_ROOT/human/`.
 6. In adopted projects, existing source/test roots from `paths.code` are relative to `REPO_ROOT`.
 
-Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --root <REPO_ROOT>` for deterministic validation.
+Never report that root-level `human/`, `validation/`, `milestones.yaml`, or `project.yaml` are missing until `.hlv/project.yaml` has been checked. Use `hlv check --structural-only --root <REPO_ROOT>` for deterministic prerequisites; enforce the full check after runner execution/evidence publication in `/hlv-validate`.
 
 ## Milestone Resolution
 
@@ -66,7 +66,7 @@ Do not fail verification because untouched legacy code lacks new HLV contracts o
 
 Checks that can be performed without LLM — by script or parsing.
 
-Run `hlv doctor` first for environment/config preflight. Then run `hlv check` for automated structural checks. Do not use `--with-waivers` unless the user explicitly asks to apply existing waivers; waiver files must remain visible and auditable. Then verify each area:
+Run `hlv doctor` first for environment/config preflight. Then run `hlv check --structural-only --json` for automated structural/configuration checks without executing gate or constraint commands or enforcing run outcomes. Configured evidence is `not_checked`; missing/stale results and not-yet-created code/test inputs are expected before implementation. Invalid binding definitions or requirement/test/gate references still block verification. Do not use `--with-waivers` unless the user explicitly asks to apply existing waivers; waiver files must remain visible and auditable. Then verify each area:
 
 #### 1a. Contract structure
 
@@ -143,7 +143,7 @@ For `project.yaml`:
 - [ ] All paths in `paths` point to existing directories/files
 - [ ] `validation.strictness`, when present, is one of `relaxed`, `standard`, `strict`
 - [ ] `validation.verify_status` may be omitted; omitted means `not_run`
-- [ ] `validation/waivers.yaml`, when present, uses required `code`, `file`, `reason`, `expires` fields and passes `hlv waivers audit`
+- [ ] `validation/waivers.yaml`, when present, uses required `code`, `file`, `reason`, `expires` fields and is inspected with `hlv waivers list` plus a review of expiry, duplicates, reasons and structural diagnostic scopes; defer the full `hlv waivers audit` until after `/hlv-validate` publishes evidence because audit invokes full checks/commands
 - [ ] Each contract from `contracts` has corresponding file at `path`
 - [ ] Each contract has `test_spec` and file exists
 - [ ] `plan.groups` has no cyclic `depends_on_groups`
@@ -277,7 +277,9 @@ NEEDS FIXES — <N> critical issues, <N> warnings
 
 ### Step 4: Update milestone status
 
-If all checks pass (no errors, only warnings or info):
+If structural/configuration and semantic checks pass (no errors, only warnings or info):
+Execution evidence outcomes are deferred to `/hlv-validate`; `not_checked` does not block `verified` and does not authorize release.
+
 - Update `milestones.yaml` (schema: `schema/milestones-schema.json`): set current stage status → `verified`
 - This signals that contracts are verified and ready for `/hlv-implement`
 
@@ -307,7 +309,18 @@ Typical cycle:
 
 After the skill completes:
 1. Run `hlv doctor` to validate the environment and configuration.
-2. Run `hlv check` to validate the project structure. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
-3. Run `hlv waivers audit` if `validation/waivers.yaml` exists.
+2. Run `hlv check --structural-only` to validate the project structure and binding prerequisites. If there are errors — fix them before finishing. Use `hlv explain <CODE>` when a diagnostic needs triage.
+3. If `validation/waivers.yaml` exists, use `hlv waivers list` and inspect its fields, expiry, duplicate scopes and reasons against the structural report. Defer `hlv waivers audit` to `/hlv-validate` after evidence publication; it invokes the full check and can execute gate/constraint commands.
 4. If open questions remain (step 1h found blockers), suggest the user run `/clear` and then invoke the `/hlv-questions` skill to resolve them, or use `hlv dashboard` to review and answer open questions interactively.
 5. Suggest the user run `/clear` to free up context window before the next skill.
+
+### Optional execution evidence structural checks
+
+If `project.yaml.execution_evidence` exists, validate nonempty unique binding IDs,
+approved requirement revision labels, requirement/test/gate mapping resolution and
+repository-relative input scopes. Planned code/test files may be absent at this phase; actual input resolution and snapshots are required before runner execution in `/hlv-validate`. The requirement file is traceability YAML; test
+scopes must include actual implementation and specification inputs, and code scopes
+must cover relevant source/build/dependency inputs. `PRJ-100` and `EVD-010` diagnose
+invalid configuration/bindings. Treat `structural_status` and `execution_evidence`
+as separate report dimensions: valid metadata does not imply an executed test.
+Do not generate passed evidence. See `docs/EXECUTION_EVIDENCE.md`.

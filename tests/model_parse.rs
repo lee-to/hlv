@@ -13,6 +13,48 @@ const FIXTURE: &str = "tests/fixtures/example-project";
 const MS_FIXTURE: &str = "tests/fixtures/milestone-project";
 
 #[test]
+fn parse_execution_evidence_project_and_run() {
+    let root = Path::new("tests/fixtures/execution-evidence-project");
+    let project = ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let config = project.execution_evidence.unwrap();
+    assert_eq!(config.path, "validation/execution-evidence.yaml");
+    assert_eq!(
+        config.bindings[0].approved_requirement_revision,
+        "approved-v1"
+    );
+    assert_eq!(config.bindings[0].test_paths.len(), 2);
+    let evidence =
+        hlv::model::execution_evidence::ExecutionEvidenceFile::load(&root.join(config.path))
+            .unwrap();
+    assert_eq!(evidence.schema_version, 1);
+    assert_eq!(evidence.runs[0].snapshot.test, "CT-DEMO-001");
+    assert_eq!(evidence.runs[0].snapshot.inputs.len(), 5);
+    assert!(evidence.runs[0].finished_at.is_some());
+}
+
+#[test]
+fn execution_evidence_is_opt_in_and_rejects_unknown_fields() {
+    let project = ProjectMap::load(&Path::new(FIXTURE).join("project.yaml")).unwrap();
+    assert!(project.execution_evidence.is_none());
+    let yaml =
+        std::fs::read_to_string("tests/fixtures/execution-evidence-project/project.yaml").unwrap();
+    assert!(serde_yaml::from_str::<ProjectMap>(
+        &yaml.replace("approved_requirement_revision:", "unknown_revision:")
+    )
+    .is_err());
+    let yaml = std::fs::read_to_string(
+        "tests/fixtures/execution-evidence-project/validation/execution-evidence.yaml",
+    )
+    .unwrap();
+    assert!(
+        serde_yaml::from_str::<hlv::model::execution_evidence::ExecutionEvidenceFile>(
+            &yaml.replace("\"outcome\": \"passed\"", "\"outcome\": \"success\"")
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn parse_project_yaml() {
     let p = ProjectMap::load(&Path::new(FIXTURE).join("project.yaml")).unwrap();
     assert_eq!(p.project, "commerce-checkout");

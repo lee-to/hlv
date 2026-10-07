@@ -14,6 +14,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Export input snapshots for external execution-evidence producers
+    Evidence {
+        #[command(subcommand)]
+        action: EvidenceAction,
+    },
     /// Scaffold a new HLV project (prompts interactively if options omitted)
     Init {
         /// Project name
@@ -52,6 +57,9 @@ enum Commands {
         /// Apply validation/waivers.yaml to matching diagnostics
         #[arg(long)]
         with_waivers: bool,
+        /// Check prerequisites without executing commands or enforcing execution evidence
+        #[arg(long)]
+        structural_only: bool,
     },
     /// Build and query the signature index
     Index {
@@ -211,6 +219,12 @@ enum Commands {
         #[arg(long)]
         workspace: Option<String>,
     },
+}
+
+#[derive(Subcommand)]
+enum EvidenceAction {
+    /// Print versioned JSON snapshots before running tests (does not execute tests)
+    Snapshot,
 }
 
 #[derive(Subcommand)]
@@ -737,12 +751,23 @@ fn run(cli: Cli) -> Result<()> {
 
     match cli.command {
         Commands::Init { .. } => unreachable!(),
+        Commands::Evidence {
+            action: EvidenceAction::Snapshot,
+        } => hlv::cmd::evidence::run_snapshot(&project_root),
         Commands::Check {
             watch,
             json,
             strict,
             with_waivers,
-        } => hlv::cmd::check::run(&project_root, watch, json, strict, with_waivers),
+            structural_only,
+        } => hlv::cmd::check::run(
+            &project_root,
+            watch,
+            json,
+            strict,
+            with_waivers,
+            structural_only,
+        ),
         Commands::Index { action } => match action {
             IndexAction::Build => hlv::cmd::index::run_build(&project_root),
             IndexAction::Show { symbol, json } => {

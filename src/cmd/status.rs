@@ -12,6 +12,7 @@ use crate::model::task::TaskStatus;
 /// Structured status data for JSON output
 #[derive(serde::Serialize)]
 pub struct StatusData {
+    pub execution_evidence: crate::check::execution_evidence::ExecutionEvidenceReport,
     pub project: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub milestone: Option<MilestoneStatusData>,
@@ -43,6 +44,7 @@ pub struct StageStatusData {
 }
 
 pub fn get_status(project_root: &Path) -> Result<StatusData> {
+    let repo_root = project_root;
     let project_root = &crate::config_root(project_root);
     let project = ProjectMap::load(&project_root.join("project.yaml"))?;
     let milestones = MilestoneMap::load(&project_root.join("milestones.yaml"))?;
@@ -90,6 +92,10 @@ pub fn get_status(project_root: &Path) -> Result<StatusData> {
     });
 
     Ok(StatusData {
+        execution_evidence: crate::check::execution_evidence::check_execution_evidence(
+            repo_root, &project,
+        )
+        .0,
         project: project.project,
         milestone,
         history_count: milestones.history.len(),
@@ -116,9 +122,10 @@ fn collect_contracts(root: &Path, milestone_id: &str) -> Vec<String> {
 }
 
 pub fn run(project_root: &Path, json: bool) -> Result<()> {
+    let repo_root = project_root;
     let project_root = &crate::config_root(project_root);
     if json {
-        let data = get_status(project_root)?;
+        let data = get_status(repo_root)?;
         println!("{}", serde_json::to_string_pretty(&data)?);
         return Ok(());
     }
@@ -256,7 +263,7 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
             .map(|c| &c.gate_results[..])
             .unwrap_or(&[]);
 
-        style::section("Gates");
+        style::section("Gates (last run; freshness not checked)");
         for gate in &policy.gates {
             let result = gate_results.iter().find(|r| r.id == gate.id);
             let (icon, label) = match result {
@@ -268,6 +275,19 @@ pub fn run(project_root: &Path, json: bool) -> Result<()> {
                 None => ("○".dimmed(), "not_run".dimmed()),
             };
             println!("    {} {} ({})", icon, gate.id, label);
+        }
+    }
+
+    if project.execution_evidence.is_some() {
+        let report =
+            crate::check::execution_evidence::check_execution_evidence(repo_root, &project).0;
+        style::section("Execution evidence (external runner)");
+        style::detail("Overall", &report.status.to_string());
+        for binding in report.bindings {
+            println!(
+                "    {}: {} — {}",
+                binding.binding, binding.status, binding.reason
+            );
         }
     }
 

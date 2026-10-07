@@ -16,12 +16,12 @@ use hlv::check::traceability::{check_traceability, check_traceability_with_patte
 use hlv::check::validation::{check_test_specs, check_test_specs_with_pattern};
 use hlv::check::{self, Severity};
 use hlv::model::glossary::Glossary;
-use hlv::model::project::ConstraintEntry;
 use hlv::model::project::LlmPaths;
 use hlv::model::project::{
     ComponentType, ContractEntry, ContractStatus, DependencyType, Stack, StackComponent,
     StackDependency,
 };
+use hlv::model::project::{ConstraintEntry, ProjectMap};
 
 // ═══════════════════════════════════════════════════════
 // Helpers
@@ -5061,6 +5061,7 @@ fn minimal_project_with_constraints(
         git: Default::default(),
         features: Default::default(),
         artifact_graph: None,
+        execution_evidence: None,
         hlv_root: None,
     }
 }
@@ -5647,4 +5648,613 @@ affects: [code-auth]
         "unexpected ART-050: {:?}",
         diags
     );
+}
+
+// External execution evidence is separate from structural traceability.
+fn evidence_fixture() -> TempDir {
+    fn copy(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_dir() {
+                copy(&entry.path(), &to.join(entry.file_name()));
+            } else {
+                fs::copy(entry.path(), to.join(entry.file_name())).unwrap();
+            }
+        }
+    }
+    let tmp = TempDir::new().unwrap();
+    copy(
+        Path::new("tests/fixtures/execution-evidence-project"),
+        tmp.path(),
+    );
+    tmp
+}
+
+fn evidence_run(root: &Path) -> hlv::model::execution_evidence::ExecutionEvidenceRun {
+    let project = ProjectMap::load(&hlv::config_root(root).join("project.yaml")).unwrap();
+    let config = project.execution_evidence.as_ref().unwrap();
+    let mut file = hlv::model::execution_evidence::ExecutionEvidenceFile::load(
+        &Path::new("tests/fixtures/execution-evidence-project")
+            .join("validation/execution-evidence.yaml"),
+    )
+    .unwrap();
+    let mut run = file.runs.remove(0);
+    run.snapshot =
+        hlv::check::execution_evidence::capture_snapshot(root, &project, &config.bindings[0])
+            .unwrap();
+    run
+}
+
+fn write_evidence(root: &Path, runs: Vec<hlv::model::execution_evidence::ExecutionEvidenceRun>) {
+    fs::write(
+        hlv::config_root(root).join("validation/execution-evidence.yaml"),
+        serde_yaml::to_string(&hlv::model::execution_evidence::ExecutionEvidenceFile {
+            schema_version: 1,
+            runs,
+        })
+        .unwrap(),
+    )
+    .unwrap();
+}
+
+fn assert_evidence_status(
+    root: &Path,
+    expected: hlv::check::execution_evidence::EvidenceStatus,
+    code: Option<&str>,
+) {
+    let project = ProjectMap::load(&hlv::config_root(root).join("project.yaml")).unwrap();
+    let (report, diags) = hlv::check::execution_evidence::check_execution_evidence(root, &project);
+    assert_eq!(report.status, expected, "{diags:?}");
+    assert_eq!(report.bindings[0].status, expected);
+    if let Some(code) = code {
+        assert!(diags.iter().any(|d| d.code == code), "{diags:?}");
+    } else {
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+}
+
+#[test]
+fn execution_evidence_compatible_fixture_and_separate_json_report() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_fixture();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Passed, None);
+    let report = hlv::cmd::check::get_check_report(tmp.path(), Default::default()).unwrap();
+    assert_eq!(report.structural_status, "passed");
+    assert_eq!(report.execution_evidence.status, EvidenceStatus::Passed);
+    assert_eq!(report.exit_code, 0, "{:?}", report.diagnostics);
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["check", "--json", "--root"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["structural_status"], "passed");
+    assert_eq!(report["execution_evidence"]["status"], "passed");
+    assert_eq!(
+        report["execution_evidence"]["bindings"][0]["artifact_ref"],
+        "https://ci.example.invalid/runs/example-run-1/report"
+    );
+}
+
+#[test]
+fn execution_evidence_missing_runs_and_default_opt_out() {
+    use hlv::check::execution_evidence::{check_execution_evidence, EvidenceStatus};
+    let tmp = evidence_fixture();
+    fs::remove_file(tmp.path().join("validation/execution-evidence.yaml")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Missing, Some("EVD-020"));
+    let report = hlv::cmd::check::get_check_report(tmp.path(), Default::default()).unwrap();
+    assert_eq!(report.structural_status, "passed");
+    assert_eq!(report.exit_code, 1);
+    write_evidence(tmp.path(), vec![]);
+    assert_evidence_status(tmp.path(), EvidenceStatus::Missing, Some("EVD-020"));
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    project.execution_evidence = None;
+    fs::write(
+        tmp.path().join("validation/execution-evidence.yaml"),
+        "invalid YAML: [",
+    )
+    .unwrap();
+    let (report, diags) = check_execution_evidence(tmp.path(), &project);
+    assert_eq!(report.status, EvidenceStatus::NotConfigured);
+    assert!(diags.is_empty());
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    assert_eq!(
+        hlv::cmd::check::get_check_report(tmp.path(), Default::default())
+            .unwrap()
+            .exit_code,
+        0
+    );
+}
+
+#[test]
+fn execution_evidence_changes_to_requirement_code_and_test_are_stale() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    for path in [
+        "human/traceability.yaml",
+        "validation/gates-policy.yaml",
+        "llm/src/value.sh",
+        "llm/tests/check.sh",
+        "validation/test-specs/demo.md",
+    ] {
+        let tmp = evidence_fixture();
+        let input = tmp.path().join(path);
+        fs::write(
+            &input,
+            format!("{}\n# changed\n", fs::read_to_string(&input).unwrap()),
+        )
+        .unwrap();
+        assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    }
+    let tmp = evidence_fixture();
+    fs::write(tmp.path().join("llm/src/new.sh"), "echo new\n").unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    fs::remove_file(tmp.path().join("llm/src/new.sh")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    project.execution_evidence.as_mut().unwrap().bindings[0].approved_requirement_revision =
+        "approved-v2".into();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+}
+
+#[test]
+fn execution_evidence_identity_mismatch_and_unresolved_binding_cannot_pass() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_fixture();
+    let mut run = evidence_run(tmp.path());
+    run.snapshot.test = "CT-OTHER-001".into();
+    write_evidence(tmp.path(), vec![run]);
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    project.execution_evidence.as_mut().unwrap().bindings[0].test = "CT-UNKNOWN-001".into();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Invalid, Some("EVD-010"));
+}
+
+#[test]
+fn execution_evidence_actual_outcomes_and_incomplete_terminal_metadata() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    use hlv::model::execution_evidence::ExecutionOutcome;
+    let tmp = evidence_fixture();
+    for (outcome, status) in [
+        (ExecutionOutcome::Failed, EvidenceStatus::Failed),
+        (ExecutionOutcome::Incomplete, EvidenceStatus::Incomplete),
+        (ExecutionOutcome::Skipped, EvidenceStatus::Skipped),
+    ] {
+        let mut run = evidence_run(tmp.path());
+        run.outcome = outcome;
+        if run.outcome == ExecutionOutcome::Incomplete {
+            run.finished_at = None;
+            run.artifact_ref = None;
+        }
+        write_evidence(tmp.path(), vec![run]);
+        assert_evidence_status(tmp.path(), status, Some("EVD-040"));
+    }
+    for missing in ["timestamp", "artifact", "run_id", "code_revision", "hash"] {
+        let mut run = evidence_run(tmp.path());
+        match missing {
+            "timestamp" => run.finished_at = None,
+            "artifact" => run.artifact_ref = Some(" ".into()),
+            "run_id" => run.run_id.clear(),
+            "code_revision" => run.code_revision.clear(),
+            _ => {
+                *run.snapshot.inputs.values_mut().next().unwrap() = "not-sha256".into();
+            }
+        }
+        write_evidence(tmp.path(), vec![run]);
+        assert_evidence_status(tmp.path(), EvidenceStatus::Invalid, Some("EVD-001"));
+    }
+}
+
+#[test]
+fn execution_evidence_malformed_versions_and_duplicates_are_invalid() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_fixture();
+    let run = evidence_run(tmp.path());
+    write_evidence(tmp.path(), vec![run.clone(), run]);
+    assert_evidence_status(tmp.path(), EvidenceStatus::Invalid, Some("EVD-001"));
+    for content in [
+        "schema_version: 2\nruns: []\n",
+        "invalid: [",
+        "schema_version: 1\nruns: []\nunknown: true\n",
+    ] {
+        fs::write(
+            tmp.path().join("validation/execution-evidence.yaml"),
+            content,
+        )
+        .unwrap();
+        assert_evidence_status(tmp.path(), EvidenceStatus::Invalid, Some("EVD-001"));
+    }
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let config = project.execution_evidence.as_mut().unwrap();
+    config.bindings.push(config.bindings[0].clone());
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let diags = hlv::check::project_map::check_project_map(tmp.path());
+    assert!(diags.iter().any(|d| d.code == "PRJ-100"));
+    let report = hlv::cmd::check::get_check_report(tmp.path(), Default::default()).unwrap();
+    assert_eq!(report.execution_evidence.status, EvidenceStatus::Invalid);
+}
+
+#[test]
+fn execution_evidence_paths_cannot_escape_the_project() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_fixture();
+    for path in ["../outside", "/absolute", ""] {
+        let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+        project.execution_evidence.as_mut().unwrap().path = path.into();
+        let (report, diags) =
+            hlv::check::execution_evidence::check_execution_evidence(tmp.path(), &project);
+        assert_eq!(report.status, EvidenceStatus::Invalid);
+        assert!(diags.iter().any(|d| d.code == "EVD-001"));
+        project.execution_evidence.as_mut().unwrap().path =
+            "validation/execution-evidence.yaml".into();
+        project.execution_evidence.as_mut().unwrap().bindings[0].code_paths = vec![path.into()];
+        assert!(hlv::check::execution_evidence::capture_snapshot(
+            tmp.path(),
+            &project,
+            &project.execution_evidence.as_ref().unwrap().bindings[0]
+        )
+        .is_err());
+    }
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(
+            tmp.path().join("llm/src/value.sh"),
+            tmp.path().join("llm/src/link.sh"),
+        )
+        .unwrap();
+        assert_evidence_status(tmp.path(), EvidenceStatus::Invalid, Some("EVD-010"));
+    }
+}
+
+#[test]
+fn execution_evidence_snapshot_command_only_exports_inputs() {
+    let tmp = evidence_fixture();
+    fs::write(
+        tmp.path().join("llm/tests/check.sh"),
+        "touch SHOULD_NOT_EXIST\n",
+    )
+    .unwrap();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["evidence", "snapshot", "--root"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{:?}", output);
+    let snapshot: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(snapshot["schema_version"], 1);
+    assert_eq!(snapshot["snapshots"][0]["binding"], "demo");
+    assert!(snapshot["snapshots"][0]["inputs"]["llm/src/value.sh"].is_string());
+    assert!(snapshot["snapshots"][0].get("outcome").is_none());
+    assert!(!tmp.path().join("SHOULD_NOT_EXIST").exists());
+}
+
+#[test]
+fn execution_evidence_adopted_roots_and_status_use_the_same_snapshot() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let fixture = evidence_fixture();
+    let tmp = TempDir::new().unwrap();
+    fs::rename(fixture.path(), tmp.path().join(".hlv")).unwrap();
+    let mut project = ProjectMap::load(&tmp.path().join(".hlv/project.yaml")).unwrap();
+    let binding = &mut project.execution_evidence.as_mut().unwrap().bindings[0];
+    binding.requirement_file = format!(".hlv/{}", binding.requirement_file);
+    for path in binding.test_paths.iter_mut().chain(&mut binding.code_paths) {
+        *path = format!(".hlv/{path}");
+    }
+    project.save(&tmp.path().join(".hlv/project.yaml")).unwrap();
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    assert_evidence_status(tmp.path(), EvidenceStatus::Passed, None);
+    assert_eq!(
+        hlv::cmd::status::get_status(tmp.path())
+            .unwrap()
+            .execution_evidence
+            .status,
+        EvidenceStatus::Passed
+    );
+    assert_eq!(
+        hlv::cmd::status::get_status(&tmp.path().join(".hlv"))
+            .unwrap()
+            .execution_evidence
+            .status,
+        EvidenceStatus::Passed
+    );
+    fs::write(tmp.path().join(".hlv/llm/src/value.sh"), "echo 2\n").unwrap();
+    assert_eq!(
+        hlv::cmd::status::get_status(tmp.path())
+            .unwrap()
+            .execution_evidence
+            .status,
+        EvidenceStatus::Stale
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn execution_evidence_negative_control_structural_links_with_wrong_observation() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    use hlv::model::execution_evidence::ExecutionOutcome;
+    let tmp = evidence_fixture();
+    let entry = ContractEntry {
+        id: "demo".into(),
+        version: "1.0.0".into(),
+        path: "human/contracts/demo.md".into(),
+        yaml_path: None,
+        owner: None,
+        status: ContractStatus::Draft,
+        test_spec: Some("validation/test-specs/demo.md".into()),
+        depends_on: vec![],
+        artifacts: vec![],
+    };
+    let diags = hlv::check::traceability::check_traceability(
+        tmp.path(),
+        "human/traceability.yaml",
+        &[entry],
+    );
+    assert!(
+        diags.is_empty(),
+        "structural chain should be valid: {diags:?}"
+    );
+    assert!(std::process::Command::new("sh")
+        .arg("llm/tests/check.sh")
+        .current_dir(tmp.path())
+        .status()
+        .unwrap()
+        .success());
+    // Keep valid metadata, but introduce an incorrect observed result.
+    fs::write(tmp.path().join("llm/src/value.sh"), "echo 2\n").unwrap();
+    let mut run = evidence_run(tmp.path()); // pre-run snapshot, before executing the runner
+    let observed = std::process::Command::new("sh")
+        .arg("llm/tests/check.sh")
+        .current_dir(tmp.path())
+        .status()
+        .unwrap();
+    assert!(!observed.success());
+    run.outcome = ExecutionOutcome::Failed;
+    run.artifact_ref = Some("negative-control-report: expected 1, observed 2".into());
+    write_evidence(tmp.path(), vec![run]);
+    let report = hlv::cmd::check::get_check_report(tmp.path(), Default::default()).unwrap();
+    assert_eq!(report.structural_status, "passed");
+    assert_eq!(report.execution_evidence.status, EvidenceStatus::Failed);
+    assert_eq!(report.exit_code, 1);
+    assert!(report.diagnostics.iter().any(|d| d.code == "EVD-040"));
+}
+
+// A portable external runner for workflow tests. The normal suite invocation is a no-op;
+// gate and constraint commands invoke this test in an isolated fixture working directory.
+#[test]
+fn execution_evidence_workflow_runner() {
+    if !Path::new("workflow-runner-enabled").exists() {
+        return;
+    }
+    fs::write("workflow-runner-ran", "executed\n").unwrap();
+    let input = fs::read_to_string("llm/src/value.sh").unwrap();
+    let observed: u32 = input.trim().strip_prefix("echo ").unwrap().parse().unwrap();
+    assert_eq!(observed, 1);
+}
+
+fn evidence_workflow_fixture() -> TempDir {
+    let tmp = evidence_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    // The fixture intentionally has unmapped files; the workflow scenarios need a
+    // strict-clean structural baseline so evidence is the only deferred dimension.
+    project.paths.llm.map = None;
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let policy_path = tmp.path().join("validation/gates-policy.yaml");
+    let mut policy = hlv::model::policy::GatesPolicy::load(&policy_path).unwrap();
+    policy.gates[0].command = Some(portable_gate_command(&[
+        "--exact",
+        "execution_evidence_workflow_runner",
+        "--nocapture",
+    ]));
+    policy.save(&policy_path).unwrap();
+    fs::write(tmp.path().join("workflow-runner-enabled"), "enabled\n").unwrap();
+    tmp
+}
+
+fn evidence_workflow_check(root: &Path, structural_only: bool) -> (bool, serde_json::Value) {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"));
+    command
+        .args(["check", "--strict", "--json", "--root"])
+        .arg(root);
+    if structural_only {
+        command.arg("--structural-only");
+    }
+    let output = command.output().unwrap();
+    let report = serde_json::from_slice(&output.stdout)
+        .unwrap_or_else(|error| panic!("{error}: {output:?}"));
+    (output.status.success(), report)
+}
+
+fn evidence_workflow_publish(root: &Path) {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["evidence", "snapshot", "--root"])
+        .arg(root)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let snapshots: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let mut run = evidence_run(root);
+    run.snapshot = serde_json::from_value(snapshots["snapshots"][0].clone()).unwrap();
+    assert!(
+        !root.join("workflow-runner-ran").exists(),
+        "snapshot must precede execution"
+    );
+    let observed = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "execution_evidence_workflow_runner",
+            "--nocapture",
+        ])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(observed.status.success(), "{observed:?}");
+    assert!(root.join("workflow-runner-ran").exists());
+    let project = ProjectMap::load(&root.join("project.yaml")).unwrap();
+    let post_snapshot = hlv::check::execution_evidence::capture_snapshot(
+        root,
+        &project,
+        &project.execution_evidence.as_ref().unwrap().bindings[0],
+    )
+    .unwrap();
+    assert_eq!(
+        run.snapshot, post_snapshot,
+        "inputs must stay unchanged during execution"
+    );
+    fs::write(root.join("workflow-runner-report.txt"), observed.stdout).unwrap();
+    run.artifact_ref = Some("workflow-runner-report.txt".into());
+    write_evidence(root, vec![run]);
+    let (success, report) = evidence_workflow_check(root, false);
+    assert!(success, "{report}");
+    assert_eq!(report["structural_only"], false);
+    assert_eq!(report["structural_status"], "passed");
+    assert_eq!(report["execution_evidence"]["status"], "passed");
+}
+
+#[test]
+fn execution_evidence_workflow_first_run_preflight_then_publish() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_workflow_fixture();
+    fs::remove_file(tmp.path().join("validation/execution-evidence.yaml")).unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Missing, Some("EVD-020"));
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert_eq!(report["structural_only"], true);
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    assert!(!tmp.path().join("workflow-runner-ran").exists());
+    evidence_workflow_publish(tmp.path());
+}
+
+#[test]
+fn execution_evidence_workflow_stale_run_preflight_then_republish() {
+    use hlv::check::execution_evidence::EvidenceStatus;
+    let tmp = evidence_workflow_fixture();
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    fs::write(tmp.path().join("llm/src/value.sh"), "echo 1\n\n").unwrap();
+    assert_evidence_status(tmp.path(), EvidenceStatus::Stale, Some("EVD-030"));
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    assert!(!tmp.path().join("workflow-runner-ran").exists());
+    evidence_workflow_publish(tmp.path());
+}
+
+#[test]
+fn execution_evidence_structural_only_skips_gate_and_constraint_commands() {
+    let tmp = evidence_workflow_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let cmd = portable_gate_command(&[
+        "--exact",
+        "execution_evidence_workflow_runner",
+        "--nocapture",
+    ]);
+    let path = "human/constraints/workflow.yaml";
+    fs::write(tmp.path().join(path), format!(
+        "id: workflow\nversion: '1.0.0'\ncheck_command: {}\nrules:\n  - id: workflow-rule\n    severity: critical\n    statement: Check workflow\n    check_command: {}\n",
+        serde_json::to_string(&cmd).unwrap(), serde_json::to_string(&cmd).unwrap(),
+    )).unwrap();
+    project.constraints.push(ConstraintEntry {
+        id: "workflow".into(),
+        path: path.into(),
+        applies_to: None,
+    });
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(success, "{report}");
+    assert!(
+        !tmp.path().join("workflow-runner-ran").exists(),
+        "preflight must execute no commands"
+    );
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    assert!(evidence_workflow_check(tmp.path(), false).0);
+    assert!(
+        tmp.path().join("workflow-runner-ran").exists(),
+        "full checks still execute commands"
+    );
+}
+
+#[test]
+fn execution_evidence_structural_only_supports_planned_inputs_but_blocks_invalid_bindings() {
+    let tmp = evidence_workflow_fixture();
+    let mut project = ProjectMap::load(&tmp.path().join("project.yaml")).unwrap();
+    let binding = &mut project.execution_evidence.as_mut().unwrap().bindings[0];
+    binding.test_paths = vec!["llm/tests/not-implemented.rs".into()];
+    binding.code_paths = vec!["llm/src/not-implemented.rs".into()];
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(
+        success,
+        "pre-implementation verification should defer absent code/test inputs: {report}"
+    );
+    assert_eq!(report["execution_evidence"]["status"], "not_checked");
+    let snapshot = std::process::Command::new(env!("CARGO_BIN_EXE_hlv"))
+        .args(["evidence", "snapshot", "--root"])
+        .arg(tmp.path())
+        .output()
+        .unwrap();
+    assert!(
+        !snapshot.status.success(),
+        "absent inputs must block capture before execution"
+    );
+    project.execution_evidence.as_mut().unwrap().bindings[0].test = "CT-UNKNOWN-001".into();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "invalid");
+    assert!(report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["code"] == "EVD-010"));
+    project.execution_evidence.as_mut().unwrap().bindings[0]
+        .approved_requirement_revision
+        .clear();
+    project.save(&tmp.path().join("project.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), true);
+    assert!(!success);
+    assert!(report["diagnostics"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["code"] == "PRJ-100"));
+}
+
+#[test]
+fn execution_evidence_final_check_still_blocks_missing_stale_and_nonpassing_outcomes() {
+    use hlv::model::execution_evidence::ExecutionOutcome;
+    let tmp = evidence_workflow_fixture();
+    for outcome in [
+        ExecutionOutcome::Failed,
+        ExecutionOutcome::Incomplete,
+        ExecutionOutcome::Skipped,
+    ] {
+        let mut run = evidence_run(tmp.path());
+        run.outcome = outcome;
+        write_evidence(tmp.path(), vec![run]);
+        assert!(
+            evidence_workflow_check(tmp.path(), true).0,
+            "old outcomes must not prevent reruns"
+        );
+        let (success, report) = evidence_workflow_check(tmp.path(), false);
+        assert!(!success, "{report}");
+        assert_eq!(report["structural_status"], "passed");
+        assert!(report["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|d| d["code"] == "EVD-040"));
+    }
+    fs::remove_file(tmp.path().join("validation/execution-evidence.yaml")).unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), false);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "missing");
+    write_evidence(tmp.path(), vec![evidence_run(tmp.path())]);
+    fs::write(tmp.path().join("llm/src/value.sh"), "echo 1\n\n").unwrap();
+    let (success, report) = evidence_workflow_check(tmp.path(), false);
+    assert!(!success);
+    assert_eq!(report["execution_evidence"]["status"], "stale");
 }

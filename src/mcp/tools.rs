@@ -34,12 +34,14 @@ fn quiet<T>(f: impl FnOnce() -> T) -> T {
 // ── hlv_check ──────────────────────────────────────────────────────────
 
 pub fn hlv_check(root: &Path) -> Result<CallToolResult, McpError> {
-    let (diagnostics, exit_code) =
-        crate::cmd::check::get_check_diagnostics(root).map_err(|e| mcp_err("Check failed", e))?;
+    let report = crate::cmd::check::get_check_report(root, Default::default())
+        .map_err(|e| mcp_err("Check failed", e))?;
 
     json_ok(&serde_json::json!({
-        "exit_code": exit_code,
-        "diagnostics": diagnostics,
+        "exit_code": report.exit_code,
+        "diagnostics": report.diagnostics,
+        "structural_status": report.structural_status,
+        "execution_evidence": report.execution_evidence,
     }))
 }
 

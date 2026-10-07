@@ -4,6 +4,7 @@ pub mod commit_msg;
 pub mod constraints;
 pub mod dashboard;
 pub mod doctor;
+pub mod evidence;
 pub mod explain;
 pub mod gates;
 pub mod glossary;

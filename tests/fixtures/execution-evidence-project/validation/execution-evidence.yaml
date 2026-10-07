@@ -1,0 +1,27 @@
+# Synthetic contract example; tests execute the negative control independently.
+{
+  "schema_version": 1,
+  "runs": [
+    {
+      "snapshot": {
+        "binding": "demo",
+        "requirement": "REQ-DEMO-001",
+        "approved_requirement_revision": "approved-v1",
+        "test": "CT-DEMO-001",
+        "gate": "GATE-DEMO-001",
+        "inputs": {
+          "human/traceability.yaml": "29ec4dc5187f0a89dc189fa3e05544025e577711225d25e98a3a37c1f08f93a5",
+          "llm/src/value.sh": "c44090c3f318c724c480b810801ef2974b32e2b9ee7ca29ca861cedd6896f798",
+          "llm/tests/check.sh": "752b0ad7cb1ac10a48b025223b56d783ef25579ee09c4bf20a84aaedb8adab45",
+          "validation/test-specs/demo.md": "956cd3477df1bdaaa4288f09e5cb02cbadf34edbd018b8bbd1822eecba1059f6",
+          "validation/gates-policy.yaml": "ce36f14550e512d244ad9cc65baffc553cf52162dd794cba9b359d1b46115e57"
+        }
+      },
+      "code_revision": "synthetic-v1",
+      "run_id": "example-run-1",
+      "outcome": "passed",
+      "finished_at": "2026-01-01T00:00:00Z",
+      "artifact_ref": "https://ci.example.invalid/runs/example-run-1/report"
+    }
+  ]
+}

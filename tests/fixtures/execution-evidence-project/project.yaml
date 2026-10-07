@@ -1,0 +1,34 @@
+schema_version: 1
+project: evidence-demo
+status: draft
+paths:
+  human:
+    artifacts: human/artifacts/
+    glossary: human/glossary.yaml
+    constraints: human/constraints/
+  validation:
+    test_specs: validation/test-specs/
+    scenarios: validation/scenarios/
+    traceability: human/traceability.yaml
+    gates_policy: validation/gates-policy.yaml
+  llm:
+    src: llm/src/
+    tests: llm/tests/
+    map: llm/map.yaml
+git:
+  commit_convention: conventional
+  merge_strategy: manual
+features:
+  hlv_markers: false
+  security_markers: false
+execution_evidence:
+  path: validation/execution-evidence.yaml
+  bindings:
+    - id: demo
+      requirement: REQ-DEMO-001
+      approved_requirement_revision: approved-v1
+      requirement_file: human/traceability.yaml
+      test: CT-DEMO-001
+      gate: GATE-DEMO-001
+      test_paths: [llm/tests/, validation/test-specs/]
+      code_paths: [llm/src/]

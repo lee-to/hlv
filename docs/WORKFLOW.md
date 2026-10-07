@@ -219,6 +219,7 @@ The LLM reads all your artifacts and generates:
 | Contracts (YAML) | `contracts/*.yaml` | Machine-readable IR |
 | Test specs | `test-specs/*.md` | What to test (not test code, but specifications) |
 | Traceability | `traceability.yaml` | REQ -> Contract -> Test -> Gate chain |
+| Execution evidence (opt-in) | `project.yaml → execution_evidence` | Bind selected requirements/tests/gates to approved revisions and test/code input scopes |
 | Plan | `plan.md` | Table of contents: scope, stages, budget |
 | Stages | `stage_1.md`, `stage_2.md`, ... | Tasks for each stage |
 | Open questions | `open-questions.md` | Questions the LLM could not answer |
@@ -383,6 +384,20 @@ mod tests {
 ---
 
 ## Phase 5: Validation - gates decide
+
+Use `hlv check --structural-only` during generation, verification and implementation
+to check prerequisites while deferring execution outcomes. Before release runners,
+require `hlv check --strict --structural-only --json` to pass; missing/stale evidence
+is expected at this point, while invalid configuration/bindings still block.
+When `project.yaml.execution_evidence` is configured, capture `hlv evidence snapshot`
+before running the existing test runner and publish its actual outcome, original
+snapshot, run/revision identity and report reference. After publishing, require a full
+`hlv check --strict --json` without `--structural-only` before marking the stage
+validated. `hlv check` reports structural
+validation separately and blocks missing, stale, failed, incomplete or skipped
+evidence. `hlv status` checks evidence freshness without running tests; stored gate
+statuses describe the last run only. See [Execution evidence](EXECUTION_EVIDENCE.md)
+for the opt-in contract and producer protocol.
 
 **Who does it**: the LLM (via `/hlv-validate`). You do not run technical commands.
 

@@ -192,6 +192,16 @@ Questions the LLM could not infer from artifacts. These block `/hlv-verify`.
 
 ## 4. Validation Layer (PROOF)
 
+Structural traceability and execution evidence are separate. Opt-in
+`execution_evidence` consumes a versioned external runner manifest and compares
+pre-run SHA-256 input snapshots. `hlv evidence snapshot` exports inputs without
+executing tests; check and status reports distinguish missing, stale and non-passing
+evidence. [Execution evidence](EXECUTION_EVIDENCE.md) defines the v1 contract and
+producer protocol. `hlv check --structural-only` validates configuration/binding
+prerequisites before implementation or runner execution, with evidence outcomes
+explicitly `not_checked`; full checks enforce outcomes after publication.
+Projects that omit the section retain their validation defaults.
+
 Generated from contracts by `/hlv-generate`. Not written manually.
 
 ### 4.1 Test Specs
@@ -305,6 +315,7 @@ Every LLM agent MUST start by reading `project.yaml` (global configuration), the
 - **features** - workflow flags including `legacy_mode`, marker enforcement, and `index_tracking` (`ignored` or `tracked`) for the generated signature index
 - **stack** - technical stack: components with types, languages, and typed dependencies
 - **artifact_graph** - path-based ownership for code/test/doc nodes that participate in the artifact dependency graph
+- **execution_evidence** - optional external run manifest path and requirement/test/gate bindings, approved requirement revisions, and repository input scopes; see [Execution evidence](EXECUTION_EVIDENCE.md)
 
 **`milestones.yaml`** contains:
 - **current** - current milestone: id, branch, stage, stages with their statuses
